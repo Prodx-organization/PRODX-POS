@@ -78,6 +78,16 @@ test('rejects a tampered client total before financial writes', async () => {
   assert.equal(queries.filter((sql) => sql.trimStart().startsWith('INSERT') || sql.trimStart().startsWith('UPDATE')).length, 0);
 });
 
+test('rejects malformed checkout body before database access', async () => {
+  const db = executor(async () => {
+    throw new Error('database must not be touched');
+  });
+  await assert.rejects(
+    createCheckoutService(db).checkout({} as CheckoutRequest),
+    (error: unknown) => error instanceof CheckoutValidationError && error.code === 'CHECKOUT_VALIDATION_FAILED',
+  );
+});
+
 test('rejects malformed payment before financial writes', async () => {
   const db = executor(async <T extends Record<string, unknown>>(sql: string) => {
     if (sql.includes('FROM prodx_orders')) return { rows: [] as T[] };
@@ -87,7 +97,17 @@ test('rejects malformed payment before financial writes', async () => {
   });
   await assert.rejects(
     createCheckoutService(db).checkout(request({ payments: [] })),
-    (error: unknown) => error instanceof CheckoutConflictError,
+    (error: unknown) => error instanceof CheckoutValidationError && error.code === 'CHECKOUT_VALIDATION_FAILED',
+  );
+});
+
+test('rejects duplicate payment ids before financial writes', async () => {
+  const db = executor(async () => ({ rows: [] }));
+  const base = request().payments[0];
+  const duplicate: CheckoutRequest = { ...request(), payments: [base, base] };
+  await assert.rejects(
+    createCheckoutService(db).checkout(duplicate),
+    (error: unknown) => error instanceof CheckoutValidationError && /Duplicate payment id/.test(error.message),
   );
 });
 
