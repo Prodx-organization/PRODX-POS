@@ -1,0 +1,81 @@
+name: Emergency AI Failover Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  credential-smoke:
+    name: Verify Gemini + CodeSandbox failover credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      CSB_API_KEY: ${{ secrets.CSB_API_KEY }}
+    steps:
+      - name: Require failover secrets without exposing them
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GEMINI_API_KEY:-}" || { echo "GEMINI_API_KEY is not configured for this workflow."; exit 1; }
+          test -n "${CSB_API_KEY:-}" || { echo "CSB_API_KEY is not configured for this workflow."; exit 1; }
+          echo "GEMINI_API_KEY=injected"
+          echo "CSB_API_KEY=injected"
+
+      - name: Verify Gemini API read-only smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          Path("gemini-smoke.json").write_text(json.dumps({
+              "contents": [{"parts": [{"text": "Reply with exactly PRODX_GEMINI_FAILOVER_OK"}]}]
+          }))
+          PY
+          http_code="$(curl --silent --show-error             --output gemini-result.json             --write-out '%{http_code}'             -H "x-goog-api-key: $GEMINI_API_KEY"             -H "Content-Type: application/json"             -X POST             "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"             --data-binary @gemini-smoke.json)"
+          test "$http_code" = "200" || {
+            echo "Gemini API smoke failed with HTTP $http_code"
+            exit 1
+          }
+          python - <<'PY'
+          import json
+          data = json.load(open("gemini-result.json", encoding="utf-8"))
+          text = data["candidates"][0]["content"]["parts"][0]["text"]
+          if "PRODX_GEMINI_FAILOVER_OK" not in text:
+              raise SystemExit("Gemini returned an unexpected smoke response")
+          print("Gemini API smoke: PASS")
+          PY
+
+      - name: Install CodeSandbox SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock @codesandbox/sdk@2.4.2
+
+      - name: Verify CodeSandbox API read-only smoke
+        env:
+          CSB_API_KEY: ${{ secrets.CSB_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { CodeSandbox } from "@codesandbox/sdk";
+
+          const sdk = new CodeSandbox(process.env.CSB_API_KEY);
+          const result = await sdk.sandboxes.list({ limit: 1 });
+
+          console.log(JSON.stringify({
+            codesandbox_authenticated: true,
+            totalCount: result.totalCount,
+          }));
+          NODE
+
+      - name: Report machine-readable readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n'             'GEMINI_API=PASS'             'CODESANDBOX_API=PASS'             'EMERGENCY_AI_FAILOVER=READY' > failover-readiness.txt
+          cat failover-readiness.txt
