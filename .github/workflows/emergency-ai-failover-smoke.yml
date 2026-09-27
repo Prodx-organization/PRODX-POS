@@ -2,6 +2,9 @@ name: Emergency AI Failover Smoke
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/emergency-ai-failover-smoke.yml"
 
 permissions:
   contents: read
@@ -56,8 +59,6 @@ jobs:
           npm install --no-save --no-package-lock @codesandbox/sdk@2.4.2
 
       - name: Verify CodeSandbox API read-only smoke
-        env:
-          CSB_API_KEY: ${{ secrets.CSB_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
