@@ -14,10 +14,21 @@ export class CheckoutConflictError extends Error {
 type ProductRow = {
   id: string;
   store_id: string;
+  category_id: string;
+  sku: string;
+  barcode: string;
+  name: string;
+  description: string | null;
   price_minor: string;
+  cost_price_minor: string;
   currency: string;
   tax_rate_bps: number;
   current_stock: number;
+  reorder_point: number;
+  unit_of_measure: string;
+  is_age_restricted: boolean;
+  image_url: string | null;
+  active: boolean;
 };
 
 type OrderRow = {
