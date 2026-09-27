@@ -62,9 +62,20 @@ type OrderItemRow = {
   line_total_minor: string;
   currency: string;
   product_store_id: string;
+  product_category_id: string;
   product_sku: string;
   product_barcode: string;
   product_name: string;
+  product_description: string | null;
+  product_price_minor: string;
+  product_cost_price_minor: string;
+  product_tax_rate_bps: number;
+  product_current_stock: number;
+  product_reorder_point: number;
+  product_unit_of_measure: string;
+  product_is_age_restricted: boolean;
+  product_image_url: string | null;
+  product_active: boolean;
 };
 
 type PaymentRow = {
@@ -187,8 +198,13 @@ const readOrderItems = async (db: SqlQueryExecutor, orderId: string, storeId: st
     `SELECT oi.id, oi.product_id, oi.quantity, oi.unit_price_minor::text AS unit_price_minor,
             oi.item_discount_bps, oi.line_subtotal_minor::text AS line_subtotal_minor,
             oi.line_tax_minor::text AS line_tax_minor, oi.line_total_minor::text AS line_total_minor,
-            oi.currency, p.store_id AS product_store_id, p.sku AS product_sku,
-            p.barcode AS product_barcode, p.name AS product_name
+            oi.currency, p.store_id AS product_store_id, p.category_id AS product_category_id,
+            p.sku AS product_sku, p.barcode AS product_barcode, p.name AS product_name,
+            p.description AS product_description, p.price_minor::text AS product_price_minor,
+            p.cost_price_minor::text AS product_cost_price_minor, p.tax_rate_bps AS product_tax_rate_bps,
+            p.current_stock AS product_current_stock, p.reorder_point AS product_reorder_point,
+            p.unit_of_measure AS product_unit_of_measure, p.is_age_restricted AS product_is_age_restricted,
+            p.image_url AS product_image_url, p.active AS product_active
        FROM prodx_order_items oi
        JOIN prodx_products p ON p.id = oi.product_id AND p.store_id = oi.store_id
       WHERE oi.order_id = $1 AND oi.store_id = $2
@@ -226,15 +242,16 @@ const toResponse = async (db: SqlQueryExecutor, row: OrderRow, cached: boolean):
       sku: item.product_sku,
       barcode: item.product_barcode,
       name: item.product_name,
-      categoryId: '',
-      price: { amountInCents: toSafeNumber(BigInt(item.unit_price_minor), 'unit price'), currency: item.currency },
-      costPrice: { amountInCents: 0, currency: item.currency },
-      taxRateBps: 0,
-      currentStock: 0,
-      reorderPoint: 0,
-      unitOfMeasure: 'unit',
-      isAgeRestricted: false,
-      active: true,
+      description: item.product_description ?? undefined,
+      categoryId: item.product_category_id,
+      price: { amountInCents: toSafeNumber(BigInt(item.product_price_minor), 'product price'), currency: item.currency },
+      costPrice: { amountInCents: toSafeNumber(BigInt(item.product_cost_price_minor), 'product cost price'), currency: item.currency },
+      taxRateBps: item.product_tax_rate_bps,
+      currentStock: item.product_current_stock,
+      reorderPoint: item.product_reorder_point,
+      unitOfMeasure: item.product_unit_of_measure,
+      isAgeRestricted: item.product_is_age_restricted,
+      imageUrl: item.product_image_url ?? undefined,
     },
     quantity: item.quantity,
     unitPrice: { amountInCents: toSafeNumber(BigInt(item.unit_price_minor), 'unit price'), currency: item.currency },
