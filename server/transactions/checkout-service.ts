@@ -112,6 +112,39 @@ const ensureMoney = (value: unknown, field: string): bigint => {
   return amount;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0;
+
+const validateCheckoutRequest = (request: unknown): asserts request is CheckoutRequest => {
+  if (!isRecord(request)) throw new CheckoutValidationError('Checkout request must be an object.');
+  if (!isNonEmptyString(request.idempotencyKey)) throw new CheckoutValidationError('Idempotency key is required.');
+  if (!isNonEmptyString(request.storeId) || !isNonEmptyString(request.registerId) || !isNonEmptyString(request.cashierId)) {
+    throw new CheckoutValidationError('Store, register and cashier are required.');
+  }
+  if (!Array.isArray(request.items) || request.items.length === 0) throw new CheckoutValidationError('At least one checkout item is required.');
+  if (!Array.isArray(request.payments) || request.payments.length === 0) throw new CheckoutValidationError('At least one payment is required.');
+  if (!isRecord(request.totals) || !isRecord(request.totals.grandTotal)) throw new CheckoutValidationError('Checkout totals are required.');
+
+  request.items.forEach((rawItem, index) => {
+    if (!isRecord(rawItem) || !isRecord(rawItem.product)) throw new CheckoutValidationError(`Invalid checkout item at index ${index}.`);
+    if (!isNonEmptyString(rawItem.product.id) || !isNonEmptyString(rawItem.product.storeId)) throw new CheckoutValidationError(`Invalid product identity at item index ${index}.`);
+    if (!Number.isSafeInteger(rawItem.quantity) || rawItem.quantity <= 0) throw new CheckoutValidationError(`Invalid quantity at item index ${index}.`);
+    if (!Number.isInteger(rawItem.discountBps) || rawItem.discountBps < 0 || rawItem.discountBps > 10000) throw new CheckoutValidationError(`Invalid discount at item index ${index}.`);
+  });
+
+  const paymentIds = new Set<string>();
+  request.payments.forEach((rawPayment, index) => {
+    if (!isRecord(rawPayment) || !isNonEmptyString(rawPayment.id) || !isNonEmptyString(rawPayment.method)) throw new CheckoutValidationError(`Invalid payment at index ${index}.`);
+    if (paymentIds.has(rawPayment.id)) throw new CheckoutValidationError(`Duplicate payment id ${rawPayment.id}.`);
+    paymentIds.add(rawPayment.id);
+    if (!isRecord(rawPayment.amount)) throw new CheckoutValidationError(`Payment amount is required at index ${index}.`);
+    ensureMoney(rawPayment.amount, `payment ${rawPayment.id}`);
+  });
+};
+
 const calculateAuthoritativeTotals = (items: readonly CartLineItem[], products: readonly ProductRow[], orderDiscountBps: number) => {
   if (items.length === 0) throw new CheckoutValidationError('At least one item is required.');
   if (!Number.isInteger(orderDiscountBps) || orderDiscountBps < 0 || orderDiscountBps > 10000) {
@@ -306,8 +339,7 @@ const toResponse = async (db: SqlQueryExecutor, row: OrderRow, cached: boolean):
 
 export const createCheckoutService = (db: TransactionalSqlExecutor) => ({
   async checkout(request: CheckoutRequest): Promise<CheckoutResponse> {
-    if (!request.idempotencyKey?.trim()) throw new CheckoutValidationError('Idempotency key is required.');
-    if (!request.storeId || !request.registerId || !request.cashierId) throw new CheckoutValidationError('Store, register and cashier are required.');
+    validateCheckoutRequest(request);
 
     return db.transaction(async (tx) => {
       const existing = await readOrder(tx, request.storeId, request.idempotencyKey);
@@ -329,7 +361,10 @@ export const createCheckoutService = (db: TransactionalSqlExecutor) => ({
 
       const itemIds = request.items.map((item) => item.product.id);
       const productResult = await tx.query<ProductRow>(
-        `SELECT id, store_id, price_minor::text AS price_minor, currency, tax_rate_bps, current_stock
+        `SELECT id, store_id, category_id, sku, barcode, name, description,
+                price_minor::text AS price_minor, cost_price_minor::text AS cost_price_minor,
+                currency, tax_rate_bps, current_stock, reorder_point, unit_of_measure,
+                is_age_restricted, image_url, active
            FROM prodx_products
           WHERE store_id = $1 AND active = TRUE AND id = ANY($2::uuid[])
           FOR UPDATE`,
@@ -344,6 +379,9 @@ export const createCheckoutService = (db: TransactionalSqlExecutor) => ({
       const totals = calculateAuthoritativeTotals(request.items, productResult.rows, orderDiscountBps);
 
       const clientGrandTotal = ensureMoney(request.totals.grandTotal, 'client grand total');
+      if (request.totals.grandTotal.currency !== totals.currency) {
+        throw new CheckoutConflictError('Client total currency does not match the authoritative checkout currency.');
+      }
       if (clientGrandTotal !== totals.grandTotal) throw new CheckoutConflictError('Client total does not match server-authoritative total.');
 
       let paymentTotal = 0n;
@@ -422,6 +460,9 @@ export const createCheckoutService = (db: TransactionalSqlExecutor) => ({
 
       for (const payment of request.payments as readonly PaymentInput[]) {
         const amount = ensureMoney(payment.amount, `payment ${payment.id}`);
+        if (payment.amount.currency !== totals.currency) {
+          throw new CheckoutConflictError('Payment currency does not match the authoritative checkout currency.');
+        }
         await tx.query(
           `INSERT INTO prodx_payments
             (id, organization_id, store_id, order_id, method, amount_minor, tendered_cash_minor,
