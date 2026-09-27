@@ -10,22 +10,20 @@ permissions:
   contents: read
 
 jobs:
-  credential-smoke:
-    name: Verify Gemini + CodeSandbox failover credentials
+  gemini-smoke:
+    name: Verify Gemini failover credential
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    environment: ProDX-POS
+    timeout-minutes: 5
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      CSB_API_KEY: ${{ secrets.CSB_API_KEY }}
     steps:
-      - name: Require failover secrets without exposing them
+      - name: Require Gemini secret without exposing it
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${GEMINI_API_KEY:-}" || { echo "GEMINI_API_KEY is not configured for this workflow."; exit 1; }
-          test -n "${CSB_API_KEY:-}" || { echo "CSB_API_KEY is not configured for this workflow."; exit 1; }
+          test -n "${GEMINI_API_KEY:-}" || { echo "GEMINI_API_KEY is not configured in the ProDX-POS environment."; exit 1; }
           echo "GEMINI_API_KEY=injected"
-          echo "CSB_API_KEY=injected"
 
       - name: Verify Gemini API read-only smoke
         shell: bash
@@ -52,7 +50,22 @@ jobs:
           print("Gemini API smoke: PASS")
           PY
 
-      - name: Install CodeSandbox SDK
+  codesandbox-smoke:
+    name: Verify CodeSandbox failover credential
+    runs-on: ubuntu-latest
+    environment: CodeSandbox
+    timeout-minutes: 5
+    env:
+      CSB_API_KEY: ${{ secrets.CSB_API_KEY }}
+    steps:
+      - name: Require CodeSandbox environment secret without exposing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CSB_API_KEY:-}" || { echo "CSB_API_KEY is not configured in the CodeSandbox environment."; exit 1; }
+          echo "CSB_API_KEY=injected"
+
+      - name: Install pinned CodeSandbox SDK
         shell: bash
         run: |
           set -euo pipefail
@@ -74,9 +87,30 @@ jobs:
           }));
           NODE
 
-      - name: Report machine-readable readiness
+      - name: Report CodeSandbox readiness
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s\n'             'GEMINI_API=PASS'             'CODESANDBOX_API=PASS'             'EMERGENCY_AI_FAILOVER=READY' > failover-readiness.txt
-          cat failover-readiness.txt
+          echo "CodeSandbox API smoke: PASS"
+          echo "EMERGENCY_CODE_SANDBOX=READY"
+
+  readiness:
+    name: Emergency failover readiness
+    runs-on: ubuntu-latest
+    needs: [gemini-smoke, codesandbox-smoke]
+    if: ${{ always() }}
+    steps:
+      - name: Report final readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          gemini="${{ needs.gemini-smoke.result }}"
+          codesandbox="${{ needs.codesandbox-smoke.result }}"
+          echo "GEMINI_API=${gemini}"
+          echo "CODESANDBOX_API=${codesandbox}"
+          if [ "$gemini" = "success" ] && [ "$codesandbox" = "success" ]; then
+            echo "EMERGENCY_AI_FAILOVER=READY"
+          else
+            echo "EMERGENCY_AI_FAILOVER=BLOCKED"
+            exit 1
+          fi
