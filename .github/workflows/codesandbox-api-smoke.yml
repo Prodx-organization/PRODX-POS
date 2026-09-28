@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - "ci/codesandbox-api-smoke"
+      - "ci/codesandbox-api-live-verify-20260928"
   pull_request:
     paths:
       - ".github/workflows/codesandbox-api-smoke.yml"
