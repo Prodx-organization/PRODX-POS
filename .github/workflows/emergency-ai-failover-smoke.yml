@@ -1,0 +1,116 @@
+name: Emergency AI Failover Smoke
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/emergency-ai-failover-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  gemini-smoke:
+    name: Verify Gemini failover credential
+    runs-on: ubuntu-latest
+    environment: ProDX-POS
+    timeout-minutes: 5
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - name: Require Gemini secret without exposing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GEMINI_API_KEY:-}" || { echo "GEMINI_API_KEY is not configured in the ProDX-POS environment."; exit 1; }
+          echo "GEMINI_API_KEY=injected"
+
+      - name: Verify Gemini API read-only smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          Path("gemini-smoke.json").write_text(json.dumps({
+              "contents": [{"parts": [{"text": "Reply with exactly PRODX_GEMINI_FAILOVER_OK"}]}]
+          }))
+          PY
+          http_code="$(curl --silent --show-error             --output gemini-result.json             --write-out '%{http_code}'             -H "x-goog-api-key: $GEMINI_API_KEY"             -H "Content-Type: application/json"             -X POST             "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"             --data-binary @gemini-smoke.json)"
+          test "$http_code" = "200" || {
+            echo "Gemini API smoke failed with HTTP $http_code"
+            exit 1
+          }
+          python - <<'PY'
+          import json
+          data = json.load(open("gemini-result.json", encoding="utf-8"))
+          text = data["candidates"][0]["content"]["parts"][0]["text"]
+          if "PRODX_GEMINI_FAILOVER_OK" not in text:
+              raise SystemExit("Gemini returned an unexpected smoke response")
+          print("Gemini API smoke: PASS")
+          PY
+
+  codesandbox-smoke:
+    name: Verify CodeSandbox failover credential
+    runs-on: ubuntu-latest
+    environment: CodeSandbox
+    timeout-minutes: 5
+    env:
+      CSB_API_KEY: ${{ secrets.CSB_API_KEY }}
+    steps:
+      - name: Require CodeSandbox environment secret without exposing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CSB_API_KEY:-}" || { echo "CSB_API_KEY is not configured in the CodeSandbox environment."; exit 1; }
+          echo "CSB_API_KEY=injected"
+
+      - name: Install pinned CodeSandbox SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock @codesandbox/sdk@2.4.2
+
+      - name: Verify CodeSandbox API read-only smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { CodeSandbox } from "@codesandbox/sdk";
+
+          const sdk = new CodeSandbox(process.env.CSB_API_KEY);
+          const result = await sdk.sandboxes.list({ limit: 1 });
+
+          console.log(JSON.stringify({
+            codesandbox_authenticated: true,
+            totalCount: result.totalCount,
+          }));
+          NODE
+
+      - name: Report CodeSandbox readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "CodeSandbox API smoke: PASS"
+          echo "EMERGENCY_CODE_SANDBOX=READY"
+
+  readiness:
+    name: Emergency failover readiness
+    runs-on: ubuntu-latest
+    needs: [gemini-smoke, codesandbox-smoke]
+    if: ${{ always() }}
+    steps:
+      - name: Report final readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          gemini="${{ needs.gemini-smoke.result }}"
+          codesandbox="${{ needs.codesandbox-smoke.result }}"
+          echo "GEMINI_API=${gemini}"
+          echo "CODESANDBOX_API=${codesandbox}"
+          if [ "$gemini" = "success" ] && [ "$codesandbox" = "success" ]; then
+            echo "EMERGENCY_AI_FAILOVER=READY"
+          else
+            echo "EMERGENCY_AI_FAILOVER=BLOCKED"
+            exit 1
+          fi
