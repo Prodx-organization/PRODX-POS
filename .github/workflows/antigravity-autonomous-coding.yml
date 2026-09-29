@@ -142,7 +142,7 @@ jobs:
           echo "GEMINI_API_HTTP=200" >> "$GITHUB_ENV"
           echo "AGY_START" >> gemini-auth-state.txt
           set +e
-          agy --model gemini-3.8-flash -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
+          agy --model gemini-3.8-flash --effort medium -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
           agy_rc=$?
           set -e
           if [ "$agy_rc" -ne 0 ]; then echo "AGY_FAIL" >> gemini-auth-state.txt; echo "Antigravity Gemini provider smoke: FAIL (exit $agy_rc)"; echo "AGY_AUTH_STATUS=failed" >> "$GITHUB_ENV"; exit "$agy_rc"; fi
@@ -224,7 +224,7 @@ jobs:
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
 
           # GitHub-hosted runner is ephemeral; validation uses the API-key-compatible Gemini model. We deliberately do not use --dangerously-skip-permissions.
-          agy --model gemini-3.8-flash -p "$(cat autonomous-task.md)"             --mode accept-edits             --sandbox             --output-format stream-json             --print-timeout 35m             > agy-run.ndjson
+          agy --model gemini-3.8-flash --effort medium -p "$(cat autonomous-task.md)"             --mode accept-edits             --sandbox             --output-format stream-json             --print-timeout 35m             > agy-run.ndjson
 
           jq -s 'map(select(.event=="result") | .result) | last' agy-run.ndjson > agy-result.json
           jq -e '.status == "SUCCESS"' agy-result.json >/dev/null
