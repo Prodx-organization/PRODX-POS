@@ -9,7 +9,8 @@ export type SupervisorAuthorizationRequest = {
   requesterSessionId: string;
   action: 'refund' | 'void';
   orderId: string;
-  supervisorUsername: string;
+  supervisorUsername?: string;
+  supervisorUserId?: string;
   supervisorSecret: string;
 };
 
@@ -47,7 +48,7 @@ const recordSecurityEvent = async (
 export const createSupervisorAuthorizationService = (db: SqlExecutor, now: () => Date = () => new Date()) => ({
   async authorize(input: SupervisorAuthorizationRequest): Promise<SupervisorAuthorizationResult> {
     if (!input.organizationId || !input.storeId || !input.requesterUserId || !input.requesterSessionId ||
-        !input.orderId || !input.supervisorUsername.trim() || !input.supervisorSecret) {
+        !input.orderId || (!input.supervisorUsername?.trim() && !input.supervisorUserId?.trim()) || !input.supervisorSecret) {
       throw new SupervisorAuthorizationError('INVALID_CREDENTIALS');
     }
 
@@ -60,10 +61,10 @@ export const createSupervisorAuthorizationService = (db: SqlExecutor, now: () =>
               c.locked_until AS "lockedUntil"
          FROM prodx_users u
          JOIN prodx_user_credentials c ON c.user_id = u.id
-        WHERE lower(u.username) = lower($1)
-          AND u.organization_id = $2
+        WHERE u.organization_id = $1
+          AND (u.id::text = $2 OR lower(u.username) = lower($2))
         LIMIT 1`,
-      [input.supervisorUsername.trim(), input.organizationId],
+      [input.organizationId, (input.supervisorUserId ?? input.supervisorUsername ?? '').trim()],
     );
     const credential = credentials[0];
     const current = now();
