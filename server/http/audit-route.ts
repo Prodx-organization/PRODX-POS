@@ -1,11 +1,11 @@
-import type { Express, Request, Response } from 'express';
+import type { Express, NextFunction, Request, Response } from 'express';
 import { requirePermission } from './createApp';
 import type { SqlQueryExecutor } from '../db/transaction';
 import { AuditValidationError, createAuditReadService } from '../audit/audit-service';
 
 export const registerAuditRoute = (app: Express, db: SqlQueryExecutor): void => {
   const service = createAuditReadService(db);
-  app.get('/api/v1/audit/logs', requirePermission('audit:read'), async (request: Request, response: Response) => {
+  app.get('/api/v1/audit/logs', requirePermission('audit.read'), async (request: Request, response: Response, next: NextFunction) => {
     try {
       const context = request.prodxContext;
       if (!context) {
@@ -19,7 +19,7 @@ export const registerAuditRoute = (app: Express, db: SqlQueryExecutor): void => 
         response.status(400).json({ error: { code: error.code, message: error.message, requestId: request.id } });
         return;
       }
-      throw error;
+      next(error);
     }
   });
 };
