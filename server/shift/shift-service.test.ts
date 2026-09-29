@@ -8,7 +8,7 @@ const db = (): TransactionalSqlExecutor => {
   let opInserted = true;
   let opId = 'op-1';
   const calls: string[] = [];
-  const query: SqlQueryExecutor['query'] = async (sql, params = []) => {
+  const query = async (sql, params = []) => {
     calls.push(sql);
     if (sql.includes('INSERT INTO prodx_shift_operations')) {
       if (!opInserted) return { rows: [] };
@@ -21,7 +21,7 @@ const db = (): TransactionalSqlExecutor => {
     if (sql.includes('FROM prodx_cash_movements')) return { rows: [{ id:'mov-1',shift_id:'shift-1',type:'opening_float',amount:'100.00',reason:'Initial opening cash drawer float',performed_by_user_id:'user-1',currency:'THB',created_at:new Date().toISOString() }] };
     return { rows: [] };
   };
-  return { query, transaction: async work => work({ query }) };
+  return { query: query as SqlQueryExecutor['query'], transaction: async work => work({ query: query as SqlQueryExecutor['query'] }) };
 };
 
 test('open shift persists authoritative cash opening in one transaction', async () => {
