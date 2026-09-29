@@ -8,11 +8,11 @@ export class VoidConflictError extends Error { readonly code = 'VOID_CONFLICT'; 
 export class VoidProviderUnavailableError extends Error { readonly code = 'VOID_PROVIDER_UNAVAILABLE'; }
 
 const dbCents = (value: unknown): bigint => {
-  const match = /^(\\d+)\\.(\\d{2})$/.exec(String(value));
+  const match = /^(\d+)\.(\d{2})$/.exec(String(value));
   if (!match) throw new VoidValidationError('Database monetary value is invalid.');
   return BigInt(match[1]) * 100n + BigInt(match[2]);
 };
-const numeric = (cents: bigint): string => \`\${cents / 100n}.\${(cents % 100n).toString().padStart(2, '0')}\`;
+const numeric = (cents: bigint): string => `${cents / 100n}.${(cents % 100n).toString().padStart(2, '0')}`;
 
 export const createVoidService = (db: TransactionalSqlExecutor) => ({
   async voidOrder(request: VoidRequest) {
@@ -87,7 +87,7 @@ export const createVoidService = (db: TransactionalSqlExecutor) => ({
           'UPDATE prodx_products SET current_stock=current_stock+$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2 AND store_id=$3 AND active=true RETURNING current_stock',
           [item.quantity, item.product_id, request.storeId],
         )).rows[0] as { current_stock: number } | undefined;
-        if (!stock) throw new VoidConflictError(\`Product \${item.product_id} is unavailable for void reversal.\`);
+        if (!stock) throw new VoidConflictError(`Product ${item.product_id} is unavailable for void reversal.`);
         await tx.query(
           "INSERT INTO prodx_inventory_ledger (id,organization_id,store_id,product_id,quantity_delta,resulting_stock,reason,reference_id,performed_by_user_id) VALUES($1,$2,$3,$4,$5,$6,'void_reversal',$7,$8)",
           [crypto.randomUUID(), order.organization_id, request.storeId, item.product_id, item.quantity, stock.current_stock, voidId, supervisorUserId],
@@ -97,7 +97,7 @@ export const createVoidService = (db: TransactionalSqlExecutor) => ({
       const amount = dbCents(order.grand_total_amount);
       await tx.query(
         "INSERT INTO prodx_cash_movements (id,organization_id,store_id,shift_id,type,amount,reason,performed_by_user_id,currency) VALUES($1,$2,$3,$4,'cash_refund',$5,$6,$7,$8)",
-        [crypto.randomUUID(), order.organization_id, request.storeId, shift.id, numeric(amount), \`Void for Order #\${order.order_number}: \${request.reason.trim()}\`, supervisorUserId, orderCurrency],
+        [crypto.randomUUID(), order.organization_id, request.storeId, shift.id, numeric(amount), `Void for Order #${order.order_number}: ${request.reason.trim()}`, supervisorUserId, orderCurrency],
       );
       await tx.query('UPDATE prodx_orders SET status=$1 WHERE id=$2 AND store_id=$3', ['voided', request.orderId, request.storeId]);
       await tx.query(
