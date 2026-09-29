@@ -803,12 +803,6 @@ export const ShiftScreen: React.FC = () => {
         </div>
       </Modal>
 
-      <ClockInOutModal
-        isOpen={isClockModalOpen}
-        onClose={() => setIsClockModalOpen(false)}
-        onSuccess={refreshTimeclock}
-      />
-
       {currentShift && (
         <ShiftPaymentBreakdownModal
           isOpen={isBreakdownModalOpen}
