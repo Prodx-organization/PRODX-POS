@@ -8,7 +8,8 @@ import type { TransactionalSqlExecutor } from '../db/transaction';
 type Body = {
   action: 'refund' | 'void';
   orderId: string;
-  supervisorUsername: string;
+  supervisorUsername?: string;
+  supervisorUserId?: string;
   supervisorSecret: string;
 };
 
@@ -17,7 +18,7 @@ const valid = (value: unknown): value is Body => {
   const body = value as Record<string, unknown>;
   return (body.action === 'refund' || body.action === 'void') &&
     typeof body.orderId === 'string' && body.orderId.trim().length > 0 &&
-    typeof body.supervisorUsername === 'string' && body.supervisorUsername.trim().length > 0 &&
+    (typeof body.supervisorUsername === 'string' || typeof body.supervisorUserId === 'string') &&
     typeof body.supervisorSecret === 'string' && body.supervisorSecret.length > 0;
 };
 
@@ -57,6 +58,7 @@ export const registerSupervisorAuthorizationRoute = (app: Express, db: Transacti
         action: request.body.action,
         orderId: request.body.orderId,
         supervisorUsername: request.body.supervisorUsername,
+        supervisorUserId: request.body.supervisorUserId,
         supervisorSecret: request.body.supervisorSecret,
       }));
       response.status(201).json(result);
