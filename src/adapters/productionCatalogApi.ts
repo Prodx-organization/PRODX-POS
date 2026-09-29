@@ -22,6 +22,7 @@ export interface IProductionCatalogReadApi {
   getCategories(): Promise<readonly Category[]>;
   getProducts(categoryId?: string, search?: string): Promise<readonly Product[]>;
   getProductByBarcode(barcode: string): Promise<Product | null>;
+  getInventoryLedger(productId?: string): Promise<readonly import('../domain/catalog').InventoryLedgerEntry[]>;
 }
 export function createProductionCatalogReadApi(token: string): IProductionCatalogReadApi {
   return {
@@ -33,5 +34,6 @@ export function createProductionCatalogReadApi(token: string): IProductionCatalo
       return request(`/api/v1/catalog/products${query.toString() ? `?${query}` : ''}`, token);
     },
     getProductByBarcode: barcode => request(`/api/v1/catalog/products/by-barcode/${encodeURIComponent(barcode)}`, token),
+    getInventoryLedger: productId => { const query = productId ? `?productId=${encodeURIComponent(productId)}` : ''; return request(`/api/v1/catalog/inventory-ledger${query}`, token); },
   };
 }
