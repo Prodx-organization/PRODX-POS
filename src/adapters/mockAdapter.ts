@@ -1722,13 +1722,8 @@ export class MockShiftApi implements IShiftApi {
 
   async clockIn(pin: string, storeId: string): Promise<TimeclockRecord> {
     await delay(100);
-    // Hardcoded PINs for demo: 1234 -> Admin, 5678 -> Manager, 0000 -> Cashier
-    const user = SEED_USERS.find(u => {
-      if (pin === '1234' && u.role === 'admin') return true;
-      if (pin === '5678' && u.role === 'manager') return true;
-      if (pin === '0000' && u.role === 'cashier') return true;
-      return false;
-    });
+    const storedPins = typeof window !== 'undefined' ? getStoredStaffPins() : {};
+    const user = SEED_USERS.find(u => storedPins[u.id] && storedPins[u.id] === pin);
 
     if (!user) {
       throw new Error('Invalid PIN');
@@ -1757,13 +1752,8 @@ export class MockShiftApi implements IShiftApi {
 
   async clockOut(pin: string, storeId: string): Promise<TimeclockRecord> {
     await delay(100);
-    // Hardcoded PINs for demo
-    const user = SEED_USERS.find(u => {
-      if (pin === '1234' && u.role === 'admin') return true;
-      if (pin === '5678' && u.role === 'manager') return true;
-      if (pin === '0000' && u.role === 'cashier') return true;
-      return false;
-    });
+    const storedPins = typeof window !== 'undefined' ? getStoredStaffPins() : {};
+    const user = SEED_USERS.find(u => storedPins[u.id] && storedPins[u.id] === pin);
 
     if (!user) {
       throw new Error('Invalid PIN');
