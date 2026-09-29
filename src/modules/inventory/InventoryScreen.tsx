@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -54,8 +54,8 @@ import { playScannerSound } from '../../services/soundService';
 
 export const InventoryScreen: React.FC = () => {
   const { session, can } = useAuth();
-  const catalogReadApi = createCatalogReadApi(session?.token ?? '');
-  const inventoryAdjustmentApi = createProductionInventoryAdjustmentApi(session?.token ?? '');
+  const catalogReadApi = useMemo(() => createCatalogReadApi(session?.token ?? ''), [session?.token]);
+  const inventoryAdjustmentApi = useMemo(() => createProductionInventoryAdjustmentApi(session?.token ?? ''), [session?.token]);
   const { addToast } = useToast();
   const { t, language } = useLanguage();
   const { setSubLevels } = useBreadcrumb();
