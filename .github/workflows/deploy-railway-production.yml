@@ -1,0 +1,53 @@
+name: Deploy Railway Production
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: railway-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy current main source to Railway
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: ccb77b99-9bca-4b59-bd16-debe0d8d343
+      RAILWAY_ENVIRONMENT: production
+      RAILWAY_SERVICE: prodx-pos-api-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+
+      - name: Require Railway credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${RAILWAY_TOKEN:-}" || {
+            echo "RAILWAY_TOKEN GitHub Actions secret is required."
+            exit 1
+          }
+
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli
+
+      - name: Deploy checked-out main source
+        run: |
+          set -euo pipefail
+          railway up \
+            --project "${RAILWAY_PROJECT_ID}" \
+            --environment "${RAILWAY_ENVIRONMENT}" \
+            --service "${RAILWAY_SERVICE}" \
+            --ci
+
+      - name: Record deployed source
+        run: |
+          echo "GitHub source commit deployed:"
+          git rev-parse HEAD
