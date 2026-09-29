@@ -100,7 +100,9 @@ jobs:
           SELECT conname FROM pg_constraint WHERE conname = 'prodx_roles_id_organization_unique';
           SELECT conname FROM pg_constraint WHERE conname = 'prodx_store_memberships_store_org_fk';
           SELECT conname FROM pg_constraint WHERE conname = 'prodx_user_roles_store_membership_fk';
-          SELECT count(*) = 15 FROM prodx_permissions;
+          SELECT count(*) = 17 FROM prodx_permissions;
+          SELECT 1 FROM prodx_permissions WHERE permission_key = 'cash.shift.movement';
+          SELECT 1 FROM prodx_permissions WHERE permission_key = 'audit.read';
           SQL
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           INSERT INTO prodx_organizations (id, code, name)
@@ -120,7 +122,31 @@ jobs:
           INSERT INTO prodx_roles (id, organization_id, role_key, name)
           VALUES
             ('00000000-0000-0000-0000-000000000031', '00000000-0000-0000-0000-000000000001', 'cashier', 'Cashier'),
-            ('00000000-0000-0000-0000-000000000032', '00000000-0000-0000-0000-000000000002', 'cashier', 'Cashier');
+            ('00000000-0000-0000-0000-000000000032', '00000000-0000-0000-0000-000000000002', 'cashier', 'Cashier'),
+            ('00000000-0000-0000-0000-000000000033', '00000000-0000-0000-0000-000000000001', 'manager', 'Manager'),
+            ('00000000-0000-0000-0000-000000000034', '00000000-0000-0000-0000-000000000001', 'admin', 'Admin');
+          -- Re-run the idempotent role-provisioning migration after tenant roles exist.
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0021_m4_sensitive_role_permissions.sql
+          SELECT 1
+          FROM prodx_role_permissions rp
+          JOIN prodx_roles r ON r.id = rp.role_id AND r.organization_id = rp.organization_id
+          JOIN prodx_permissions p ON p.id = rp.permission_id
+          WHERE r.organization_id = '00000000-0000-0000-0000-000000000001'
+            AND r.role_key IN ('admin', 'manager')
+            AND p.permission_key IN ('cash.shift.movement', 'audit.read')
+          GROUP BY r.role_key
+          HAVING count(*) = 2;
+
+          SELECT 1
+          FROM prodx_role_permissions rp
+          JOIN prodx_roles r ON r.id = rp.role_id AND r.organization_id = rp.organization_id
+          JOIN prodx_permissions p ON p.id = rp.permission_id
+          WHERE r.organization_id = '00000000-0000-0000-0000-000000000001'
+            AND r.role_key = 'cashier'
+            AND p.permission_key IN ('cash.shift.movement', 'audit.read')
+          GROUP BY r.role_key
+          HAVING count(*) = 0;
+
           INSERT INTO prodx_store_memberships (organization_id, store_id, user_id)
           VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000021', '00000000-0000-0000-0000-000000000011');
           INSERT INTO prodx_user_roles (organization_id, user_id, role_id, store_id)
