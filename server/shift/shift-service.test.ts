@@ -8,7 +8,7 @@ const db = (): TransactionalSqlExecutor => {
   let opInserted = true;
   let opId = 'op-1';
   const calls: string[] = [];
-  const query = async (sql, params = []) => {
+  const query = async (sql: string, params: readonly unknown[] = []) => {
     calls.push(sql);
     if (sql.includes('INSERT INTO prodx_shift_operations')) {
       if (!opInserted) return { rows: [] };
