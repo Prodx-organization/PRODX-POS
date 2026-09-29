@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useBreadcrumb, BreadcrumbLevel } from '../../context/BreadcrumbContext';
-import { catalogApi } from '../../adapters/mockAdapter';
+import { createCatalogReadApi } from '../../adapters/catalogApiFactory';
 import { Product, InventoryLedgerEntry, StockMovementReason, Category } from '../../domain/catalog';
 import { formatMoney, createMoney } from '../../domain/money';
 import { Card, CardHeader, CardBody } from '../../components/common/Card';
@@ -53,6 +53,7 @@ import { playScannerSound } from '../../services/soundService';
 
 export const InventoryScreen: React.FC = () => {
   const { session, can } = useAuth();
+  const catalogReadApi = React.useMemo(() => (session ? createCatalogReadApi(session.token) : null), [session]);
   const { addToast } = useToast();
   const { t, language } = useLanguage();
   const { setSubLevels } = useBreadcrumb();
@@ -166,9 +167,8 @@ export const InventoryScreen: React.FC = () => {
   const handleBulkImportComplete = async (result: BulkImportResult) => {
     if (session) {
       const [freshProducts, freshCategories, freshLedger] = await Promise.all([
-        catalogApi.getProducts(session.currentStore.id),
-        catalogApi.getCategories(session.currentStore.id),
-        catalogApi.getInventoryLedger(session.currentStore.id),
+        catalogReadApi!.getProducts(),
+        catalogReadApi!.getCategories(),
       ]);
       setProducts([...freshProducts]);
       setCategories([...freshCategories]);
@@ -393,20 +393,20 @@ export const InventoryScreen: React.FC = () => {
   };
 
   const reloadInventoryData = React.useCallback(async () => {
-    if (!session) return;
+    if (!session || !catalogReadApi) return;
     try {
-      const [prods, cats, ledger] = await Promise.all([
+      const [prods, cats] = await Promise.all([
         catalogApi.getProducts(session.currentStore.id),
         catalogApi.getCategories(session.currentStore.id),
         catalogApi.getInventoryLedger(session.currentStore.id),
       ]);
       setProducts([...prods]);
       setCategories(cats);
-      setLedgerEntries(ledger);
+      setLedgerEntries([]);
     } catch (err) {
       console.error('[InventoryScreen] Error:', err);
     }
-  }, [session]);
+  }, [session, catalogReadApi]);
 
   useEffect(() => {
     reloadInventoryData();
