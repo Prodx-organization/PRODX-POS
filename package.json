@@ -15,6 +15,7 @@
     "server:test:refund": "tsx --test server/http/refund-route.test.ts server/transactions/refund-postgres.integration.test.ts",
     "theme:validate": "tsx theme-validator.ts --check",
     "theme:fix": "tsx theme-validator.ts",
+    "db:migrate:test": "tsx scripts/railway-migrate-test.ts",
     "server:start": "tsx server/entrypoint.ts"
   },
   "dependencies": {
@@ -31,7 +32,7 @@
     "qrcode.react": "^4.2.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
-    "react-i18next": "^17.0.13",
+    "react-i18next": "^17.0.0",
     "recharts": "^3.10.1",
     "vite": "^6.2.3"
   },
@@ -39,7 +40,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/pg": "^8.23.1",
-    "@types/react": "^19.2.18",
+    "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.7",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
