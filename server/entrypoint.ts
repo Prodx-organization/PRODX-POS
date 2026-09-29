@@ -7,6 +7,7 @@ import { createTransactionalPostgresExecutor } from './db/transaction';
 import { registerCheckoutRoute } from './http/checkout-route';
 import { createApp } from './http/createApp';
 import { registerRefundRoute } from './http/refund-route';
+import { registerCatalogRoute } from './http/catalog-route';
 import { registerPaymentLifecycleRoute } from './http/payment-lifecycle-route';
 import { registerSyncRoute } from './http/sync-route';
 import { registerSupervisorAuthorizationRoute } from './http/supervisor-authorization-route';
@@ -28,6 +29,7 @@ export const createProductionApp = () => {
     configureRoutes: (configuredApp) => {
       registerCheckoutRoute(configuredApp, transactions);
       registerRefundRoute(configuredApp, transactions);
+      registerCatalogRoute(configuredApp, transactions);
       registerPaymentLifecycleRoute(configuredApp, transactions);
       registerSyncRoute(configuredApp, transactions);
       registerSupervisorAuthorizationRoute(configuredApp, transactions);
