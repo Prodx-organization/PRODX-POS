@@ -1,2 +1,5 @@
 import { createProductionShiftApi } from './productionShiftApi';
-export const createShiftApi=(token:string)=>createProductionShiftApi(token);
+import { MockShiftApi } from './mockAdapter';
+import type { IShiftApi } from './types';
+
+export const createShiftApi=(token:string):IShiftApi=>import.meta.env.DEV ? new MockShiftApi() : createProductionShiftApi(token);
