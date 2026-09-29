@@ -47,7 +47,7 @@ export const SupervisorAuthModal: React.FC<SupervisorAuthModalProps> = ({
   const [isVerifyingPasskey, setIsVerifyingPasskey] = useState(false);
 
   // Eligible supervisors from system users
-  const eligibleSupervisors = (staffUsers && staffUsers.length > 0 ? staffUsers : SEED_USERS).filter((u) =>
+  const eligibleSupervisors = (import.meta.env.DEV ? (staffUsers && staffUsers.length > 0 ? staffUsers : SEED_USERS) : staffUsers).filter((u) =>
     requiredRole === 'admin' ? u.role === 'admin' : u.role === 'admin' || u.role === 'manager'
   );
 
@@ -111,9 +111,9 @@ export const SupervisorAuthModal: React.FC<SupervisorAuthModalProps> = ({
 
     if (selectedSupervisor && getStaffPin(selectedSupervisor.id) === pin) {
       matchedSupervisor = selectedSupervisor;
-    } else if (pin === '1234') {
+    } else if (import.meta.env.DEV && pin === '1234') {
       matchedSupervisor = eligibleSupervisors.find((u) => u.role === 'admin') || selectedSupervisor || eligibleSupervisors[0];
-    } else if (pin === '5678') {
+    } else if (import.meta.env.DEV && pin === '5678') {
       matchedSupervisor = eligibleSupervisors.find((u) => u.role === 'manager') || selectedSupervisor || eligibleSupervisors[0];
     } else {
       // Check all eligible supervisors
@@ -128,8 +128,8 @@ export const SupervisorAuthModal: React.FC<SupervisorAuthModalProps> = ({
       playScannerSound('error');
       setErrorMsg(
         language === 'th'
-          ? 'รหัส PIN ผู้จัดการไม่ถูกต้อง (ลอง 1234 หรือ 5678 หรือ PIN ที่ตั้งไว้)'
-          : 'Invalid supervisor PIN (try 1234, 5678, or configured PIN)'
+          ? 'รหัส PIN ผู้จัดการไม่ถูกต้อง หรือไม่มีสิทธิ์อนุมัติจากเซิร์ฟเวอร์'
+          : 'Invalid supervisor PIN or server authorization was not provisioned'
       );
       setPin('');
     }
@@ -281,8 +281,8 @@ export const SupervisorAuthModal: React.FC<SupervisorAuthModalProps> = ({
           ) : (
             <div className="text-[11px] text-text/50">
               {language === 'th'
-                ? 'คำใบ้ทดสอบ: Admin = 1234, Manager = 5678'
-                : 'Demo Hint: Admin = 1234, Manager = 5678'}
+                ? (import.meta.env.DEV ? 'คำใบ้ทดสอบ: Admin = 1234, Manager = 5678' : 'การอนุมัติจะตรวจสอบกับเซิร์ฟเวอร์')
+                : (import.meta.env.DEV ? 'Demo Hint: Admin = 1234, Manager = 5678' : 'Supervisor authorization is verified by the server')}
             </div>
           )}
         </div>

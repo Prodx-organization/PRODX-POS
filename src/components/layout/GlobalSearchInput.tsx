@@ -37,7 +37,7 @@ import { useToast } from '../../context/ToastContext';
 import { Product, Category } from '../../domain/catalog';
 import { Customer } from '../../domain/order';
 import { formatMoney } from '../../domain/money';
-import { catalogApi } from '../../adapters/mockAdapter';
+import { createCatalogReadApi } from '../../adapters/catalogApiFactory';
 import { customersService } from '../../services/customersService';
 import { SettingsTabId } from '../../modules/settings/types';
 import { useRbac } from '../auth/RbacGuard';
@@ -84,6 +84,7 @@ export const GlobalSearchInput: React.FC<GlobalSearchInputProps> = ({
   onOpenCommandPalette,
 }) => {
   const { session } = useAuth();
+  const catalogApi = useMemo(() => (session ? createCatalogReadApi(session.token) : null), [session]);
   const { canAccessModule } = useRbac();
   const { language } = useLanguage();
   const { addItem, setCustomer } = useCart();
@@ -105,13 +106,13 @@ export const GlobalSearchInput: React.FC<GlobalSearchInputProps> = ({
 
   // Load products & categories from catalog API
   useEffect(() => {
-    if (!session) return;
+    if (!session || !catalogApi) return;
     let isMounted = true;
     const loadCatalog = async () => {
       try {
         const [prods, cats] = await Promise.all([
-          catalogApi.getProducts(session.currentStore.id),
-          catalogApi.getCategories(session.currentStore.id),
+          catalogApi.getProducts(),
+          catalogApi.getCategories(),
         ]);
         if (isMounted) {
           setProducts(prods as Product[]);
@@ -125,7 +126,7 @@ export const GlobalSearchInput: React.FC<GlobalSearchInputProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [session?.currentStore?.id]);
+  }, [session, catalogApi]);
 
   // Subscribe to customers updates
   useEffect(() => {

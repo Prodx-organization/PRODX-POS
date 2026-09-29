@@ -695,9 +695,11 @@ export class MockAuthApi implements IAuthApi {
 
       // Validate credentials if authenticating via password
       if (matched && passOrPin && !term.match(/^\d{4}$/)) {
-        const correctPassword = staffPasswords[matched.id] || 'password123';
+        const correctPassword = staffPasswords[matched.id];
         const correctPin = staffPins[matched.id];
-        const isValid = passOrPin === correctPassword || (correctPin && passOrPin === correctPin) || passOrPin === 'password123';
+        const isValid =
+          (typeof correctPassword === 'string' && correctPassword.length > 0 && passOrPin === correctPassword) ||
+          (typeof correctPin === 'string' && correctPin.length > 0 && passOrPin === correctPin);
         if (!isValid) {
           throw new Error('Invalid email or password. Please verify your credentials or use "Manage / Reset Password".');
         }
@@ -1720,13 +1722,8 @@ export class MockShiftApi implements IShiftApi {
 
   async clockIn(pin: string, storeId: string): Promise<TimeclockRecord> {
     await delay(100);
-    // Hardcoded PINs for demo: 1234 -> Admin, 5678 -> Manager, 0000 -> Cashier
-    const user = SEED_USERS.find(u => {
-      if (pin === '1234' && u.role === 'admin') return true;
-      if (pin === '5678' && u.role === 'manager') return true;
-      if (pin === '0000' && u.role === 'cashier') return true;
-      return false;
-    });
+    const storedPins = typeof window !== 'undefined' ? getStoredStaffPins() : {};
+    const user = SEED_USERS.find(u => storedPins[u.id] && storedPins[u.id] === pin);
 
     if (!user) {
       throw new Error('Invalid PIN');
@@ -1755,13 +1752,8 @@ export class MockShiftApi implements IShiftApi {
 
   async clockOut(pin: string, storeId: string): Promise<TimeclockRecord> {
     await delay(100);
-    // Hardcoded PINs for demo
-    const user = SEED_USERS.find(u => {
-      if (pin === '1234' && u.role === 'admin') return true;
-      if (pin === '5678' && u.role === 'manager') return true;
-      if (pin === '0000' && u.role === 'cashier') return true;
-      return false;
-    });
+    const storedPins = typeof window !== 'undefined' ? getStoredStaffPins() : {};
+    const user = SEED_USERS.find(u => storedPins[u.id] && storedPins[u.id] === pin);
 
     if (!user) {
       throw new Error('Invalid PIN');

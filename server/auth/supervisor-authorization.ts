@@ -7,9 +7,10 @@ export type SupervisorAuthorizationRequest = {
   storeId: string;
   requesterUserId: string;
   requesterSessionId: string;
-  action: 'refund';
+  action: 'refund' | 'void';
   orderId: string;
-  supervisorUsername: string;
+  supervisorUsername?: string;
+  supervisorUserId?: string;
   supervisorSecret: string;
 };
 
@@ -47,7 +48,7 @@ const recordSecurityEvent = async (
 export const createSupervisorAuthorizationService = (db: SqlExecutor, now: () => Date = () => new Date()) => ({
   async authorize(input: SupervisorAuthorizationRequest): Promise<SupervisorAuthorizationResult> {
     if (!input.organizationId || !input.storeId || !input.requesterUserId || !input.requesterSessionId ||
-        !input.orderId || !input.supervisorUsername.trim() || !input.supervisorSecret) {
+        !input.orderId || (!input.supervisorUsername?.trim() && !input.supervisorUserId?.trim()) || !input.supervisorSecret) {
       throw new SupervisorAuthorizationError('INVALID_CREDENTIALS');
     }
 
@@ -60,10 +61,10 @@ export const createSupervisorAuthorizationService = (db: SqlExecutor, now: () =>
               c.locked_until AS "lockedUntil"
          FROM prodx_users u
          JOIN prodx_user_credentials c ON c.user_id = u.id
-        WHERE lower(u.username) = lower($1)
-          AND u.organization_id = $2
+        WHERE u.organization_id = $1
+          AND (u.id::text = $2 OR lower(u.username) = lower($2))
         LIMIT 1`,
-      [input.supervisorUsername.trim(), input.organizationId],
+      [input.organizationId, (input.supervisorUserId ?? input.supervisorUsername ?? '').trim()],
     );
     const credential = credentials[0];
     const current = now();
@@ -122,9 +123,9 @@ export const createSupervisorAuthorizationService = (db: SqlExecutor, now: () =>
           AND m.store_id = $2
           AND m.user_id = $3
           AND m.active = TRUE
-          AND p.permission_key = 'pos.refund'
+          AND p.permission_key = CASE WHEN $4 = 'void' THEN 'pos.void' ELSE 'pos.refund' END
         LIMIT 1`,
-      [input.organizationId, input.storeId, credential.userId],
+      [input.organizationId, input.storeId, credential.userId, input.action],
     );
     if (!allowed[0]) {
       await recordSecurityEvent(db, {
@@ -167,7 +168,7 @@ export const createSupervisorAuthorizationService = (db: SqlExecutor, now: () =>
 
   async consume(input: {
     token: string; organizationId: string; storeId: string; requesterUserId: string;
-    requesterSessionId: string; action: 'refund'; orderId: string;
+    requesterSessionId: string; action: 'refund' | 'void'; orderId: string;
   }): Promise<{ supervisorUserId: string }> {
     if (!input.token.trim()) throw new SupervisorAuthorizationError('AUTHORIZATION_EXPIRED');
     const hash = hashAuthorizationToken(input.token);

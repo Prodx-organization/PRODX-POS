@@ -48,7 +48,8 @@ import { getZIndexClass } from '../../utils/ZIndexManager';
 import { Product, Category } from '../../domain/catalog';
 import { Customer, Order } from '../../domain/order';
 import { formatMoney } from '../../domain/money';
-import { catalogApi, orderApi } from '../../adapters/mockAdapter';
+import { createCatalogReadApi } from '../../adapters/catalogApiFactory';
+import { createOrderReadApi } from '../../adapters/orderReadApiFactory';
 import { customersService } from '../../services/customersService';
 import { useRbac } from '../auth/RbacGuard';
 
@@ -128,6 +129,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onOpenHoldModal,
 }) => {
   const { session, logout, switchDemoRole, can } = useAuth();
+  const catalogApi = useMemo(() => (session ? createCatalogReadApi(session.token) : null), [session]);
+  const orderReadApi = useMemo(() => (session ? createOrderReadApi(session.token) : null), [session]);
   const { canAccessModule } = useRbac();
   const { theme, toggleTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
@@ -166,15 +169,15 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   // Load catalog, customers, and recent orders
   useEffect(() => {
-    if (!isOpen || !session) return;
+    if (!isOpen || !session || !catalogApi || !orderReadApi) return;
     let isMounted = true;
 
     const loadData = async () => {
       try {
         const [prods, cats, ords] = await Promise.all([
-          catalogApi.getProducts(session.currentStore.id),
-          catalogApi.getCategories(session.currentStore.id),
-          orderApi.getOrders(session.currentStore.id),
+          catalogApi!.getProducts(),
+          catalogApi!.getCategories(),
+          orderReadApi.getOrders(50),
         ]);
         if (!isMounted) return;
         setProducts(prods as Product[]);
@@ -191,7 +194,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, session?.currentStore.id]);
+  }, [isOpen, session, catalogApi, orderReadApi]);
 
   // Subscribe to customers updates
   useEffect(() => {
@@ -205,7 +208,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   useEffect(() => {
     const handleOrderCompleted = () => {
       if (session?.currentStore.id) {
-        orderApi.getOrders(session.currentStore.id).then((ords) => {
+        orderReadApi.getOrders(50).then((ords) => {
           setOrders(ords as Order[]);
         });
       }

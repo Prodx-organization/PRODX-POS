@@ -47,7 +47,6 @@ const COMMON_PASSWORDS = new Set([
   'prodx2026',
   'cashier123',
   'manager123',
-  'password123',
 ]);
 
 const SEQUENCES = [

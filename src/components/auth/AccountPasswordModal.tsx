@@ -116,14 +116,12 @@ export const AccountPasswordModal: React.FC<AccountPasswordModalProps> = ({
 
     if (!selectedUser) return;
 
-    // Verify current credentials (accept current stored password or current PIN or admin bypass)
-    const validCurrentPass = storedPasswords[selectedUser.id] || 'password123';
+    // Verify the selected account's persisted credential only. Never accept a universal fallback or bypass.
+    const validCurrentPass = storedPasswords[selectedUser.id];
     const validPin = storedPins[selectedUser.id];
     const isCurrentValid =
-      currentVerification === validCurrentPass ||
-      currentVerification === validPin ||
-      currentVerification === '1234' ||
-      currentVerification === 'password123';
+      (typeof validCurrentPass === 'string' && validCurrentPass.length > 0 && currentVerification === validCurrentPass) ||
+      (typeof validPin === 'string' && validPin.length > 0 && currentVerification === validPin);
 
     if (!isCurrentValid) {
       addToast({

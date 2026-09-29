@@ -3,7 +3,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useShift } from '../../context/ShiftContext';
 import { useOffline } from '../../context/OfflineContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { orderApi, catalogApi } from '../../adapters/mockAdapter';
+import { createOrderReadApi } from '../../adapters/orderReadApiFactory';
+import { createCatalogReadApi } from '../../adapters/catalogApiFactory';
 import { Order } from '../../domain/order';
 import { Product } from '../../domain/catalog';
 import { formatMoney, createMoney } from '../../domain/money';
@@ -53,6 +54,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const { currentShift } = useShift();
   const { pendingCount } = useOffline();
   const { t, language } = useLanguage();
+  const catalogApi = useMemo(() => (session ? createCatalogReadApi(session.token) : null), [session]);
+  const orderReadApi = useMemo(() => (session ? createOrderReadApi(session.token) : null), [session]);
 
   const userRole = session?.currentUser?.role || 'cashier';
   const isFinancialAuthorized = userRole === 'admin' || userRole === 'manager';
@@ -114,12 +117,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
   useEffect(() => {
     async function loadDashboardData() {
-      if (!session) return;
+      if (!session || !catalogApi || !orderReadApi) return;
       setIsLoading(true);
       try {
         const [loadedOrders, loadedProducts] = await Promise.all([
-          orderApi.getOrders(session.currentStore.id, 200),
-          catalogApi.getProducts(session.currentStore.id),
+          orderReadApi.getOrders(200),
+          catalogApi!.getProducts(),
         ]);
         setOrders(loadedOrders);
         setProducts(loadedProducts);
@@ -130,7 +133,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       }
     }
     loadDashboardData();
-  }, [session]);
+  }, [session, catalogApi, orderReadApi]);
 
   // Save widget order when changed
   useEffect(() => {

@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useOffline, SyncLatencyQuality, computeLatencyQuality } from '../../context/OfflineContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { mockState } from '../../adapters/mockAdapter';
 import {
   Activity,
   Zap,
@@ -18,7 +17,6 @@ import {
   TrendingDown,
   TrendingUp,
   Server,
-  Sliders,
 } from 'lucide-react';
 import { Button } from '../common/Button';
 import { Badge, BadgeVariant } from '../common/Badge';
@@ -176,14 +174,10 @@ export const SyncLatencyIndicator: React.FC<SyncLatencyIndicatorProps> = ({
     }
   };
 
-  // Preset latency simulation
-  const handleSetPresetLatency = (ms: number) => {
-    if (isSimulatedOffline) {
-      toggleSimulatedOffline();
-    }
-    mockState.setSimulatedLatency(ms);
-    measureSyncLatency();
+  const handleMeasureLatency = () => {
+    void measureSyncLatency();
   };
+
 
   return (
     <div className={`relative inline-flex items-center ${className}`} ref={popoverRef}>
@@ -422,68 +416,7 @@ export const SyncLatencyIndicator: React.FC<SyncLatencyIndicatorProps> = ({
             </div>
           </div>
 
-          {/* Simulation Presets & Testing */}
-          <div className="mt-3 pt-3 border-t border-border space-y-2">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="font-semibold text-text/70 flex items-center gap-1">
-                <Sliders className="h-3.5 w-3.5 text-text/50" />
-                {t.syncLatency.simulatePreset}
-              </span>
-              <span className="text-[10px] font-mono text-text/50">
-                {mockState.getSimulatedLatency()}ms inject
-              </span>
-            </div>
 
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleSetPresetLatency(20)}
-                className={`px-2 py-1 rounded text-[10px] font-medium border text-left transition-all ${
-                  mockState.getSimulatedLatency() === 20 && !isSimulatedOffline
-                    ? 'border-emerald-500 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold'
-                    : 'border-border bg-background hover:bg-card-hover text-text/70'
-                }`}
-              >
-                ⚡ {t.syncLatency.fastPreset}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSetPresetLatency(150)}
-                className={`px-2 py-1 rounded text-[10px] font-medium border text-left transition-all ${
-                  mockState.getSimulatedLatency() === 150 && !isSimulatedOffline
-                    ? 'border-lime-500 bg-lime-500/15 text-lime-600 dark:text-lime-400 font-bold'
-                    : 'border-border bg-background hover:bg-card-hover text-text/70'
-                }`}
-              >
-                📶 {t.syncLatency.mobile4gPreset}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSetPresetLatency(450)}
-                className={`px-2 py-1 rounded text-[10px] font-medium border text-left transition-all ${
-                  mockState.getSimulatedLatency() === 450 && !isSimulatedOffline
-                    ? 'border-amber-500 bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold'
-                    : 'border-border bg-background hover:bg-card-hover text-text/70'
-                }`}
-              >
-                📡 {t.syncLatency.mobile3gPreset}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSetPresetLatency(900)}
-                className={`px-2 py-1 rounded text-[10px] font-medium border text-left transition-all ${
-                  mockState.getSimulatedLatency() === 900 && !isSimulatedOffline
-                    ? 'border-orange-500 bg-orange-500/15 text-orange-600 dark:text-orange-400 font-bold'
-                    : 'border-border bg-background hover:bg-card-hover text-text/70'
-                }`}
-              >
-                🛰️ {t.syncLatency.satellitePreset}
-              </button>
-            </div>
-          </div>
 
           {/* Action Trigger Buttons */}
           <div className="mt-3 pt-2.5 border-t border-border flex items-center justify-between gap-2">
@@ -491,7 +424,7 @@ export const SyncLatencyIndicator: React.FC<SyncLatencyIndicatorProps> = ({
               id="sync-latency-ping-btn"
               variant="outline"
               size="sm"
-              onClick={() => measureSyncLatency()}
+              onClick={handleMeasureLatency}
               isLoading={isMeasuringLatency}
               leftIcon={<RefreshCw className={`h-3.5 w-3.5 ${isMeasuringLatency ? 'animate-spin' : ''}`} />}
               className="flex-1 text-xs"
