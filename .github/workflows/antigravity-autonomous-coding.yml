@@ -45,7 +45,7 @@ jobs:
           test "$head_repo" = "$REPO"
           head_ref="$(jq -r '.headRefName' <<<"$metadata")"
           case "$head_ref" in
-            antigravity/*|codex/production-readiness-idempotency-race|chore/github-hosted-gemini-runtime) ;;
+            antigravity/*|fix/p0-*|fix/ci-gemini-trust-p0-branches-current-main|codex/production-readiness-idempotency-race|chore/github-hosted-gemini-runtime) ;;
             *) echo "Refusing autonomous execution on untrusted branch: $head_ref" >&2; exit 1 ;;
           esac
           head_sha="$(jq -r '.headRefOid' <<<"$metadata")"
@@ -72,10 +72,11 @@ jobs:
           tmpdir="$(mktemp -d)"
           trap 'rm -rf "$tmpdir"' EXIT
           curl -fsSL "$url" -o "$tmpdir/agy.tar.gz"
-          printf '%s  %s\\n' "$expected_sha256" "$tmpdir/agy.tar.gz" | sha256sum -c -
+          actual_sha256="$(sha256sum "$tmpdir/agy.tar.gz" | awk '{print $1}')"
+          test "$actual_sha256" = "$expected_sha256"
           mkdir -p "$HOME/.local/bin" "$tmpdir/extracted"
           tar -xzf "$tmpdir/agy.tar.gz" -C "$tmpdir/extracted"
-          cli_bin="$(find "$tmpdir/extracted" \\( -type f -o -type l \\) \\( -name agy -o -name antigravity \\) -print -quit)"
+          cli_bin="$(find "$tmpdir/extracted" \( -type f -o -type l \) \( -name agy -o -name antigravity \) -print -quit)"
           test -n "$cli_bin"
           install -m 0755 "$(readlink -f "$cli_bin")" "$HOME/.local/bin/agy"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -95,8 +96,8 @@ jobs:
           command -v curl >/dev/null || { echo "CURL_MISSING" >> gemini-auth-state.txt; echo "curl is missing."; echo "GEMINI_API_STATUS=curl_missing" >> "$GITHUB_ENV"; exit 1; }
           echo "KEY_PRESENT" >> gemini-auth-state.txt
           mkdir -p "$HOME/.gemini/antigravity-cli"
-          printf '%s\\n' '{"modelProvider":"gemini"}' > "$HOME/.gemini/antigravity-cli/settings.json"
-          printf '%s\\n' '{"contents":[{"parts":[{"text":"Reply with exactly PRODX_GEMINI_API_OK"}]}]}' > gemini-api-smoke.json
+          printf '%s\n' '{"modelProvider":"gemini"}' > "$HOME/.gemini/antigravity-cli/settings.json"
+          printf '%s\n' '{"contents":[{"parts":[{"text":"Reply with exactly PRODX_GEMINI_API_OK"}]}]}' > gemini-api-smoke.json
           echo "DIRECT_API_START" >> gemini-auth-state.txt
           http_code="$(curl --silent --show-error --output gemini-api-result.json --write-out '%{http_code}' -H "x-goog-api-key: $GEMINI_API_KEY" -H "Content-Type: application/json" -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent" --data-binary @gemini-api-smoke.json)" || status=1
           if [ "$status" -ne 0 ] || [ "$http_code" != "200" ]; then
