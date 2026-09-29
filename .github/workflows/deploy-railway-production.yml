@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 20
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      RAILWAY_PROJECT_ID: ccb77b99-9bca-4b59-bd16-debe0d8d343
+      RAILWAY_PROJECT_ID: ccb77b99-9bca-4b59-bd16-debe0d8d3431
       RAILWAY_ENVIRONMENT: production
       RAILWAY_SERVICE: prodx-pos-api-test
     steps:
