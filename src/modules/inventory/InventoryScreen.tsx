@@ -4,6 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useBreadcrumb, BreadcrumbLevel } from '../../context/BreadcrumbContext';
 import { createCatalogReadApi } from '../../adapters/catalogApiFactory';
+import { catalogApi as legacyCatalogApi } from '../../adapters/mockAdapter';
 import { createProductionInventoryAdjustmentApi } from '../../adapters/productionInventoryAdjustmentApi';
 import { Product, InventoryLedgerEntry, StockMovementReason, Category } from '../../domain/catalog';
 import { formatMoney, createMoney } from '../../domain/money';
@@ -359,7 +360,7 @@ export const InventoryScreen: React.FC = () => {
     if (!session || selectedProductIds.length === 0) return;
     setIsSubmitting(true);
     try {
-      const updatedProds = await catalogApi.bulkUpdatePricing(
+      const updatedProds = await legacyCatalogApi.bulkUpdatePricing(
         session.currentStore.id,
         selectedProductIds,
         bulkPriceChangeType,
