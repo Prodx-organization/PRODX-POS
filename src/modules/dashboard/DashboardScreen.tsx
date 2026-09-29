@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useShift } from '../../context/ShiftContext';
 import { useOffline } from '../../context/OfflineContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { orderApi } from '../../adapters/mockAdapter';
+import { createOrderReadApi } from '../../adapters/orderReadApiFactory';
 import { createCatalogReadApi } from '../../adapters/catalogApiFactory';
 import { Order } from '../../domain/order';
 import { Product } from '../../domain/catalog';
@@ -55,6 +55,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const { pendingCount } = useOffline();
   const { t, language } = useLanguage();
   const catalogApi = useMemo(() => (session ? createCatalogReadApi(session.token) : null), [session]);
+  const orderReadApi = useMemo(() => (session ? createOrderReadApi(session.token) : null), [session]);
 
   const userRole = session?.currentUser?.role || 'cashier';
   const isFinancialAuthorized = userRole === 'admin' || userRole === 'manager';
@@ -116,11 +117,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
 
   useEffect(() => {
     async function loadDashboardData() {
-      if (!session || !catalogApi) return;
+      if (!session || !catalogApi || !orderReadApi) return;
       setIsLoading(true);
       try {
         const [loadedOrders, loadedProducts] = await Promise.all([
-          orderApi.getOrders(session.currentStore.id, 200),
+          orderReadApi.getOrders(200),
           catalogApi!.getProducts(),
         ]);
         setOrders(loadedOrders);
@@ -132,7 +133,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       }
     }
     loadDashboardData();
-  }, [session, catalogApi]);
+  }, [session, catalogApi, orderReadApi]);
 
   // Save widget order when changed
   useEffect(() => {
