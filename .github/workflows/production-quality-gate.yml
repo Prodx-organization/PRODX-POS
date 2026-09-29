@@ -134,17 +134,24 @@ jobs:
           SQL
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0021_m4_sensitive_role_permissions.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
-          SELECT r.role_key, count(*) AS sensitive_permission_count
-          FROM prodx_role_permissions rp
-          JOIN prodx_roles r ON r.id = rp.role_id AND r.organization_id = rp.organization_id
-          JOIN prodx_permissions p ON p.id = rp.permission_id
-          WHERE r.organization_id = '00000000-0000-0000-0000-000000000001'
-            AND p.permission_key IN ('cash.shift.movement', 'audit.read')
-          GROUP BY r.role_key
-          HAVING (r.role_key IN ('admin', 'manager') AND count(*) = 2)
-              OR (r.role_key = 'cashier' AND count(*) = 0);
-          SQL
-          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT (
+            SELECT count(*)
+            FROM prodx_role_permissions rp
+            JOIN prodx_roles r ON r.id = rp.role_id AND r.organization_id = rp.organization_id
+            JOIN prodx_permissions p ON p.id = rp.permission_id
+            WHERE r.organization_id = '00000000-0000-0000-0000-000000000001'
+              AND r.role_key IN ('admin', 'manager')
+              AND p.permission_key IN ('cash.shift.movement', 'audit.read')
+          ) = 4;
+          SELECT (
+            SELECT count(*)
+            FROM prodx_role_permissions rp
+            JOIN prodx_roles r ON r.id = rp.role_id AND r.organization_id = rp.organization_id
+            JOIN prodx_permissions p ON p.id = rp.permission_id
+            WHERE r.organization_id = '00000000-0000-0000-0000-000000000001'
+              AND r.role_key = 'cashier'
+              AND p.permission_key IN ('cash.shift.movement', 'audit.read')
+          ) = 0;
           SQL
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
