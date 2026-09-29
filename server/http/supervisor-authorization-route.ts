@@ -7,7 +7,7 @@ import {
 import type { TransactionalSqlExecutor } from '../db/transaction';
 
 type Body = {
-  action: 'refund';
+  action: 'refund' | 'void';
   orderId: string;
   supervisorUsername: string;
   supervisorSecret: string;
@@ -16,15 +16,25 @@ type Body = {
 const valid = (value: unknown): value is Body => {
   if (!value || typeof value !== 'object') return false;
   const body = value as Record<string, unknown>;
-  return body.action === 'refund' &&
+  return (body.action === 'refund' || body.action === 'void') &&
     typeof body.orderId === 'string' && body.orderId.trim().length > 0 &&
     typeof body.supervisorUsername === 'string' && body.supervisorUsername.trim().length > 0 &&
     typeof body.supervisorSecret === 'string' && body.supervisorSecret.length > 0;
 };
 
 export const registerSupervisorAuthorizationRoute = (app: Express, db: TransactionalSqlExecutor): void => {
-  app.post('/api/v1/authorizations/supervisor', requirePermission('pos.refund'), async (request: Request, response: Response) => {
+  app.post('/api/v1/authorizations/supervisor', async (request: Request, response: Response) => {
     const context = request.prodxContext;
+    if (!context) {
+      response.status(500).json({ error: { code: 'REQUEST_CONTEXT_MISSING', message: 'Request context is required.' } });
+      return;
+    }
+    const authorizer = request.app.locals.prodxAuthorize as ((ctx: typeof context, permission: string) => Promise<boolean>) | undefined;
+    const action = request.body?.action;
+    if (!authorizer || (action !== 'refund' && action !== 'void') || !(await authorizer(context, action === 'void' ? 'pos.void' : 'pos.refund'))) {
+      response.status(403).json({ error: { code: 'FORBIDDEN', message: 'The requested supervisor authorization capability is not authorized.' } });
+      return;
+    }
     if (!context) {
       response.status(500).json({ error: { code: 'REQUEST_CONTEXT_MISSING', message: 'Request context is required.' } });
       return;
