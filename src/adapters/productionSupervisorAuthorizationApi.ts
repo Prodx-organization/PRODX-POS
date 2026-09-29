@@ -1,4 +1,4 @@
-export type SupervisorAuthorizationRequest = { action: 'refund' | 'void'; orderId: string; supervisorUsername: string; supervisorSecret: string; };
+export type SupervisorAuthorizationRequest = { action: 'refund' | 'void'; orderId: string; supervisorUsername?: string; supervisorUserId?: string; supervisorSecret: string; };
 
 export type SupervisorAuthorizationResponse = { authorizationToken: string; supervisorUserId: string; expiresAt: string; };
 
