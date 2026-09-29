@@ -2,10 +2,10 @@
  * PRODX POS - Shift & Cash Drawer Context
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Shift, CashMovement, CashMovementType } from '../domain/shift';
 import { Money, createMoney } from '../domain/money';
-import { shiftApi } from '../adapters/mockAdapter';
+import { createShiftApi } from '../adapters/productionShiftApiFactory';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 
@@ -22,9 +22,19 @@ const ShiftContext = createContext<ShiftContextType | undefined>(undefined);
 
 export const ShiftProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { session } = useAuth();
+  const shiftApi = session ? createShiftApi(session.token) : null;
   const { addToast } = useToast();
   const [currentShift, setCurrentShift] = useState<Shift | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const pendingIdempotency = useRef(new Map<string, { fingerprint: string; key: string }>());
+  const getIdempotencyKey = (operation: string, fingerprint: string) => {
+    const existing = pendingIdempotency.current.get(operation);
+    if (existing?.fingerprint === fingerprint) return existing.key;
+    const key = crypto.randomUUID();
+    pendingIdempotency.current.set(operation, { fingerprint, key });
+    return key;
+  };
+  const clearIdempotencyKey = (operation: string) => pendingIdempotency.current.delete(operation);
 
   const refreshShift = useCallback(async () => {
     if (!session) {
@@ -34,7 +44,7 @@ export const ShiftProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     try {
       setIsLoading(true);
-      const shift = await shiftApi.getCurrentShift(session.currentStore.id, session.registerId);
+      const shift = await shiftApi!.getCurrentShift(session.currentStore.id, session.registerId);
       setCurrentShift(shift);
     } catch (err) {
       console.error('[ShiftContext] Error loading shift:', err);
@@ -50,12 +60,15 @@ export const ShiftProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const openShift = async (openingFloat: Money): Promise<Shift | undefined> => {
     if (!session) return undefined;
     try {
-      const shift = await shiftApi.openShift(
+      const key = getIdempotencyKey('open-shift', JSON.stringify([session.currentStore.id, session.registerId, openingFloat.amountInCents, openingFloat.currency, session.currentUser.id]));
+      const shift = await shiftApi!.openShift(
         session.currentStore.id,
         session.registerId,
         openingFloat,
-        session.currentUser
+        session.currentUser,
+        key
       );
+      clearIdempotencyKey('open-shift');
       setCurrentShift(shift);
       addToast({
         title: 'Shift Opened',
@@ -76,7 +89,9 @@ export const ShiftProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const closeShift = async (actualCountedCash: Money, notes?: string): Promise<Shift> => {
     if (!currentShift) throw new Error('No active shift to close');
     try {
-      const closed = await shiftApi.closeShift(currentShift.id, actualCountedCash, notes);
+      const key = getIdempotencyKey('close-shift', JSON.stringify([currentShift.id, actualCountedCash.amountInCents, actualCountedCash.currency, notes ?? '']));
+      const closed = await shiftApi!.closeShift(currentShift.id, actualCountedCash, notes, key);
+      clearIdempotencyKey('close-shift');
       setCurrentShift(null);
       addToast({
         title: 'Shift Closed & Reconciled',
@@ -97,13 +112,16 @@ export const ShiftProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const recordCashMovement = async (type: CashMovementType, amount: Money, reason: string) => {
     if (!currentShift || !session) return;
     try {
-      await shiftApi.recordCashMovement(
+      const key = getIdempotencyKey('cash-movement', JSON.stringify([currentShift.id, type, amount.amountInCents, amount.currency, reason]));
+      await shiftApi!.recordCashMovement(
         currentShift.id,
         type,
         amount,
         reason,
-        session.currentUser.id
+        session.currentUser.id,
+        key
       );
+      clearIdempotencyKey('cash-movement');
       await refreshShift();
       addToast({
         title: 'Cash Drawer Movement Recorded',
