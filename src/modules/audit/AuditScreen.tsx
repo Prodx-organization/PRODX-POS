@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { auditApi } from '../../adapters/mockAdapter';
+import { createAuditApi } from '../../adapters/productionAuditApiFactory';
 import { AuditLogEntry } from '../../domain/audit';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
@@ -14,6 +14,7 @@ import { Shield, RefreshCw, AlertTriangle, AlertOctagon, CheckCircle, Terminal, 
 export const AuditScreen: React.FC = () => {
   const { session } = useAuth();
   const { t, language } = useLanguage();
+  const auditApi = session ? createAuditApi(session.token) : null;
   const [logs, setLogs] = useState<readonly AuditLogEntry[]>([]);
   const [search, setSearch] = useState('');
   const [severityFilter, setSeverityFilter] = useState<'all' | 'critical' | 'warn' | 'info'>('all');
@@ -25,6 +26,7 @@ export const AuditScreen: React.FC = () => {
     if (!session) return;
     setIsLoading(true);
     try {
+      if (!auditApi) return;
       const data = await auditApi.getLogs(session.currentStore.id, 50);
       setLogs(data);
     } catch (err) {
