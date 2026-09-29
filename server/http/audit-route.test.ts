@@ -18,7 +18,7 @@ test('audit production route is authenticated, authorized, and store scoped', as
   const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
   const db = { query: async <T extends Record<string, unknown>>(sql: string, parameters: readonly unknown[] = []) => {
     calls.push({ sql, parameters });
-    return { rows: [{ id:'audit-1',store_id:'store-1',register_id:'REG-01',user_id:'user-1',user_name:'Cashier One',action:'stock_adjusted',severity:'warn',details:{reason:'damaged_write_off'},created_at:'2026-09-24T00:00:00.000Z' }] as T[] };
+    return { rows: [{ id:'audit-1',store_id:'store-1',register_id:'REG-01',user_id:'user-1',user_name:'Cashier One',action:'stock_adjusted',severity:'warn',details:{reason:'damaged_write_off'},created_at:'2026-09-24T00:00:00.000Z' }] as unknown as T[] };
   }};
   const app = createApp({ authenticateRequest: () => principal, authorizeRequest: (_context, permission) => permission === 'audit:read', configureRoutes: (configuredApp) => registerAuditRoute(configuredApp, db) });
   const server = await start(app);
@@ -32,7 +32,7 @@ test('audit production route is authenticated, authorized, and store scoped', as
 
 test('audit production route denies unauthorized access before database query', async () => {
   let queried = false;
-  const db = { query: async <T extends Record<string, unknown>>(_sql: string, _parameters: readonly unknown[] = []) => { queried = true; return { rows: [] as T[] }; } };
+  const db = { query: async <T extends Record<string, unknown>>(_sql: string, _parameters: readonly unknown[] = []) => { queried = true; return { rows: [] as unknown as T[] }; } };
   const app = createApp({ authenticateRequest: () => principal, authorizeRequest: () => false, configureRoutes: (configuredApp) => registerAuditRoute(configuredApp, db) });
   const server = await start(app);
   try { const response = await fetch(`${server.baseUrl}/api/v1/audit/logs`); assert.equal(response.status,403); assert.equal(queried,false); }
