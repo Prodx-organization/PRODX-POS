@@ -929,7 +929,7 @@ export const LoginScreen: React.FC = () => {
                 <div className="grid grid-cols-3 gap-1.5">
                   {staffAccounts.map((acc) => {
                     const storedPasswords = getStoredStaffPasswords();
-                    const userPass = storedPasswords[acc.userId] || 'password123';
+                    const userPass = storedPasswords[acc.userId] ?? '';
                     return (
                       <button
                         key={acc.id}
