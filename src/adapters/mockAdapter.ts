@@ -695,9 +695,11 @@ export class MockAuthApi implements IAuthApi {
 
       // Validate credentials if authenticating via password
       if (matched && passOrPin && !term.match(/^\d{4}$/)) {
-        const correctPassword = staffPasswords[matched.id] || 'password123';
+        const correctPassword = staffPasswords[matched.id];
         const correctPin = staffPins[matched.id];
-        const isValid = passOrPin === correctPassword || (correctPin && passOrPin === correctPin) || passOrPin === 'password123';
+        const isValid =
+          (typeof correctPassword === 'string' && correctPassword.length > 0 && passOrPin === correctPassword) ||
+          (typeof correctPin === 'string' && correctPin.length > 0 && passOrPin === correctPin);
         if (!isValid) {
           throw new Error('Invalid email or password. Please verify your credentials or use "Manage / Reset Password".');
         }
