@@ -1,5 +1,4 @@
 import type { Express, Request, Response } from 'express';
-import { requirePermission } from './createApp';
 import {
   createSupervisorAuthorizationService,
   SupervisorAuthorizationError,
@@ -35,11 +34,6 @@ export const registerSupervisorAuthorizationRoute = (app: Express, db: Transacti
       response.status(403).json({ error: { code: 'FORBIDDEN', message: 'The requested supervisor authorization capability is not authorized.' } });
       return;
     }
-    if (!context) {
-      response.status(500).json({ error: { code: 'REQUEST_CONTEXT_MISSING', message: 'Request context is required.' } });
-      return;
-    }
-
     const sessionId = 'sessionId' in context.principal && typeof context.principal.sessionId === 'string' ? context.principal.sessionId : null;
     if (!sessionId) {
       response.status(500).json({ error: { code: 'SESSION_CONTEXT_MISSING', message: 'Authenticated session context is required.' } });
