@@ -113,7 +113,21 @@ jobs:
           printf '%s\n' '{"modelProvider":"gemini"}' > "$HOME/.gemini/antigravity-cli/settings.json"
           printf '%s\n' '{"model":"gemini-3.8-flash","input":"Reply with exactly PRODX_GEMINI_API_OK"}' > gemini-api-smoke.json
           echo "DIRECT_API_START" >> gemini-auth-state.txt
-          http_code="$(curl --silent --show-error --output gemini-api-result.json --write-out '%{http_code}' -H "x-goog-api-key: $GEMINI_API_KEY" -H "Content-Type: application/json" -X POST "https://generativelanguage.googleapis.com/v1beta/interactions" --data-binary @gemini-api-smoke.json)" || status=1
+          http_code="000"
+          for attempt in 1 2 3 4 5; do
+            status=0
+            http_code="$(curl --silent --show-error --output gemini-api-result.json --write-out '%{http_code}' -H "x-goog-api-key: $GEMINI_API_KEY" -H "Content-Type: application/json" -X POST "https://generativelanguage.googleapis.com/v1beta/interactions" --data-binary @gemini-api-smoke.json)" || status=1
+            if [ "$status" -eq 0 ] && [ "$http_code" = "200" ]; then
+              break
+            fi
+            if [ "$attempt" -lt 5 ] && { [ "$http_code" = "408" ] || [ "$http_code" = "429" ] || [ "$http_code" -ge 500 ] || [ "$status" -ne 0 ]; }; then
+              delay=$((2 ** attempt))
+              echo "Direct Gemini Interactions API transient failure (HTTP ${http_code:-curl-error}); retrying in ${delay}s (attempt ${attempt}/5)"
+              sleep "$delay"
+            else
+              break
+            fi
+          done
           if [ "$status" -ne 0 ] || [ "$http_code" != "200" ]; then
             echo "DIRECT_API_FAIL" >> gemini-auth-state.txt
             echo "Direct Gemini Interactions API smoke: FAIL (HTTP ${http_code:-curl-error})"
