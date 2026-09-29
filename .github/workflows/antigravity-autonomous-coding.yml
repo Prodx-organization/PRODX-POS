@@ -135,7 +135,7 @@ jobs:
             echo "GEMINI_API_HTTP=${http_code:-unknown}" >> "$GITHUB_ENV"
             exit 1
           fi
-          jq -e '.output_text? | contains("PRODX_GEMINI_API_OK")' gemini-api-result.json >/dev/null || { echo "Direct Gemini Interactions API smoke: FAIL (unexpected response shape)"; echo "GEMINI_API_STATUS=direct_api_bad_response" >> "$GITHUB_ENV"; echo "GEMINI_API_HTTP=200" >> "$GITHUB_ENV"; exit 1; }
+          jq -e '([.output_text // empty] + [.steps[]?.content[]? | select(.type=="text") | .text]) | join("") | contains("PRODX_GEMINI_API_OK")' gemini-api-result.json >/dev/null || { echo "Direct Gemini Interactions API smoke: FAIL (unexpected response shape)"; echo "GEMINI_API_STATUS=direct_api_bad_response" >> "$GITHUB_ENV"; echo "GEMINI_API_HTTP=200" >> "$GITHUB_ENV"; exit 1; }
           echo "DIRECT_API_PASS" >> gemini-auth-state.txt
           echo "Direct Gemini Interactions API smoke: PASS"
           echo "GEMINI_API_STATUS=direct_api_pass" >> "$GITHUB_ENV"
