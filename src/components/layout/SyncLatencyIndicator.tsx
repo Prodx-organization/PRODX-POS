@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useOffline, SyncLatencyQuality, computeLatencyQuality } from '../../context/OfflineContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { mockState } from '../../adapters/mockAdapter';
 import {
   Activity,
   Zap,
@@ -176,14 +175,10 @@ export const SyncLatencyIndicator: React.FC<SyncLatencyIndicatorProps> = ({
     }
   };
 
-  // Preset latency simulation
-  const handleSetPresetLatency = (ms: number) => {
-    if (isSimulatedOffline) {
-      toggleSimulatedOffline();
-    }
-    mockState.setSimulatedLatency(ms);
-    measureSyncLatency();
+  const handleMeasureLatency = () => {
+    void measureSyncLatency();
   };
+
 
   return (
     <div className={`relative inline-flex items-center ${className}`} ref={popoverRef}>
@@ -491,7 +486,7 @@ export const SyncLatencyIndicator: React.FC<SyncLatencyIndicatorProps> = ({
               id="sync-latency-ping-btn"
               variant="outline"
               size="sm"
-              onClick={() => measureSyncLatency()}
+              onClick={handleMeasureLatency}
               isLoading={isMeasuringLatency}
               leftIcon={<RefreshCw className={`h-3.5 w-3.5 ${isMeasuringLatency ? 'animate-spin' : ''}`} />}
               className="flex-1 text-xs"
