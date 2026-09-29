@@ -20,7 +20,7 @@ test('audit production route is authenticated, authorized, and store scoped', as
     calls.push({ sql, parameters });
     return { rows: [{ id:'audit-1',store_id:'store-1',register_id:'REG-01',user_id:'user-1',user_name:'Cashier One',action:'stock_adjusted',severity:'warn',details:{reason:'damaged_write_off'},created_at:'2026-09-24T00:00:00.000Z' }] as unknown as T[] };
   }};
-  const app = createApp({ authenticateRequest: () => principal, authorizeRequest: (_context, permission) => permission === 'audit:read', configureRoutes: (configuredApp) => registerAuditRoute(configuredApp, db) });
+  const app = createApp({ authenticateRequest: () => principal, authorizeRequest: (_context, permission) => permission === 'audit.read', configureRoutes: (configuredApp) => registerAuditRoute(configuredApp, db) });
   const server = await start(app);
   try {
     const response = await fetch(`${server.baseUrl}/api/v1/audit/logs?limit=10`);
