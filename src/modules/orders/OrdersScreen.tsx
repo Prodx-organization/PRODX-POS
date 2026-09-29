@@ -5,7 +5,9 @@ import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useBreadcrumb, BreadcrumbLevel } from '../../context/BreadcrumbContext';
 import { useReceiptPrinter } from '../../context/ReceiptPrinterContext';
-import { orderApi } from '../../adapters/mockAdapter';
+import { createOrderReadApi } from '../../adapters/orderReadApiFactory';
+import { createProductionSupervisorAuthorizationApi } from '../../adapters/productionSupervisorAuthorizationApi';
+import { createProductionVoidApi } from '../../adapters/productionVoidApi';
 import { Order, TransactionStatus } from '../../domain/order';
 import { formatMoney } from '../../domain/money';
 import { Card, CardHeader, CardBody } from '../../components/common/Card';
@@ -53,6 +55,9 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({ onNavigate }) => {
   const { printReceipt, isPrinting, printerConfig } = useReceiptPrinter();
   const { setSubLevels } = useBreadcrumb();
   const { items: currentCartItems, reorderItems } = useCart();
+  const orderReadApi = createOrderReadApi(session?.token ?? '');
+  const supervisorAuthorizationApi = createProductionSupervisorAuthorizationApi(session?.token ?? '');
+  const voidApi = createProductionVoidApi(session?.token ?? '');
 
   const [orders, setOrders] = useState<readonly Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -144,7 +149,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({ onNavigate }) => {
       if (!session) return;
       setIsLoading(true);
       try {
-        const list = await orderApi.getOrders(session.currentStore.id);
+        const list = await orderReadApi.getOrders(200);
         setOrders(list);
 
         // Auto-select order if navigated from Command Palette or external link
@@ -252,14 +257,24 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({ onNavigate }) => {
     if (!session || !selectedOrder) return;
     setIsVoiding(true);
     try {
-      const voided = await orderApi.voidOrder(
-        session.currentStore.id,
-        selectedOrder.id,
-        reasonNotes || 'Supervisor PIN authorized void',
-        supervisor.id
-      );
-      setOrders((prev) => prev.map((o) => (o.id === voided.id ? voided : o)));
-      setSelectedOrder(voided);
+      if (!secret?.trim()) {
+        throw new Error('Production supervisor secret is required for order void.');
+      }
+      const authorization = await supervisorAuthorizationApi.authorize({
+        action: 'void',
+        orderId: selectedOrder.id,
+        supervisorUserId: supervisor.id,
+        supervisorSecret: secret,
+      });
+      const voided = await voidApi.voidOrder({
+        orderId: selectedOrder.id,
+        reason: reasonNotes || 'Supervisor authorized void',
+        idempotencyKey: `void:${selectedOrder.id}:${crypto.randomUUID()}`,
+        supervisorAuthorizationToken: authorization.authorizationToken,
+      });
+      const updatedOrder = { ...selectedOrder, status: voided.status as Order['status'] };
+      setOrders((prev) => prev.map((o) => (o.id === selectedOrder.id ? updatedOrder : o)));
+      setSelectedOrder(updatedOrder);
       addToast({
         title: language === 'th' ? 'ยกเลิกคำสั่งซื้อแล้ว' : 'Order Voided',
         message:
