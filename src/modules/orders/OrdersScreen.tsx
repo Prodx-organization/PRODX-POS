@@ -253,7 +253,7 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({ onNavigate }) => {
     setIsSupervisorVoidModalOpen(true);
   };
 
-  const handleSupervisorVoidAuthorized = async (supervisor: User, reasonNotes?: string) => {
+  const handleSupervisorVoidAuthorized = async (supervisor: User, reasonNotes?: string, secret?: string) => {
     if (!session || !selectedOrder) return;
     setIsVoiding(true);
     try {
@@ -279,8 +279,8 @@ export const OrdersScreen: React.FC<OrdersScreenProps> = ({ onNavigate }) => {
         title: language === 'th' ? 'ยกเลิกคำสั่งซื้อแล้ว' : 'Order Voided',
         message:
           language === 'th'
-            ? `คำสั่งซื้อ #${voided.orderNumber} ถูกยกเลิกโดย ${supervisor.name} เรียบร้อยแล้ว`
-            : `Order #${voided.orderNumber} voided by ${supervisor.name}.`,
+            ? `คำสั่งซื้อ #${selectedOrder.orderNumber} ถูกยกเลิกโดย ${supervisor.name} เรียบร้อยแล้ว`
+            : `Order #${selectedOrder.orderNumber} voided by ${supervisor.name}.`,
         type: 'info',
       });
     } catch (err: any) {
