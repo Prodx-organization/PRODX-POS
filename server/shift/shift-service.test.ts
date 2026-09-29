@@ -15,6 +15,7 @@ const db = (): TransactionalSqlExecutor => {
       opInserted = false; opId = String(params[0]); return { rows: [{ id: opId }] };
     }
     if (sql.includes('SELECT id,payload_hash') && sql.includes('prodx_shift_operations')) return { rows: [{ id: opId, payload_hash: 'different' }] };
+    if (sql.includes('SELECT r.status,s.currency FROM prodx_registers')) return { rows: [{ status:'active', currency:'THB' }] };
     if (sql.includes('SELECT id FROM prodx_shifts WHERE register_id')) return { rows: [] };
     if (sql.includes('INSERT INTO prodx_shifts')) return { rows: [] };
     if (sql.includes('SELECT s.id,s.store_id')) return { rows: [{ id:'shift-1',store_id:'store-1',register_id:'reg-1',cashier_id:'user-1',cashier_name:'Cashier',opened_at:new Date().toISOString(),closed_at:null,status:'open',opening_float_amount:'100.00',actual_counted_cash_amount:null,currency:'THB' }] };
@@ -42,7 +43,23 @@ test('reused shift idempotency key with different payload is rejected', async ()
   const service = createShiftService(db());
   await service.openShift({organizationId:'org-1',storeId:'store-1',userId:'user-1'},'reg-1',createMoney(10000),{id:'user-1',name:'Cashier'} as any,'open-1');
   await assert.rejects(
-    service.openShift({organizationId:'org-1',storeId:'store-1',userId:'user-1'},'reg-1',createMoney(20000),{id:'user-1',name:'Cashier'} as any,'open-1'),
+    service.openShift({organizationId:'org-1',storeId:'store-1',userId:'user-1'},'reg-1',createMoney(20000,'THB'),{id:'user-1',name:'Cashier'} as any,'open-1'),
     ShiftConflictError,
   );
+});
+
+
+test('open shift rejects disabled registers and non-store currency', async () => {
+  const makeDb = (status:'active'|'disabled', currency:string): TransactionalSqlExecutor => {
+    const query = async (sql: string, params: readonly unknown[] = []) => {
+      if (sql.includes('INSERT INTO prodx_shift_operations')) return { rows: [{ id:'op-1' }] };
+      if (sql.includes('SELECT r.status,s.currency FROM prodx_registers')) return { rows: [{ status, currency }] };
+      return { rows: [] };
+    };
+    return { query: query as SqlQueryExecutor['query'], transaction: async work => work({ query: query as SqlQueryExecutor['query'] }) };
+  };
+  const disabled = createShiftService(makeDb('disabled','THB'));
+  await assert.rejects(disabled.openShift({organizationId:'org-1',storeId:'store-1',userId:'user-1'},'reg-1',createMoney(10000,'THB'),{id:'user-1',name:'Cashier'} as any,'disabled-1'), /disabled/);
+  const wrongCurrency = createShiftService(makeDb('active','THB'));
+  await assert.rejects(wrongCurrency.openShift({organizationId:'org-1',storeId:'store-1',userId:'user-1'},'reg-1',createMoney(10000,'USD'),{id:'user-1',name:'Cashier'} as any,'currency-1'), /store currency/);
 });
