@@ -3,16 +3,15 @@ import { useAuth } from '../../context/AuthContext';
 import { useShift } from '../../context/ShiftContext';
 import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { CashMovementType, Shift, TimeclockRecord } from '../../domain/shift';
+import { CashMovementType, Shift } from '../../domain/shift';
 import { Order } from '../../domain/order';
 import { formatMoney, createMoney, subtractMoney } from '../../domain/money';
 import { Card, CardHeader, CardBody } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { Modal } from '../../components/common/Modal';
-import { ClockInOutModal } from './ClockInOutModal';
 import { ShiftPaymentBreakdownModal } from './ShiftPaymentBreakdownModal';
-import { shiftApi, orderApi } from '../../adapters/mockAdapter';
+import { createOrderReadApi } from '../../adapters/orderReadApiFactory';
 import { jsPDF } from 'jspdf';
 import {
   Banknote,
@@ -41,7 +40,6 @@ export const ShiftScreen: React.FC = () => {
   const [isOpenShiftModal, setIsOpenShiftModal] = useState(false);
   const [isCloseShiftModal, setIsCloseShiftModal] = useState(false);
   const [isMovementModal, setIsMovementModal] = useState(false);
-  const [isClockModalOpen, setIsClockModalOpen] = useState(false);
   const [isBreakdownModalOpen, setIsBreakdownModalOpen] = useState(false);
 
   // Form states
@@ -52,7 +50,6 @@ export const ShiftScreen: React.FC = () => {
   const [movementReason, setMovementReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [timeclockRecords, setTimeclockRecords] = useState<TimeclockRecord[]>([]);
   const [orders, setOrders] = useState<readonly Order[]>([]);
 
   const triggerOpenShiftModal = () => {
@@ -68,25 +65,19 @@ export const ShiftScreen: React.FC = () => {
   };
 
   useEffect(() => {
-    if (session) {
-      shiftApi.getTimeclockRecords(session.currentStore.id)
-        .then(records => setTimeclockRecords(records))
-        .catch(console.error);
-
-      orderApi.getOrders(session.currentStore.id)
-        .then(list => setOrders(list))
-        .catch(console.error);
-    }
-  }, [session]);
-
-  const refreshTimeclock = async () => {
-    if (session) {
-      const records = await shiftApi.getTimeclockRecords(session.currentStore.id);
-      setTimeclockRecords(records);
-      const list = await orderApi.getOrders(session.currentStore.id);
-      setOrders(list);
-    }
-  };
+    if (!session) return;
+    const orderReadApi = createOrderReadApi(session.token);
+    orderReadApi.getOrders(200)
+      .then(list => setOrders(list))
+      .catch((error) => {
+        console.error('[ShiftScreen] Failed to load production orders:', error);
+        addToast({
+          title: language === 'th' ? 'โหลดรายการขายไม่สำเร็จ' : 'Order data unavailable',
+          message: error instanceof Error ? error.message : String(error),
+          type: 'error',
+        });
+      });
+  }, [session, addToast, language]);
 
   if (!session) return null;
 
@@ -431,16 +422,7 @@ export const ShiftScreen: React.FC = () => {
         </div>
         {/* Action button container with overflow-x-auto */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 shrink-0">
-          {/* ปุ่มลงเวลา, รายงาน, บันทึกเงินเข้าออก, และปุ่มปิดกะ */}
-          <Button
-            variant="outline"
-            size="md"
-            onClick={() => setIsClockModalOpen(true)}
-            leftIcon={<Clock className="h-4 w-4 text-emerald-500" />}
-            className="whitespace-nowrap min-h-[44px]"
-          >
-            {language === 'th' ? 'ลงเวลาเข้า/ออก' : 'Clock In/Out'}
-          </Button>
+          {/* Timeclock UI is intentionally omitted until the server-backed PIN boundary is implemented. */}
           {currentShift ? (
             <>
               <Button
@@ -640,62 +622,7 @@ export const ShiftScreen: React.FC = () => {
         </Card>
       )}
 
-      {/* Timeclock Records Section */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between py-4">
-          <h2 className="text-sm font-bold text-text flex items-center gap-2">
-            <UserCheck className="h-4 w-4 text-emerald-500" />
-            {language === 'th' ? 'บันทึกเวลาเข้า-ออกงาน' : 'Timeclock Records'}
-          </h2>
-          <Badge variant="neutral">{timeclockRecords.length} {language === 'th' ? 'รายการ' : 'Records'}</Badge>
-        </CardHeader>
-        <div className="w-full overflow-x-auto rounded-lg border border-border bg-card max-h-[300px]">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-card sticky top-0 border-b border-border border-crisp">
-              <tr>
-                <th className="py-2.5 px-4 font-semibold text-text/70 text-xs uppercase">{language === 'th' ? 'สถานะ' : 'Status'}</th>
-                <th className="py-2.5 px-4 font-semibold text-text/70 text-xs uppercase">{language === 'th' ? 'พนักงาน' : 'Employee'}</th>
-                <th className="py-2.5 px-4 font-semibold text-text/70 text-xs uppercase">{language === 'th' ? 'รหัสพนักงาน' : 'Code'}</th>
-                <th className="py-2.5 px-4 font-semibold text-text/70 text-xs uppercase">{language === 'th' ? 'เวลาเข้า' : 'In'}</th>
-                <th className="py-2.5 px-4 font-semibold text-text/70 text-xs uppercase">{language === 'th' ? 'เวลาออก' : 'Out'}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {timeclockRecords.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-text/50 text-sm">
-                    {language === 'th' ? 'ไม่มีบันทึกเวลา' : 'No timeclock records'}
-                  </td>
-                </tr>
-              ) : (
-                timeclockRecords.map((r) => (
-                  <tr key={r.id} className="hover:bg-background transition-colors">
-                    <td className="py-2.5 px-4">
-                      {r.status === 'clocked_in' ? (
-                        <Badge variant="success" className="text-[10px]">
-                          {language === 'th' ? 'เข้างาน' : 'Clocked In'}
-                        </Badge>
-                      ) : (
-                        <Badge variant="neutral" className="text-[10px]">
-                          {language === 'th' ? 'ออกงาน' : 'Clocked Out'}
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-4 font-medium text-text">{r.userName}</td>
-                    <td className="py-2.5 px-4 font-mono text-xs text-text/50">{r.employeeCode}</td>
-                    <td className="py-2.5 px-4 text-text/70">
-                      {new Date(r.clockedInAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
-                    </td>
-                    <td className="py-2.5 px-4 text-text/70">
-                      {r.clockedOutAt ? new Date(r.clockedOutAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }) : '-'}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      {/* Timeclock remains intentionally disabled until a server-backed PIN/timeclock boundary exists. */}
 
       {/* Open Shift Modal */}
       <Modal
