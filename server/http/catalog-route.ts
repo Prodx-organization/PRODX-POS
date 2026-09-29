@@ -7,18 +7,6 @@ type ProductRow = {
   id: string; store_id: string; sku: string; barcode: string; name: string;
   category_id: string; price_amount: string; cost_price_amount: string; currency: string;
   tax_rate_bps: number; current_stock: number; reorder_point: number; unit_of_measure: string; active: boolean;
-  app.get('/api/v1/catalog/inventory-ledger', requirePermission('inventory.read'), async (request: Request, response: Response) => {
-    const context=request.prodxContext;
-    if(!context){response.status(500).json({error:{code:'REQUEST_CONTEXT_MISSING',message:'Request context is required.',requestId:request.id}});return;}
-    const productId=typeof request.query.productId==='string'?request.query.productId.trim():'';
-    const params=[context.principal.storeId];
-    const condition=productId?' AND product_id=$2':'';
-    if(productId) params.push(productId);
-    const rows=(await db.query(`SELECT id,store_id,product_id,quantity_delta,resulting_stock,reason,reference_id,performed_by_user_id,created_at
-      FROM prodx_inventory_ledger WHERE store_id=$1${condition} ORDER BY created_at DESC,id DESC LIMIT 500`,params)).rows;
-    response.json(rows.map((row:any)=>({id:row.id,storeId:row.store_id,productId:row.product_id,quantityDelta:row.quantity_delta,resultingStock:row.resulting_stock,reason:row.reason,referenceId:row.reference_id,performedByUserId:row.performed_by_user_id,timestamp:row.created_at})));
-  });
-
 };
 
 const moneyCents = (value: string): number => {
@@ -57,6 +45,23 @@ export const registerCatalogRoute = (app: Express, db: SqlQueryExecutor, permiss
       `SELECT id,store_id,sku,barcode,name,category_id,price_amount::text,cost_price_amount::text,currency,tax_rate_bps,current_stock,reorder_point,unit_of_measure,active
        FROM prodx_products WHERE ${conditions.join(' AND ')} ORDER BY name,id`, params)).rows;
     response.json(rows.map(productDto));
+  });
+
+  app.get('/api/v1/catalog/inventory-ledger', requirePermission('inventory.read'), async (request: Request, response: Response) => {
+    const context = request.prodxContext;
+    if (!context) { response.status(500).json({ error: { code: 'REQUEST_CONTEXT_MISSING', message: 'Request context is required.', requestId: request.id } }); return; }
+    const productId = typeof request.query.productId === 'string' ? request.query.productId.trim() : '';
+    const params: string[] = [context.principal.storeId];
+    const condition = productId ? ' AND product_id=$2' : '';
+    if (productId) params.push(productId);
+    const rows = (await db.query(
+      `SELECT id,store_id,product_id,quantity_delta,resulting_stock,reason,reference_id,performed_by_user_id,created_at
+       FROM prodx_inventory_ledger WHERE store_id=$1${condition} ORDER BY created_at DESC,id DESC LIMIT 500`, params)).rows;
+    response.json(rows.map((row: any) => ({
+      id: row.id, storeId: row.store_id, productId: row.product_id, quantityDelta: row.quantity_delta,
+      resultingStock: row.resulting_stock, reason: row.reason, referenceId: row.reference_id,
+      performedByUserId: row.performed_by_user_id, timestamp: row.created_at,
+    })));
   });
 
   app.get('/api/v1/catalog/products/by-barcode/:barcode', requirePermission(permission), async (request: Request, response: Response) => {
