@@ -30,6 +30,8 @@ test('GeminiProvider sends server-side credentials and normalizes Gemini content
     assert.equal(result.usage?.total_tokens, 18);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].init?.headers instanceof Headers ? calls[0].init.headers.get('x-goog-api-key') : (calls[0].init?.headers as Record<string, string>)['x-goog-api-key'], 'test-secret');
+    const body = JSON.parse(String(calls[0].init?.body));
+    assert.equal(body.generationConfig.temperature, undefined);
   } finally {
     globalThis.fetch = originalFetch;
   }
