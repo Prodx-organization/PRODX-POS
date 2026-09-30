@@ -2,23 +2,19 @@
 
 This directory contains the server-side, provider-neutral AI boundary for PRODX.
 
-## CI code-review provider
+## Provider policy
 
-The canonical CI code-review lane now uses Google Gemini through the Antigravity CLI. Provider credentials belong in the deployment secret manager and must never be committed or bundled into the browser.
+PRODX application AI is provider-independent. External providers are optional adapters behind the PRODX AI Gateway and must never be coupled directly to browser code.
 
-Configure the GitHub Actions secret GEMINI_API_KEY. The review workflow sets Antigravity's modelProvider to gemini and uses headless structured output.
+Provider credentials belong in the deployment secret manager and must never be committed or bundled into the browser.
 
-OpenRouter is no longer part of the canonical CI review lane. The application AI boundary remains provider-neutral; application runtime provider configuration is a separate concern from CI code review.
+The engineering review lane may use an approved external provider, but that provider choice is an implementation detail of the engineering lane and is not part of the application-facing PRODX AI contract.
 
 ## Request flow
 
-GitHub PR -> Antigravity CLI -> Gemini -> structured PRODX review -> PR comment -> CI decision
+PRODX frontend -> authenticated backend AI route -> AI Gateway -> approved provider/model adapter -> audit
 
-The review lane never exposes provider credentials to the browser. Its token is limited to repository read access plus PR/issue comments; it has no repository contents write permission. The automatic workflow is base-controlled and reviews only the exact head SHA it fetched.
-
-## Production integration boundary
-
-Application AI requests must remain behind the authenticated backend boundary so organization/user authorization, rate limits, quota policy, audit logging, and data-redaction rules are enforced before an AI request leaves PRODX.
+The application boundary enforces authorization, rate limits, quota policy, audit logging, tenant/store scope, and data-redaction rules before an AI request leaves PRODX.
 
 ## Verification
 

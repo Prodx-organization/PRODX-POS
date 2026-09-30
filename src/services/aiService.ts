@@ -19,7 +19,7 @@ export interface AiConfig {
 export const AI_BACKEND_CHAT_PATH = '/api/v1/ai/chat';
 
 export const DEFAULT_AI_CONFIG: AiConfig = {
-  model: 'openrouter/auto-beta',
+  model: 'prodx/auto',
   enabled: true,
   temperature: 0.7,
 };
