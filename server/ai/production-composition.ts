@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { SqlExecutor } from '../db/postgres';
+import type { SqlExecutor } from '../auth/postgres-repository';
 import { AIGatewayService, type AIAuthorizer, type AIAuditEvent, type AIAuditor, type AIScope } from './gateway';
 import { createAIProviderRegistry } from './core';
 import { GeminiProvider } from './geminiProvider';
