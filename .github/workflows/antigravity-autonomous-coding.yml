@@ -113,6 +113,7 @@ jobs:
           printf '%s\n' '{"modelProvider":"gemini"}' > "$HOME/.gemini/antigravity-cli/settings.json"
           printf '%s\n' '{"model":"gemini-3.8-flash","input":"Reply with exactly PRODX_GEMINI_API_OK"}' > gemini-api-smoke.json
           echo "DIRECT_API_START" >> gemini-auth-state.txt
+          gemini_api_status="direct_api_pending"
           http_code="000"
           for attempt in 1 2 3 4 5; do
             status=0
@@ -131,14 +132,24 @@ jobs:
           if [ "$status" -ne 0 ] || [ "$http_code" != "200" ]; then
             echo "DIRECT_API_FAIL" >> gemini-auth-state.txt
             echo "Direct Gemini Interactions API smoke: FAIL (HTTP ${http_code:-curl-error}); continuing to test AGY before enforcing the gate"
+            gemini_api_status="direct_api_failed"
             echo "GEMINI_API_STATUS=direct_api_failed" >> "$GITHUB_ENV"
             echo "GEMINI_API_HTTP=${http_code:-unknown}" >> "$GITHUB_ENV"
+          else
+            gemini_api_status="direct_api_pass"
+            if ! jq -e '([.output_text // empty] + [.steps[]?.content[]? | select(.type=="text") | .text]) | join("") | contains("PRODX_GEMINI_API_OK")' gemini-api-result.json >/dev/null; then
+              echo "Direct Gemini Interactions API smoke: FAIL (unexpected response shape); continuing to test AGY"
+              gemini_api_status="direct_api_bad_response"
+              echo "GEMINI_API_STATUS=direct_api_bad_response" >> "$GITHUB_ENV"
+              echo "GEMINI_API_HTTP=200" >> "$GITHUB_ENV"
+            fi
           fi
-          if [ "${GEMINI_API_STATUS:-}" = "direct_api_pass" ]; then jq -e '([.output_text // empty] + [.steps[]?.content[]? | select(.type=="text") | .text]) | join("") | contains("PRODX_GEMINI_API_OK")' gemini-api-result.json >/dev/null || { echo "Direct Gemini Interactions API smoke: FAIL (unexpected response shape); continuing to test AGY"; echo "GEMINI_API_STATUS=direct_api_bad_response" >> "$GITHUB_ENV"; echo "GEMINI_API_HTTP=200" >> "$GITHUB_ENV"; }; fi
-          echo "DIRECT_API_PASS" >> gemini-auth-state.txt
-          echo "Direct Gemini Interactions API smoke: PASS"
-          echo "GEMINI_API_STATUS=direct_api_pass" >> "$GITHUB_ENV"
-          echo "GEMINI_API_HTTP=200" >> "$GITHUB_ENV"
+          if [ "$gemini_api_status" = "direct_api_pass" ]; then
+            echo "DIRECT_API_PASS" >> gemini-auth-state.txt
+            echo "Direct Gemini Interactions API smoke: PASS"
+            echo "GEMINI_API_STATUS=direct_api_pass" >> "$GITHUB_ENV"
+            echo "GEMINI_API_HTTP=200" >> "$GITHUB_ENV"
+          fi
           echo "AGY_START" >> gemini-auth-state.txt
           set +e
           agy --model gemini-3.8-flash --effort medium -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
@@ -146,7 +157,7 @@ jobs:
           set -e
           if [ "$agy_rc" -ne 0 ]; then echo "AGY_FAIL" >> gemini-auth-state.txt; echo "Antigravity Gemini provider smoke: FAIL (exit $agy_rc)"; echo "AGY_AUTH_STATUS=failed" >> "$GITHUB_ENV"; exit "$agy_rc"; fi
           if jq -e '.status == "SUCCESS" and (.response | contains("PRODX_AUTONOMOUS_AUTH_OK"))' auth-check.json >/dev/null; then echo "AGY_PASS" >> gemini-auth-state.txt; echo "Antigravity Gemini provider smoke: PASS"; echo "AGY_AUTH_STATUS=pass" >> "$GITHUB_ENV"; else echo "Antigravity Gemini provider smoke: FAIL (unexpected response)"; echo "AGY_AUTH_STATUS=bad_response" >> "$GITHUB_ENV"; exit 1; fi
-          if [ "${GEMINI_API_STATUS:-}" != "direct_api_pass" ]; then echo "Direct Gemini API gate: FAIL; keeping executor blocked even though AGY smoke passed"; exit 1; fi
+          if [ "$gemini_api_status" != "direct_api_pass" ]; then echo "Direct Gemini API gate: FAIL; keeping executor blocked even though AGY smoke passed"; exit 1; fi
 
       - name: Prepare autonomous task contract
         env:
