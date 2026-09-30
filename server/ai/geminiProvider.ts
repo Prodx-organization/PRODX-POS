@@ -65,7 +65,6 @@ export class GeminiProvider implements AIProvider {
         : {}),
       contents,
       generationConfig: {
-        ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
         ...(request.max_tokens === undefined ? {} : { maxOutputTokens: request.max_tokens }),
       },
     };
@@ -135,9 +134,7 @@ export class GeminiProvider implements AIProvider {
       }
     }
     if (request.stream) throw new Error('Gemini provider does not support streaming through this boundary yet.');
-    if (request.temperature !== undefined && (!Number.isFinite(request.temperature) || request.temperature < 0 || request.temperature > 2)) {
-      throw new Error('AI temperature must be between 0 and 2.');
-    }
+    // Gemini 3.8 Flash does not support the legacy temperature parameter.
     if (request.max_tokens !== undefined && (!Number.isInteger(request.max_tokens) || request.max_tokens < 1)) {
       throw new Error('AI max_tokens must be a positive integer.');
     }
