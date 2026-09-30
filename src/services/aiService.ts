@@ -7,6 +7,7 @@ export interface AiConfig {
 }
 
 export const AI_BACKEND_CHAT_PATH = '/api/v1/ai/chat';
+const AUTH_SESSION_STORAGE_KEY = 'prodx_pos_session';
 
 export const DEFAULT_AI_CONFIG: AiConfig = {
   model: 'gemini-3.8-flash',
@@ -57,10 +58,19 @@ export class AiService {
     const config = this.sanitize({ ...this.getConfig(), ...overrides } as Record<string, unknown>);
     if (!config.enabled) throw new Error('ฟีเจอร์ผู้ช่วย AI ถูกปิดใช้งานอยู่');
 
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    try {
+      const rawSession = localStorage.getItem(AUTH_SESSION_STORAGE_KEY);
+      if (rawSession) {
+        const parsed = JSON.parse(rawSession) as { token?: unknown };
+        if (typeof parsed.token === 'string' && parsed.token.trim()) headers.Authorization = `Bearer ${parsed.token.trim()}`;
+      }
+    } catch {}
+
     const res = await fetch(AI_BACKEND_CHAT_PATH, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers,
       body: JSON.stringify({ messages, model: config.model, temperature: config.temperature }),
     });
 
