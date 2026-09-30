@@ -8,7 +8,7 @@ The canonical CI code-review lane now uses Google Gemini through the Antigravity
 
 Configure the GitHub Actions secret GEMINI_API_KEY. The review workflow sets Antigravity's modelProvider to gemini and uses headless structured output.
 
-OpenRouter is no longer part of the canonical CI review lane. The application AI boundary remains provider-neutral; application runtime provider configuration is a separate concern from CI code review.
+The CI review provider is an engineering-lane implementation detail; the application AI boundary remains provider-neutral and application runtime provider configuration stays behind the PRODX AI Gateway.
 
 ## Request flow
 
