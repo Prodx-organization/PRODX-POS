@@ -5,6 +5,7 @@ import { createPostgresAuthorization } from './auth/production-authorization';
 import { asSqlExecutor, createPostgresPool } from './db/postgres';
 import { createTransactionalPostgresExecutor } from './db/transaction';
 import { registerCheckoutRoute } from './http/checkout-route';
+import { registerAuthRoutes } from './http/auth-route';
 import { createApp } from './http/createApp';
 import { registerRefundRoute } from './http/refund-route';
 import { registerAuditRoute } from './http/audit-route';
@@ -25,6 +26,9 @@ export const createProductionApp = () => {
   const authorize = createPostgresAuthorization(sql);
 
   const app = createApp({
+    configurePublicRoutes: (configuredApp) => {
+      registerAuthRoutes(configuredApp, sql, sessions);
+    },
     authenticateRequest: async (request) => {
       const header = request.header('authorization');
       if (!header?.startsWith('Bearer ')) return null;
