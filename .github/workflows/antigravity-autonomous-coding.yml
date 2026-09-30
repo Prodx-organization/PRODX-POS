@@ -196,7 +196,8 @@ jobs:
           16. Report PASS/FAIL/BLOCKED separately for each gate.
 
           IMPORTANT CURRENT PROJECT CONTEXT:
-          - PR #129 concerns payment lifecycle idempotency under concurrency.
+          - The target PR is supplied by the trusted executor context; never hard-code a different PR number.
+          - For the current invocation, use the PR metadata appended below as the authoritative target context.
           - Pay special attention to replay equivalence for providerReference, failureCode, and failureReason both before and after locking.
           - Pay special attention to concurrent requests sharing (store_id, idempotency_key) while carrying different payment data.
           - Preserve the architecture gate and PostgreSQL integration gate.
