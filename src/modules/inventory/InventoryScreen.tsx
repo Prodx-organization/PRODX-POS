@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useBreadcrumb, BreadcrumbLevel } from '../../context/BreadcrumbContext';
-import { createCatalogReadApi } from '../../adapters/catalogApiFactory';
-import { catalogApi as legacyCatalogApi } from '../../adapters/mockAdapter';
-import { createProductionInventoryAdjustmentApi } from '../../adapters/productionInventoryAdjustmentApi';
+import { catalogApi } from '../../adapters/mockAdapter';
 import { Product, InventoryLedgerEntry, StockMovementReason, Category } from '../../domain/catalog';
 import { formatMoney, createMoney } from '../../domain/money';
 import { Card, CardHeader, CardBody } from '../../components/common/Card';
@@ -55,8 +53,6 @@ import { playScannerSound } from '../../services/soundService';
 
 export const InventoryScreen: React.FC = () => {
   const { session, can } = useAuth();
-  const catalogReadApi = useMemo(() => createCatalogReadApi(session?.token ?? ''), [session?.token]);
-  const inventoryAdjustmentApi = useMemo(() => createProductionInventoryAdjustmentApi(session?.token ?? ''), [session?.token]);
   const { addToast } = useToast();
   const { t, language } = useLanguage();
   const { setSubLevels } = useBreadcrumb();
@@ -170,9 +166,9 @@ export const InventoryScreen: React.FC = () => {
   const handleBulkImportComplete = async (result: BulkImportResult) => {
     if (session) {
       const [freshProducts, freshCategories, freshLedger] = await Promise.all([
-        catalogReadApi.getProducts(),
-        catalogReadApi.getCategories(),
-        catalogReadApi.getInventoryLedger(),
+        catalogApi.getProducts(session.currentStore.id),
+        catalogApi.getCategories(session.currentStore.id),
+        catalogApi.getInventoryLedger(session.currentStore.id),
       ]);
       setProducts([...freshProducts]);
       setCategories([...freshCategories]);
@@ -319,7 +315,7 @@ export const InventoryScreen: React.FC = () => {
     if (!session || selectedProductIds.length === 0) return;
     setIsSubmitting(true);
     try {
-      const entries = await inventoryAdjustmentApi.bulkAdjustStock(
+      const entries = await catalogApi.bulkAdjustStock(
         session.currentStore.id,
         selectedProductIds,
         bulkQuantityDelta,
@@ -360,7 +356,7 @@ export const InventoryScreen: React.FC = () => {
     if (!session || selectedProductIds.length === 0) return;
     setIsSubmitting(true);
     try {
-      const updatedProds = await legacyCatalogApi.bulkUpdatePricing(
+      const updatedProds = await catalogApi.bulkUpdatePricing(
         session.currentStore.id,
         selectedProductIds,
         bulkPriceChangeType,
@@ -400,9 +396,9 @@ export const InventoryScreen: React.FC = () => {
     if (!session) return;
     try {
       const [prods, cats, ledger] = await Promise.all([
-        catalogReadApi.getProducts(),
-        catalogReadApi.getCategories(),
-        catalogReadApi.getInventoryLedger(),
+        catalogApi.getProducts(session.currentStore.id),
+        catalogApi.getCategories(session.currentStore.id),
+        catalogApi.getInventoryLedger(session.currentStore.id),
       ]);
       setProducts([...prods]);
       setCategories(cats);
@@ -564,7 +560,7 @@ export const InventoryScreen: React.FC = () => {
         if (qty <= 0) continue;
 
         // Perform stock adjustment
-        const updated = await inventoryAdjustmentApi.adjustStock(
+        const updated = await catalogApi.adjustStock(
           session.currentStore.id,
           id,
           qty,
@@ -645,7 +641,7 @@ export const InventoryScreen: React.FC = () => {
     if (!selectedProduct || !session) return;
     setIsSubmitting(true);
     try {
-      const entry = await inventoryAdjustmentApi.adjustStock(
+      const entry = await catalogApi.adjustStock(
         session.currentStore.id,
         selectedProduct.id,
         adjustQuantity,

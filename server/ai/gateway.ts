@@ -77,8 +77,7 @@ export class AIGatewayService {
       permission: policy.permission,
       maxRequestChars: policy.maxRequestChars ?? DEFAULT_MAX_REQUEST_CHARS,
       maxOutputTokens: policy.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
-      maxEstimatedInputTokens:
-        policy.maxEstimatedInputTokens ?? DEFAULT_MAX_ESTIMATED_INPUT_TOKENS,
+      maxEstimatedInputTokens: policy.maxEstimatedInputTokens ?? DEFAULT_MAX_ESTIMATED_INPUT_TOKENS,
     };
   }
 
@@ -88,34 +87,17 @@ export class AIGatewayService {
     const estimatedInputTokens = estimateTokens(request.messages);
 
     if (!(await this.authorizer.authorize(request.scope, this.policy.permission))) {
-      await this.audit({
-        request,
-        provider: request.provider ?? 'unresolved',
-        inputChars,
-        estimatedInputTokens,
-        allowed: false,
-        reason: 'permission_denied',
-      });
+      await this.audit({ request, provider: request.provider ?? 'unresolved', inputChars, estimatedInputTokens, allowed: false, reason: 'permission_denied' });
       throw new Error('AI capability is not authorized.');
     }
 
     if (estimatedInputTokens > this.policy.maxEstimatedInputTokens) {
-      await this.audit({
-        request,
-        provider: request.provider ?? 'unresolved',
-        inputChars,
-        estimatedInputTokens,
-        allowed: false,
-        reason: 'input_budget_exceeded',
-      });
+      await this.audit({ request, provider: request.provider ?? 'unresolved', inputChars, estimatedInputTokens, allowed: false, reason: 'input_budget_exceeded' });
       throw new Error('AI request exceeds the configured input budget.');
     }
 
     const provider = this.registry.get(request.provider);
-    const maxTokens = Math.min(
-      request.max_tokens ?? this.policy.maxOutputTokens,
-      this.policy.maxOutputTokens,
-    );
+    const maxTokens = Math.min(request.max_tokens ?? this.policy.maxOutputTokens, this.policy.maxOutputTokens);
 
     const providerRequest: AIChatRequest = {
       model: request.model,
@@ -136,9 +118,6 @@ export class AIGatewayService {
       allowed: true,
     });
 
-    // The gateway is the authoritative boundary for provider identity. Do not
-    // rely on adapters to populate this field consistently, while preserving
-    // the provider's raw payload internally for diagnostics/adapter use.
     return { ...response, provider: provider.name };
   }
 
@@ -170,30 +149,14 @@ export class AIGatewayService {
 
   private validateEnvelope(request: AIGatewayRequest): void {
     if (!request.requestId.trim()) throw new Error('AI requestId is required.');
-    if (!request.scope.userId || !request.scope.organizationId || !request.scope.storeId) {
-      throw new Error('AI organization/store/user scope is required.');
-    }
-    if (!request.permission || request.permission !== this.policy.permission) {
-      throw new Error('AI permission does not match the configured capability.');
-    }
-    if (!Array.isArray(request.messages) || request.messages.length === 0) {
-      throw new Error('AI request must contain at least one message.');
-    }
+    if (!request.scope.userId || !request.scope.organizationId || !request.scope.storeId) throw new Error('AI organization/store/user scope is required.');
+    if (!request.permission || request.permission !== this.policy.permission) throw new Error('AI permission does not match the configured capability.');
+    if (!Array.isArray(request.messages) || request.messages.length === 0) throw new Error('AI request must contain at least one message.');
     const chars = request.messages.reduce((sum, message) => sum + message.content.length, 0);
-    if (chars > this.policy.maxRequestChars) {
-      throw new Error('AI request exceeds the configured request size.');
-    }
-    if (request.max_tokens !== undefined && (!Number.isInteger(request.max_tokens) || request.max_tokens < 1)) {
-      throw new Error('AI max_tokens must be a positive integer.');
-    }
-    if (
-      request.temperature !== undefined &&
-      (!Number.isFinite(request.temperature) || request.temperature < 0 || request.temperature > 2)
-    ) {
-      throw new AIGatewayRequestValidationError(
-        'INVALID_TEMPERATURE',
-        'AI temperature must be a finite number between 0 and 2.',
-      );
+    if (chars > this.policy.maxRequestChars) throw new Error('AI request exceeds the configured request size.');
+    if (request.max_tokens !== undefined && (!Number.isInteger(request.max_tokens) || request.max_tokens < 1)) throw new Error('AI max_tokens must be a positive integer.');
+    if (request.temperature !== undefined && (!Number.isFinite(request.temperature) || request.temperature < 0 || request.temperature > 2)) {
+      throw new AIGatewayRequestValidationError('INVALID_TEMPERATURE', 'AI temperature must be a finite number between 0 and 2.');
     }
   }
 }
@@ -207,10 +170,15 @@ function buildProviderMessages(messages: readonly AIMessage[]): readonly AIMessa
   const policy: AIMessage = { role: 'system', content: GATEWAY_SYSTEM_POLICY };
   return [
     policy,
-    ...messages.map((message) => ({
-      role: 'user' as const,
-      content: `[UNTRUSTED_USER_OR_BUSINESS_CONTEXT]\n${redactSensitiveContent(message.content)}\n[/UNTRUSTED_USER_OR_BUSINESS_CONTEXT]`,
-    })),
+    ...messages.map((message) => {
+      if (message.role === 'assistant') {
+        return { role: 'assistant' as const, content: message.content };
+      }
+      return {
+        role: 'user' as const,
+        content: `[UNTRUSTED_USER_OR_BUSINESS_CONTEXT]\n${redactSensitiveContent(message.content)}\n[/UNTRUSTED_USER_OR_BUSINESS_CONTEXT]`,
+      };
+    }),
   ];
 }
 
