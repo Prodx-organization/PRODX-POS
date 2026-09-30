@@ -152,11 +152,31 @@ jobs:
           fi
           echo "AGY_START" >> gemini-auth-state.txt
           set +e
-          agy --model gemini-3.8-flash --effort medium -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
+          agy --model gemini-3.8-flash --effort medium \
+            -p 'Return the JSON object {"ok":true} and nothing else.' \
+            --output-format json \
+            --json-schema '{"type":"object","properties":{"ok":{"const":true}},"required":["ok"],"additionalProperties":false}' \
+            --print-timeout 3m > auth-check.json
           agy_rc=$?
           set -e
-          if [ "$agy_rc" -ne 0 ]; then echo "AGY_FAIL" >> gemini-auth-state.txt; echo "Antigravity Gemini provider smoke: FAIL (exit $agy_rc)"; echo "AGY_AUTH_STATUS=failed" >> "$GITHUB_ENV"; exit "$agy_rc"; fi
-          if jq -e '.status == "SUCCESS" and (.response | contains("PRODX_AUTONOMOUS_AUTH_OK"))' auth-check.json >/dev/null; then echo "AGY_PASS" >> gemini-auth-state.txt; echo "Antigravity Gemini provider smoke: PASS"; echo "AGY_AUTH_STATUS=pass" >> "$GITHUB_ENV"; else echo "Antigravity Gemini provider smoke: FAIL (unexpected response)"; echo "AGY_AUTH_STATUS=bad_response" >> "$GITHUB_ENV"; exit 1; fi
+          if [ "$agy_rc" -ne 0 ]; then
+            echo "AGY_FAIL" >> gemini-auth-state.txt
+            echo "Antigravity Gemini provider smoke: FAIL (exit $agy_rc)"
+            echo "AGY_AUTH_STATUS=failed" >> "$GITHUB_ENV"
+            exit "$agy_rc"
+          fi
+          if jq -e '.status == "SUCCESS" and (.structured_output.ok == true)' auth-check.json >/dev/null; then
+            echo "AGY_PASS" >> gemini-auth-state.txt
+            echo "Antigravity Gemini provider smoke: PASS"
+            echo "AGY_AUTH_STATUS=pass" >> "$GITHUB_ENV"
+          else
+            echo "AGY_AUTH_STATUS=bad_response" >> "$GITHUB_ENV"
+            echo "Antigravity Gemini provider smoke: FAIL (structured output contract not satisfied)"
+            echo "AGY_RESPONSE_STATUS=$(jq -r '.status // "missing"' auth-check.json)" >> "$GITHUB_ENV"
+            echo "AGY_RESPONSE_HAS_ERROR=$(jq -r 'has("error")' auth-check.json)" >> "$GITHUB_ENV"
+            echo "AGY_RESPONSE_LENGTH=$(jq -r '(.response // "") | length' auth-check.json)" >> "$GITHUB_ENV"
+            exit 1
+          fi
           if [ "$gemini_api_status" != "direct_api_pass" ]; then echo "Direct Gemini API gate: FAIL; keeping executor blocked even though AGY smoke passed"; exit 1; fi
 
       - name: Prepare autonomous task contract
