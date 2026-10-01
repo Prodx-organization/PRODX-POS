@@ -305,7 +305,13 @@ jobs:
                 --sandbox \
                 --output-format stream-json \
                 --print-timeout 35m)
-              if [ "$model" != "gemini-3.1-pro" ]; then
+              if [ "$model" = "gemini-3.1-pro" ]; then
+                agy_args=(--model "$model" --effort low -p "$(cat autonomous-task.md)" \
+                  --mode accept-edits \
+                  --sandbox \
+                  --output-format stream-json \
+                  --print-timeout 35m)
+              else
                 agy_args=(--model "$model" --effort medium -p "$(cat autonomous-task.md)" \
                   --mode accept-edits \
                   --sandbox \
