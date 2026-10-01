@@ -176,7 +176,7 @@ jobs:
           for model in "${agy_model_pool[@]}"; do
             set +e
             if [ "$model" = "gemini-3.1-pro" ]; then
-              agy --model "$model" -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
+              agy --model "$model" --effort low -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
             else
               agy --model "$model" --effort medium -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
             fi
