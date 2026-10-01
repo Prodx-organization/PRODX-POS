@@ -82,7 +82,7 @@ test('production auth HTTP boundary enforces login scope, session revocation, ma
 
   const server = app.listen(0);
   t.after(async () => new Promise<void>((resolve, reject) => {
-    server.close((error) => error ? reject(error) : resolve());
+    server.close((error?: Error) => error ? reject(error) : resolve());
   }));
 
   const address = server.address();
@@ -161,10 +161,37 @@ test('production auth HTTP boundary enforces login scope, session revocation, ma
   const expired = await request('/auth/session', { headers: { authorization: `Bearer ${expiringSession.token}` } });
   assert.equal(expired.status, 401);
 
+  const missingField = await request('/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ organizationSlug: 'http-a', storeCode: 'store-a', emailOrPin: 'http-user-a', registerId: 'device-a' }),
+  });
+  assert.equal(missingField.status, 400);
+
+  const wrongDeviceStore = await request('/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ organizationSlug: 'http-a', storeCode: 'store-a', emailOrPin: 'http-user-a', passwordOrPin: 'correct-password', registerId: 'device-b' }),
+  });
+  assert.equal(wrongDeviceStore.status, 401);
+
+  const activeBeforeDisable = await request('/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ organizationSlug: 'http-a', storeCode: 'store-a', emailOrPin: 'http-user-a', passwordOrPin: 'correct-password', registerId: 'device-a' }),
+  });
+  assert.equal(activeBeforeDisable.status, 200);
+  const activeSession = await activeBeforeDisable.json() as { token: string };
+
+  await pool.query(`UPDATE prodx_users SET status = 'disabled' WHERE id = $1`, [ids.userA]);
+
   const disabledLogin = await request('/auth/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ organizationSlug: 'http-b', storeCode: 'store-b', emailOrPin: 'http-user-b', passwordOrPin: 'correct-password', registerId: 'device-b' }),
+    body: JSON.stringify({ organizationSlug: 'http-a', storeCode: 'store-a', emailOrPin: 'http-user-a', passwordOrPin: 'correct-password', registerId: 'device-a' }),
   });
   assert.equal(disabledLogin.status, 401);
+
+  const disabledSession = await request('/auth/session', { headers: { authorization: `Bearer ${activeSession.token}` } });
+  assert.equal(disabledSession.status, 401);
 });

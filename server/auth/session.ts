@@ -13,13 +13,12 @@ export type SessionRecord = {
 };
 export type DeviceRecord = { id: string; organizationId: string; storeId: string; status: 'active' | 'disabled'; };
 export type AuthenticationRepository = {
-  findCredentialByUsername: (username: string) => Promise<CredentialRecord | null>;
+  findCredentialByUsername: (username: string, organizationId?: string) => Promise<CredentialRecord | null>;
   recordFailedAttempt: (userId: string, lockedUntil?: Date) => Promise<void>;
   resetFailedAttempts: (userId: string) => Promise<void>;
   createSession: (input: { id: string; organizationId: string; userId: string; deviceId: string; tokenHash: string; expiresAt: Date }) => Promise<void>;
   findSessionByTokenHash: (tokenHash: string) => Promise<SessionRecord | null>;
   findDevice: (deviceId: string) => Promise<DeviceRecord | null>;
-  findDeviceByKey: (organizationId: string, deviceKey: string) => Promise<DeviceRecord | null>;
   revokeSession: (sessionId: string, at: Date) => Promise<void>;
   touchSession: (sessionId: string, at: Date) => Promise<void>;
 };
@@ -45,12 +44,15 @@ export const createSessionIssuer = (
   authenticateCredentials: async ({ username, password, deviceId }) => {
     const normalizedUsername = username.trim();
     if (!normalizedUsername || !password || !deviceId) return null;
-    const credential = await repository.findCredentialByUsername(normalizedUsername);
+    // Resolve the device first so the username lookup is scoped to the device's
+    // organization. Usernames are only unique per organization.
+    const device = await repository.findDevice(deviceId);
+    if (!device || device.status !== 'active') return null;
+    const credential = await repository.findCredentialByUsername(normalizedUsername, device.organizationId);
     if (!credential || credential.status !== 'active' || credential.credentialType !== 'password') return null;
+    if (device.organizationId !== credential.organizationId) return null;
     const current = now();
     if (credential.lockedUntil && credential.lockedUntil > current) return null;
-    const device = await repository.findDevice(deviceId);
-    if (!device || device.status !== 'active' || device.organizationId !== credential.organizationId) return null;
     if (!(await verifySecret(password, credential.secretHash))) {
       const nextFailedAttempts = credential.failedAttempts + 1;
       const lockedUntil = nextFailedAttempts >= MAX_FAILED_ATTEMPTS ? new Date(current.getTime() + LOCKOUT_DURATION_MS) : undefined;
