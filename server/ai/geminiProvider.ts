@@ -25,6 +25,12 @@ function allowedModelSet(config: GeminiProviderConfig): ReadonlySet<string> {
   return new Set(configured.length > 0 ? configured : [config.defaultModel ?? process.env.GEMINI_DEFAULT_MODEL ?? DEFAULT_MODEL]);
 }
 
+function resolveTimeout(value: number | string | undefined): number {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_TIMEOUT_MS;
+  return Math.min(120_000, Math.max(1_000, Math.trunc(parsed)));
+}
+
 export class GeminiProvider implements AIProvider {
   readonly name = 'gemini';
 
@@ -39,7 +45,7 @@ export class GeminiProvider implements AIProvider {
     this.baseUrl = normalizeBaseUrl(config.baseUrl ?? process.env.GEMINI_BASE_URL ?? DEFAULT_BASE_URL);
     this.defaultModel = config.defaultModel ?? process.env.GEMINI_DEFAULT_MODEL ?? DEFAULT_MODEL;
     this.allowedModels = allowedModelSet({ ...config, defaultModel: this.defaultModel });
-    this.timeoutMs = Math.max(1_000, Number(config.timeoutMs ?? process.env.GEMINI_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS));
+    this.timeoutMs = resolveTimeout(config.timeoutMs ?? process.env.GEMINI_TIMEOUT_MS);
   }
 
   async chat(request: AIChatRequest): Promise<AIChatResponse> {
@@ -134,7 +140,8 @@ export class GeminiProvider implements AIProvider {
       }
     }
     if (request.stream) throw new Error('Gemini provider does not support streaming through this boundary yet.');
-    // Gemini 3.8 Flash does not support the legacy temperature parameter.
+    // temperature is accepted by the gateway contract but intentionally not
+    // forwarded to Gemini by this provider.
     if (request.max_tokens !== undefined && (!Number.isInteger(request.max_tokens) || request.max_tokens < 1)) {
       throw new Error('AI max_tokens must be a positive integer.');
     }

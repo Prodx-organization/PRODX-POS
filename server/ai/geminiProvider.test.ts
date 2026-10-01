@@ -44,3 +44,20 @@ test('GeminiProvider rejects models outside the server allowlist', async () => {
     /not allowed by server policy/,
   );
 });
+
+test('GeminiProvider falls back to the default timeout for invalid configuration', async () => {
+  const originalFetch = globalThis.fetch;
+  let aborted = false;
+  globalThis.fetch = async (_input, init) => {
+    aborted = Boolean(init?.signal?.aborted);
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }), { status: 200 });
+  };
+  try {
+    const provider = new GeminiProvider({ apiKey: 'k', defaultModel: 'gemini-3.8-flash', timeoutMs: Number.NaN });
+    const result = await provider.chat({ model: 'gemini-3.8-flash', messages: [{ role: 'user', content: 'Hi' }] });
+    assert.equal(aborted, false);
+    assert.equal(result.provider, 'gemini');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

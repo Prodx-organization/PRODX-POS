@@ -15,7 +15,7 @@ export const createAIGatewayService = (
   const authorizer: AIAuthorizer = {
     authorize: (scope: AIScope, permission: string) =>
       authorizeRequest({
-        requestId: 'ai-gateway',
+        requestId: `ai-gateway-${crypto.randomUUID()}`,
         principal: {
           userId: scope.userId,
           organizationId: scope.organizationId,

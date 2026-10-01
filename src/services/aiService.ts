@@ -7,7 +7,6 @@ export interface AiConfig {
 }
 
 export const AI_BACKEND_CHAT_PATH = '/api/v1/ai/chat';
-const AUTH_SESSION_STORAGE_KEY = 'prodx_pos_session';
 
 export const DEFAULT_AI_CONFIG: AiConfig = {
   model: 'gemini-3.8-flash',
@@ -22,7 +21,16 @@ export type AiChatMessage = { role: 'system' | 'user' | 'assistant'; content: st
 
 export class AiService {
   private static instance: AiService;
+  private sessionToken: string | null = null;
   private constructor() {}
+
+  /**
+   * The authenticated session token is supplied by AuthContext (in memory).
+   * This service never reads or writes session storage itself.
+   */
+  public setSessionToken(token: string | null | undefined): void {
+    this.sessionToken = typeof token === 'string' && token.trim() ? token.trim() : null;
+  }
   public static getInstance(): AiService { if (!AiService.instance) AiService.instance = new AiService(); return AiService.instance; }
 
   public getConfig(): AiConfig {
@@ -58,14 +66,12 @@ export class AiService {
     const config = this.sanitize({ ...this.getConfig(), ...overrides } as Record<string, unknown>);
     if (!config.enabled) throw new Error('ฟีเจอร์ผู้ช่วย AI ถูกปิดใช้งานอยู่');
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
-    try {
-      const rawSession = localStorage.getItem(AUTH_SESSION_STORAGE_KEY);
-      if (rawSession) {
-        const parsed = JSON.parse(rawSession) as { token?: unknown };
-        if (typeof parsed.token === 'string' && parsed.token.trim()) headers.Authorization = `Bearer ${parsed.token.trim()}`;
-      }
-    } catch {}
+    if (!this.sessionToken) throw new Error('กรุณาเข้าสู่ระบบก่อนใช้งานผู้ช่วย AI');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Authorization: `Bearer ${this.sessionToken}`,
+    };
 
     const res = await fetch(AI_BACKEND_CHAT_PATH, {
       method: 'POST',

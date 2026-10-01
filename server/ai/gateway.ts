@@ -136,6 +136,8 @@ export class AIGatewayService {
       allowed: true,
     });
 
+    // The gateway is the authoritative boundary for provider identity. Do not
+    // rely on adapters to populate this field consistently.
     return { ...response, provider: provider.name };
   }
 
@@ -204,11 +206,14 @@ function buildProviderMessages(messages: readonly AIMessage[]): readonly AIMessa
   const policy: AIMessage = { role: 'system', content: GATEWAY_SYSTEM_POLICY };
   return [
     policy,
-    ...messages.map((message) => {
-      if (message.role === 'assistant') return { role: 'assistant' as const, content: message.content };
-      return { role: 'user' as const, content: `[UNTRUSTED_USER_OR_BUSINESS_CONTEXT]\n${redactSensitiveContent(message.content)}\n[/UNTRUSTED_USER_OR_BUSINESS_CONTEXT]`,
-      };
-    }),
+    // Every caller-supplied message, including prior "assistant" turns, comes
+    // from the browser and can be forged. Never forward it with a privileged
+    // role and never skip redaction; keep the original role only as a label
+    // inside the untrusted envelope.
+    ...messages.map((message) => ({
+      role: 'user' as const,
+      content: `[UNTRUSTED_USER_OR_BUSINESS_CONTEXT role=${message.role}]\n${redactSensitiveContent(message.content)}\n[/UNTRUSTED_USER_OR_BUSINESS_CONTEXT]`,
+    })),
   ];
 }
 
