@@ -179,7 +179,7 @@ jobs:
               agy --model "$model" -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
             else
               agy --model "$model" --effort medium -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
-            fi --output-format json --print-timeout 3m > auth-check.json
+            fi
             agy_rc=$?
             set -e
             if [ "$agy_rc" -eq 0 ] && jq -e '.status == "SUCCESS" and (.response | contains("PRODX_AUTONOMOUS_AUTH_OK"))' auth-check.json >/dev/null 2>&1; then
