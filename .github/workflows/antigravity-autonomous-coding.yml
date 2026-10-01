@@ -170,6 +170,7 @@ jobs:
             echo "Antigravity Gemini provider smoke: PASS"
             echo "AGY_AUTH_STATUS=pass" >> "$GITHUB_ENV"
           else
+            echo "AGY_FAIL" >> gemini-auth-state.txt
             echo "AGY_AUTH_STATUS=bad_response" >> "$GITHUB_ENV"
             echo "Antigravity Gemini provider smoke: FAIL (structured output contract not satisfied)"
             echo "AGY_RESPONSE_STATUS=$(jq -r '.status // "missing"' auth-check.json)" >> "$GITHUB_ENV"
