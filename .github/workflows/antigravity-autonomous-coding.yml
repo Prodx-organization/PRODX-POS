@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - antigravity/allow-active-production-prs
+      - antigravity/fix-gemini-branch-trust
   workflow_dispatch:
     inputs:
       pr_number:
@@ -41,7 +42,10 @@ jobs:
           set -euo pipefail
           pr="${EVENT_PR:-}"
           if [ -z "$pr" ] && [ "${GITHUB_EVENT_NAME:-}" = "push" ]; then
-            test "${GITHUB_REF_NAME:-}" = "antigravity/allow-active-production-prs"
+            case "${GITHUB_REF_NAME:-}" in
+              antigravity/allow-active-production-prs|antigravity/fix-gemini-branch-trust) ;;
+              *) echo "Refusing autonomous push bootstrap from untrusted branch: ${GITHUB_REF_NAME:-}" >&2; exit 1 ;;
+            esac
             prs="$(gh pr list --repo "$REPO" --head "$GITHUB_REF_NAME" --base main --state open --json number,headRefOid --limit 2)"
             test "$(jq "length" <<<"$prs")" = "1"
             pr="$(jq -r ".[0].number" <<<"$prs")"
