@@ -284,11 +284,11 @@ jobs:
 
           # Antigravity is the executor. The selected model is quota-aware and the
           # same pool is used as a bounded fallback for long-running agent calls.
-          model_pool=(gemini-3.8-flash gemini-3.7-flash gemini-3.6-flash gemini-3.5-flash-lite)
-          preferred_model="${AGY_SELECTED_MODEL:-${SELECTED_GEMINI_MODEL:-${model_pool[0]}}}"
+          agy_model_pool=(gemini-3.7-flash gemini-3.8-flash gemini-3.6-flash gemini-3.1-pro)
+          preferred_model="${AGY_SELECTED_MODEL:-${agy_model_pool[0]}}"
           agent_ok=0
           model_pool_seen=""
-          for model in "$preferred_model" "${model_pool[@]}"; do
+          for model in "$preferred_model" "${agy_model_pool[@]}"; do
             case " $model_pool_seen " in *" $model "*) continue;; esac
             model_pool_seen="${model_pool_seen} $model "
             for attempt in 1 2; do
@@ -300,7 +300,7 @@ jobs:
                 --sandbox \
                 --output-format stream-json \
                 --print-timeout 35m)
-              if [ "$model" != "gemini-3.5-flash-lite" ]; then
+              if [ "$model" != "gemini-3.1-pro" ]; then
                 agy_args=(--model "$model" --effort medium -p "$(cat autonomous-task.md)" \
                   --mode accept-edits \
                   --sandbox \
