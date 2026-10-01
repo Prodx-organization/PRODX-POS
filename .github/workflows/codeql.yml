@@ -1,8 +1,8 @@
 name: "CodeQL Advanced"
 
-# NOTE: GitHub rejects uploads from an advanced CodeQL workflow while
-# "Default setup" is enabled for the repository. Disable Default setup in
-# Settings > Code security > Code scanning before merging this workflow.
+# Advanced CodeQL setup. Repository "Default setup" must stay disabled
+# (Settings > Code security > Code scanning), otherwise SARIF uploads from
+# this workflow are rejected.
 
 on:
   push:
