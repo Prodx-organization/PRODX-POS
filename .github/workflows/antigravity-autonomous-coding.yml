@@ -117,6 +117,7 @@ jobs:
           # Gemini limits are model-specific. Rotate models on quota/rate-limit signals
           # instead of retrying one exhausted model until the CI job times out.
           model_pool=(gemini-3.8-flash gemini-3.7-flash gemini-3.6-flash gemini-3.5-flash-lite)
+          agy_model_pool=(gemini-3.7-flash gemini-3.8-flash gemini-3.6-flash gemini-3.1-pro)
           printf '%s\n' '{"modelProvider":"gemini"}' > "$HOME/.gemini/antigravity-cli/settings.json"
           echo "MODEL_POOL=${model_pool[*]}" >> gemini-auth-state.txt
           echo "DIRECT_API_START" >> gemini-auth-state.txt
@@ -172,9 +173,13 @@ jobs:
           echo "AGY_START" >> gemini-auth-state.txt
           agy_ok=0
           agy_selected_model=""
-          for model in "${model_pool[@]}"; do
+          for model in "${agy_model_pool[@]}"; do
             set +e
-            agy --model "$model" --effort medium -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
+            if [ "$model" = "gemini-3.1-pro" ]; then
+              agy --model "$model" -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
+            else
+              agy --model "$model" --effort medium -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
+            fi --output-format json --print-timeout 3m > auth-check.json
             agy_rc=$?
             set -e
             if [ "$agy_rc" -eq 0 ] && jq -e '.status == "SUCCESS" and (.response | contains("PRODX_AUTONOMOUS_AUTH_OK"))' auth-check.json >/dev/null 2>&1; then
