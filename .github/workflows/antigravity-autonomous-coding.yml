@@ -118,7 +118,7 @@ jobs:
           # instead of retrying one exhausted model until the CI job times out.
           model_pool=(gemini-3.8-flash gemini-3.7-flash gemini-3.6-flash gemini-3.5-flash-lite)
           agy_model_pool=(gemini-3.5-flash-lite gemini-3.7-flash gemini-3.8-flash gemini-3.6-flash gemini-3.1-pro)
-          printf '%s\n' '{"modelProvider":"gemini"}' > "$HOME/.gemini/antigravity-cli/settings.json"
+          printf '%s\n' '{"modelProvider":"gemini","permissions":{"allow":["command(*)"]}}' > "$HOME/.gemini/antigravity-cli/settings.json"
           echo "MODEL_POOL=${model_pool[*]}" >> gemini-auth-state.txt
           echo "DIRECT_API_START" >> gemini-auth-state.txt
           gemini_api_status="direct_api_pending"
