@@ -236,10 +236,42 @@ jobs:
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
 
           # GitHub-hosted runner is ephemeral; validation uses the API-key-compatible Gemini model. We deliberately do not use --dangerously-skip-permissions.
-          agy --model gemini-3.8-flash --effort medium -p "$(cat autonomous-task.md)"             --mode accept-edits             --sandbox             --output-format stream-json             --print-timeout 35m             > agy-run.ndjson
+          # Retry only transient executor/provider failures; a real agent failure still fails the gate.
+          agent_ok=0
+          for attempt in 1 2 3; do
+            rm -f agy-run.ndjson agy-result.json
+            echo "Starting autonomous Gemini agent (attempt ${attempt}/3)"
+            set +e
+            agy --model gemini-3.8-flash --effort medium -p "$(cat autonomous-task.md)" \
+              --mode accept-edits \
+              --sandbox \
+              --output-format stream-json \
+              --print-timeout 35m \
+              > agy-run.ndjson
+            agy_rc=$?
+            set -e
 
-          jq -s 'map(select(.event=="result") | .result) | last' agy-run.ndjson > agy-result.json
-          jq -e '.status == "SUCCESS"' agy-result.json >/dev/null
+            if [ "$agy_rc" -eq 0 ]; then
+              jq -s 'map(select(.event=="result") | .result) | last' agy-run.ndjson > agy-result.json
+              if jq -e '.status == "SUCCESS"' agy-result.json >/dev/null 2>&1; then
+                agent_ok=1
+                break
+              fi
+            fi
+
+            retryable=0
+            if grep -Eq 'Error (429|500|502|503|504)|HTTP (429|500|502|503|504)|Status: (UNAVAILABLE|RESOURCE_EXHAUSTED)' agy-run.ndjson 2>/dev/null; then
+              retryable=1
+            fi
+            if [ "$retryable" -eq 0 ] || [ "$attempt" -eq 3 ]; then
+              echo "Autonomous Gemini agent failed with non-retryable error or exhausted retries." >&2
+              exit "$agy_rc"
+            fi
+            delay=$((10 * attempt))
+            echo "Transient Gemini executor/provider failure; retrying in ${delay}s (attempt ${attempt}/3)"
+            sleep "$delay"
+          done
+          test "$agent_ok" -eq 1
 
           final_head="$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq '.headRefOid')"
           echo "Agent started from $HEAD_SHA and PR now points to $final_head"
