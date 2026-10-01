@@ -295,12 +295,19 @@ jobs:
               rm -f agy-run.ndjson agy-result.json
               echo "Starting autonomous Antigravity agent (model=$model attempt=${attempt}/2)"
               set +e
-              agy --model "$model" --effort medium -p "$(cat autonomous-task.md)" \
+              agy_args=(--model "$model" -p "$(cat autonomous-task.md)" \
                 --mode accept-edits \
                 --sandbox \
                 --output-format stream-json \
-                --print-timeout 35m \
-                > agy-run.ndjson
+                --print-timeout 35m)
+              if [ "$model" != "gemini-3.5-flash-lite" ]; then
+                agy_args=(--model "$model" --effort medium -p "$(cat autonomous-task.md)" \
+                  --mode accept-edits \
+                  --sandbox \
+                  --output-format stream-json \
+                  --print-timeout 35m)
+              fi
+              agy "${agy_args[@]}" > agy-run.ndjson
               agy_rc=$?
               set -e
 
