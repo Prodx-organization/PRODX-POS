@@ -28,7 +28,7 @@ concurrency:
 jobs:
   execute:
     name: Gemini autonomous production loop
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, prodx-antigravity]
     timeout-minutes: 45
 
     steps:
@@ -100,88 +100,22 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           "$HOME/.local/bin/agy" --version
 
-      - name: Configure and verify Gemini API-key provider
+      - name: Configure and verify Antigravity Pro-account provider
         id: gemini_auth
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -u
           printf 'INIT\n' > gemini-auth-state.txt
-          status=0
-          test -n "${GEMINI_API_KEY:-}" || { echo "MISSING_KEY" >> gemini-auth-state.txt; echo "GEMINI_API_KEY secret is missing."; echo "GEMINI_API_STATUS=missing" >> "$GITHUB_ENV"; exit 1; }
-          command -v agy >/dev/null || { echo "CLI_MISSING" >> gemini-auth-state.txt; echo "Antigravity CLI is missing."; echo "GEMINI_API_STATUS=cli_missing" >> "$GITHUB_ENV"; exit 1; }
-          command -v jq >/dev/null || { echo "JQ_MISSING" >> gemini-auth-state.txt; echo "jq is missing."; echo "GEMINI_API_STATUS=jq_missing" >> "$GITHUB_ENV"; exit 1; }
-          command -v curl >/dev/null || { echo "CURL_MISSING" >> gemini-auth-state.txt; echo "curl is missing."; echo "GEMINI_API_STATUS=curl_missing" >> "$GITHUB_ENV"; exit 1; }
-          echo "KEY_PRESENT" >> gemini-auth-state.txt
-          mkdir -p "$HOME/.gemini/antigravity-cli"
-          # Gemini limits are model-specific. Rotate models on quota/rate-limit signals
-          # instead of retrying one exhausted model until the CI job times out.
-          model_pool=(gemini-3.8-flash gemini-3.7-flash gemini-3.6-flash gemini-3.5-flash-lite)
-          agy_model_pool=(gemini-3.5-flash-lite gemini-3.7-flash gemini-3.8-flash gemini-3.6-flash gemini-3.1-pro)
-          printf '%s\n' '{"modelProvider":"gemini","permissions":{"allow":["command(*)"]}}' > "$HOME/.gemini/antigravity-cli/settings.json"
-          echo "MODEL_POOL=${model_pool[*]}" >> gemini-auth-state.txt
-          echo "DIRECT_API_START" >> gemini-auth-state.txt
-          gemini_api_status="direct_api_pending"
-          selected_model=""
-          selected_http="000"
-          for model in "${model_pool[@]}"; do
-            printf '%s\n' "{\"model\":\"$model\",\"input\":\"Reply with exactly PRODX_GEMINI_API_OK\"}" > gemini-api-smoke.json
-            for attempt in 1 2 3; do
-              status=0
-              http_code="$(curl --silent --show-error --output gemini-api-result.json --write-out '%{http_code}' -H "x-goog-api-key: $GEMINI_API_KEY" -H "Content-Type: application/json" -X POST "https://generativelanguage.googleapis.com/v1beta/interactions" --data-binary @gemini-api-smoke.json)" || status=1
-              if [ "$status" -eq 0 ] && [ "$http_code" = "200" ] && jq -e '([.output_text // empty] + [.steps[]?.content[]? | select(.type=="text") | .text]) | join("") | contains("PRODX_GEMINI_API_OK")' gemini-api-result.json >/dev/null 2>&1; then
-                selected_model="$model"
-                selected_http="$http_code"
-                gemini_api_status="direct_api_pass"
-                break 2
-              fi
-              if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
-                gemini_api_status="direct_api_auth_failed"
-                selected_http="$http_code"
-                break 2
-              fi
-              if [ "$attempt" -lt 3 ] && { [ "$http_code" = "408" ] || [ "$http_code" = "429" ] || [ "$http_code" -ge 500 ] || [ "$status" -ne 0 ]; }; then
-                delay=$((2 ** attempt))
-                echo "Gemini model $model transient failure (HTTP ${http_code:-curl-error}); retrying in ${delay}s"
-                sleep "$delay"
-                continue
-              fi
-              echo "Gemini model $model unavailable/exhausted (HTTP ${http_code:-curl-error}); rotating model"
-              selected_http="$http_code"
-              break
-            done
-          done
-          if [ "$gemini_api_status" = "direct_api_pass" ]; then
-            echo "DIRECT_API_PASS" >> gemini-auth-state.txt
-            echo "Direct Gemini API smoke: PASS (model=$selected_model)"
-            echo "GEMINI_API_STATUS=direct_api_pass" >> "$GITHUB_ENV"
-            echo "GEMINI_API_HTTP=$selected_http" >> "$GITHUB_ENV"
-            echo "SELECTED_GEMINI_MODEL=$selected_model" >> "$GITHUB_ENV"
-          elif [ "$gemini_api_status" = "direct_api_auth_failed" ]; then
-            echo "DIRECT_API_FAIL" >> gemini-auth-state.txt
-            echo "Direct Gemini API authentication failed (HTTP $selected_http); refusing fallback"
-            echo "GEMINI_API_STATUS=direct_api_auth_failed" >> "$GITHUB_ENV"
-            echo "GEMINI_API_HTTP=$selected_http" >> "$GITHUB_ENV"
-            exit 1
-          else
-            echo "DIRECT_API_QUOTA_EXHAUSTED" >> gemini-auth-state.txt
-            echo "No Gemini API model in the configured pool is currently available; trying Antigravity as the secondary executor"
-            echo "GEMINI_API_STATUS=quota_exhausted" >> "$GITHUB_ENV"
-            echo "GEMINI_API_HTTP=$selected_http" >> "$GITHUB_ENV"
-          fi
-
-          echo "AGY_START" >> gemini-auth-state.txt
+          command -v agy >/dev/null || exit 1
+          command -v jq >/dev/null || exit 1
+          test -z "${GEMINI_API_KEY:-}" || { echo "GEMINI_API_KEY must not be set on the Pro-account runner." >&2; exit 1; }
+          echo "ACCOUNT_AUTH_MODE" >> gemini-auth-state.txt
+          agy models
+          agy_model_pool=(gemini-3.5-flash-lite gemini-3.7-flash-medium gemini-3.7-flash gemini-3.8-flash)
           agy_ok=0
           agy_selected_model=""
           for model in "${agy_model_pool[@]}"; do
             set +e
-            if [ "$model" = "gemini-3.1-pro" ]; then
-              agy --model "$model" --effort low -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
-            elif [ "$model" = "gemini-3.5-flash-lite" ]; then
-              agy --model "$model" -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
-            else
-              agy --model "$model" --effort medium -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
-            fi
+            agy -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --model "$model" --output-format json --print-timeout 3m > auth-check.json
             agy_rc=$?
             set -e
             if [ "$agy_rc" -eq 0 ] && jq -e '.status == "SUCCESS" and (.response | contains("PRODX_AUTONOMOUS_AUTH_OK"))' auth-check.json >/dev/null 2>&1; then
@@ -189,30 +123,17 @@ jobs:
               agy_selected_model="$model"
               break
             fi
-            if grep -Eq '429|RESOURCE_EXHAUSTED|quota|rate.?limit' auth-check.json 2>/dev/null; then
-              echo "Antigravity model $model quota/rate limited; rotating model"
-              continue
-            fi
-            echo "Antigravity model $model failed smoke (exit $agy_rc); rotating model"
+            echo "Antigravity account model $model unavailable; rotating model"
           done
           if [ "$agy_ok" -ne 1 ]; then
             echo "AGY_FAIL" >> gemini-auth-state.txt
-            echo "Antigravity Gemini provider smoke: FAIL for every model in pool"
             echo "AGY_AUTH_STATUS=failed" >> "$GITHUB_ENV"
             exit 1
           fi
           echo "AGY_PASS" >> gemini-auth-state.txt
-          echo "Antigravity Gemini provider smoke: PASS (model=$agy_selected_model)"
           echo "AGY_AUTH_STATUS=pass" >> "$GITHUB_ENV"
           echo "AGY_SELECTED_MODEL=$agy_selected_model" >> "$GITHUB_ENV"
-
-          if [ "$gemini_api_status" != "direct_api_pass" ]; then
-            echo "Direct Gemini API is quota-exhausted; continuing with Antigravity fallback"
-            echo "GEMINI_EXECUTION_MODE=antigravity_fallback" >> "$GITHUB_ENV"
-          else
-            echo "GEMINI_EXECUTION_MODE=direct_api_primary" >> "$GITHUB_ENV"
-          fi
-
+          echo "GEMINI_EXECUTION_MODE=antigravity_pro_account" >> "$GITHUB_ENV"
       - name: Prepare autonomous task contract
         env:
           GH_TOKEN: ${{ github.token }}
@@ -278,7 +199,6 @@ jobs:
 
       - name: Run autonomous coding agent
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ steps.pr.outputs.number }}
@@ -383,8 +303,8 @@ jobs:
             echo
             echo "Gemini/Antigravity was executed on the trusted repository-owned branch."
             echo
-            echo "**Direct Gemini API smoke:** \`${GEMINI_API_STATUS:-not-run}\` (HTTP \`${GEMINI_API_HTTP:-n/a}\`)"
-            echo "**Antigravity Gemini provider smoke:** \`${AGY_AUTH_STATUS:-not-run}\`"
+            echo "**Direct Gemini API smoke:** `not-used` (executor uses the runner authenticated Pro account)"
+            echo "**Antigravity provider smoke:** `${AGY_AUTH_STATUS:-not-run}` (model `${AGY_SELECTED_MODEL:-n/a}`)"
             echo
             echo "See the workflow log for the machine-readable completion summary."
           if [ -f gemini-auth-state.txt ]; then
