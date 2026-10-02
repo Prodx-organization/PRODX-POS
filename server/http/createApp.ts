@@ -1,3 +1,5 @@
+[Reading 140 lines from start (total: 140 lines, 0 remaining)]
+
 import crypto from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import type {
@@ -21,6 +23,7 @@ export type BackendBoundaryOptions = {
   authenticateRequest: AuthenticateRequest;
   authorizeRequest?: AuthorizeRequest;
   configurePublicRoutes?: (app: express.Express) => void;
+  readinessCheck?: () => Promise<void>;
   configureRoutes?: (app: express.Express) => void;
 };
 
@@ -100,6 +103,22 @@ export const createApp = (options: BackendBoundaryOptions) => {
   app.use(attachRequestId);
   app.locals.prodxAuthorize = options.authorizeRequest;
   options.configurePublicRoutes?.(app);
+  app.get('/api/v1/healthz', (_request, response) => {
+    response.json({ status: 'ok' });
+  });
+  app.get('/api/v1/readyz', async (request, response) => {
+    if (!options.readinessCheck) {
+      sendError(response, 503, 'READINESS_NOT_CONFIGURED', 'Readiness is not configured.', request.id);
+      return;
+    }
+
+    try {
+      await options.readinessCheck();
+      response.json({ status: 'ready' });
+    } catch {
+      sendError(response, 503, 'NOT_READY', 'The service is not ready.', request.id);
+    }
+  });
   app.use(authenticate(options.authenticateRequest));
 
   app.get('/api/v1/health', (_request, response) => {

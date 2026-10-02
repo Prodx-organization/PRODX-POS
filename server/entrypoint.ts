@@ -1,3 +1,5 @@
+[Reading 97 lines from start (total: 97 lines, 0 remaining)]
+
 import 'dotenv/config';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -33,6 +35,9 @@ export const createProductionApp = () => {
   const aiGateway = createAIGatewayService(sql, authorize);
 
   const app = createApp({
+    readinessCheck: async () => {
+      await sql.query<{ ok: number }>('SELECT 1 AS ok');
+    },
     configurePublicRoutes: (configuredApp) => {
       registerAuthRoutes(configuredApp, sql, sessions);
     },
@@ -92,3 +97,5 @@ export const startProductionServer = async (): Promise<void> => {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   await startProductionServer();
 }
+
+[executed on device: codespaces-23b5a3 (461ec0f2-eaf2-4b37-9d2f-3805dc2937ae)]
