@@ -145,7 +145,7 @@ const resolvePinUser = async (tx: SqlQueryExecutor, context: Context, pin: strin
     await tx.query(
       `UPDATE prodx_timeclock_credentials
           SET failed_attempts=$4,
-              locked_until=CASE WHEN $4 >= $5 THEN CURRENT_TIMESTAMP + ($6 || ' minutes')::interval ELSE locked_until END,
+              locked_until=CASE WHEN $4::integer >= $5::integer THEN CURRENT_TIMESTAMP + ($6::integer || ' minutes')::interval ELSE locked_until END,
               updated_at=CURRENT_TIMESTAMP
         WHERE organization_id=$1 AND store_id=$2 AND user_id=$3`,
       [context.organizationId, context.storeId, row.user_id, next, MAX_ATTEMPTS, LOCK_MINUTES],
