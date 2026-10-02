@@ -59,7 +59,7 @@ jobs:
           test "$head_repo" = "$REPO"
           head_ref="$(jq -r '.headRefName' <<<"$metadata")"
           case "$head_ref" in
-            antigravity/*|fix/p0-*|fix/ci-gemini-trust-p0-branches-current-main|codex/production-readiness-idempotency-race|chore/github-hosted-gemini-runtime|fix/production-shift-screen-boundary|feat/inventory-production-write-boundary|feat/timeclock-production-wiring-v2) ;;
+            antigravity/*|fix/p0-*|fix/ci-gemini-trust-p0-branches-current-main|codex/production-readiness-idempotency-race|chore/github-hosted-gemini-runtime|fix/production-shift-screen-boundary|feat/inventory-production-write-boundary) ;;
             *) echo "Refusing autonomous execution on untrusted branch: $head_ref" >&2; exit 1 ;;
           esac
           head_sha="$(jq -r '.headRefOid' <<<"$metadata")"
