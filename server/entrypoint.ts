@@ -1,1 +1,90 @@
-successfully downloaded text file (SHA: aff91d5ab6d473bce0b8a9598c4e94381a2a9b45)
+import 'dotenv/config';
+import { fileURLToPath } from 'node:url';
+import express from 'express';
+import { createPostgresAuthentication } from './auth/composition';
+import { createPostgresAuthorization } from './auth/production-authorization';
+import { asSqlExecutor, createPostgresPool } from './db/postgres';
+import { createTransactionalPostgresExecutor } from './db/transaction';
+import { createAIGatewayService } from './ai/production-composition';
+import { registerCheckoutRoute } from './http/checkout-route';
+import { registerAuthRoutes } from './http/auth-route';
+import { createApp } from './http/createApp';
+import { registerRefundRoute } from './http/refund-route';
+import { registerAuditRoute } from './http/audit-route';
+import { registerShiftRoute } from './http/shift-route';
+import { registerTimeclockRoute } from './http/timeclock-route';
+import { registerCatalogRoute } from './http/catalog-route';
+import { registerPaymentLifecycleRoute } from './http/payment-lifecycle-route';
+import { registerSyncRoute } from './http/sync-route';
+import { registerSupervisorAuthorizationRoute } from './http/supervisor-authorization-route';
+import { registerOrderReadRoute } from './http/order-read-route';
+import { registerVoidRoute } from './http/void-route';
+import { registerInventoryAdjustmentRoute } from './http/inventory-adjustment-route';
+import { installAIHttpRoute } from './ai/http-route';
+
+export const createProductionApp = () => {
+  const pool = createPostgresPool();
+  const sql = asSqlExecutor(pool);
+  const transactions = createTransactionalPostgresExecutor(pool);
+  const sessions = createPostgresAuthentication(sql);
+  const authorize = createPostgresAuthorization(sql);
+  const aiGateway = createAIGatewayService(sql, authorize);
+
+  const app = createApp({
+    configurePublicRoutes: (configuredApp) => {
+      registerAuthRoutes(configuredApp, sql, sessions);
+    },
+    authenticateRequest: async (request) => {
+      const header = request.header('authorization');
+      if (!header?.startsWith('Bearer ')) return null;
+      return sessions.authenticateBearer(header.slice('Bearer '.length).trim());
+    },
+    authorizeRequest: authorize,
+    configureRoutes: (configuredApp) => {
+      registerAuditRoute(configuredApp, transactions);
+      registerShiftRoute(configuredApp, transactions);
+      registerTimeclockRoute(configuredApp, transactions);
+      registerCheckoutRoute(configuredApp, transactions);
+      registerRefundRoute(configuredApp, transactions);
+      registerCatalogRoute(configuredApp, transactions);
+      registerPaymentLifecycleRoute(configuredApp, transactions);
+      registerSyncRoute(configuredApp, transactions);
+      registerSupervisorAuthorizationRoute(configuredApp, transactions);
+      registerOrderReadRoute(configuredApp, transactions);
+      registerVoidRoute(configuredApp, transactions);
+      registerInventoryAdjustmentRoute(configuredApp, transactions);
+      const aiRouter = express.Router();
+      installAIHttpRoute(aiRouter, { gateway: aiGateway });
+      configuredApp.use('/api/v1/ai', aiRouter);
+    },
+  });
+
+  return { app, pool };
+};
+
+export const startProductionServer = async (): Promise<void> => {
+  const { app, pool } = createProductionApp();
+  const host = process.env.HOST ?? '0.0.0.0';
+  const port = Number.parseInt(process.env.PORT ?? '4000', 10);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('PORT must be a valid TCP port.');
+  }
+
+  const server = app.listen(port, host, () => {
+    console.log(`PRODX POS backend listening on ${host}:${port}`);
+  });
+
+  const shutdown = async (signal: string) => {
+    server.close(async () => {
+      await pool.end();
+      console.log(`PRODX POS backend stopped after ${signal}`);
+    });
+  };
+
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+};
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  await startProductionServer();
+}
