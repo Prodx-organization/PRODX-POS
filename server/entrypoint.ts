@@ -14,6 +14,7 @@ import { registerAuditRoute } from './http/audit-route';
 import { registerShiftRoute } from './http/shift-route';
 import { registerTimeclockRoute } from './http/timeclock-route';
 import { registerCatalogRoute } from './http/catalog-route';
+import { registerCatalogImportRoute } from './http/catalog-import-route';
 import { registerCatalogPricingRoute } from './http/catalog-pricing-route';
 import { registerPaymentLifecycleRoute } from './http/payment-lifecycle-route';
 import { registerSyncRoute } from './http/sync-route';
@@ -48,6 +49,7 @@ export const createProductionApp = () => {
       registerCheckoutRoute(configuredApp, transactions);
       registerRefundRoute(configuredApp, transactions);
       registerCatalogRoute(configuredApp, transactions);
+      registerCatalogImportRoute(configuredApp, transactions);
       registerCatalogPricingRoute(configuredApp, transactions);
       registerPaymentLifecycleRoute(configuredApp, transactions);
       registerSyncRoute(configuredApp, transactions);

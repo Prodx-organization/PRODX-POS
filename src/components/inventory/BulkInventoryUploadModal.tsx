@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Product, Category, BulkImportItem, BulkImportMode, BulkImportResult } from '../../domain/catalog';
-import { catalogApi } from '../../adapters/mockAdapter';
+import { createCatalogReadApi } from '../../adapters/catalogApiFactory';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
@@ -321,6 +321,7 @@ export const BulkInventoryUploadModal: React.FC<BulkInventoryUploadModalProps> =
   const { language } = useLanguage();
   const { session, can } = useAuth();
   const { addToast } = useToast();
+  const catalogApi = useMemo(() => createCatalogReadApi(session?.token ?? ''), [session?.token]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
