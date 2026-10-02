@@ -112,6 +112,13 @@ const makeDb = async (
       const operation = operations.get(operationKey);
       return { rows: operation ? [operation] : [] };
     }
+    if (sql.includes('DELETE FROM prodx_timeclock_operations')) {
+      const operationId = String(params[0]);
+      for (const [key, operation] of operations.entries()) {
+        if (operation.id === operationId) operations.delete(key);
+      }
+      return { rows: [] };
+    }
     if (sql.includes('FROM prodx_timeclock_records') && sql.includes("status='clocked_in'")) {
       const userId = String(params[2]);
       return { rows: record?.status === 'clocked_in' && record.user_id === userId ? [{ id: record.id }] : [] };
@@ -157,13 +164,16 @@ const makeDb = async (
   };
 };
 
-test('clock-in is idempotent and duplicate open clock is rejected', async () => {
+test('clock-in is idempotent and duplicate open clock is rejected without poisoning a retry key', async () => {
   process.env.TIMECLOCK_PIN_PEPPER = PEPPER;
   const service = createTimeclockService(await makeDb());
   const first = await service.clockIn(context, '1234', 'clock-in-1');
   const replay = await service.clockIn(context, '1234', 'clock-in-1');
   assert.equal(replay.id, first.id);
   await assert.rejects(service.clockIn(context, '1234', 'clock-in-2'), TimeclockConflictError);
+  await service.clockOut(context, '1234', 'clock-out-1');
+  const retry = await service.clockIn(context, '1234', 'clock-in-2');
+  assert.notEqual(retry.id, first.id);
 });
 
 test('same operator reusing an idempotency key for another employee is rejected', async () => {
