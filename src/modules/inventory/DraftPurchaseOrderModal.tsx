@@ -15,7 +15,7 @@ import { SearchInput } from '../../components/common/SearchInput';
 import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
-import { catalogApi } from '../../adapters/mockAdapter';
+import { createProductionInventoryAdjustmentApi } from '../../adapters/productionInventoryAdjustmentApi';
 import {
   FileText,
   Printer,
@@ -413,7 +413,7 @@ export const DraftPurchaseOrderModal: React.FC<DraftPurchaseOrderModalProps> = (
       let count = 0;
       for (const item of lineItems) {
         if (item.quantity <= 0) continue;
-        await catalogApi.adjustStock(
+        await inventoryAdjustmentApi.adjustStock(
           session.currentStore.id,
           item.productId,
           item.quantity,
