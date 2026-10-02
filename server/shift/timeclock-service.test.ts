@@ -103,6 +103,16 @@ const makeDb = async (
       current.locked_until = null;
       return { rows: [] };
     }
+    if (sql.startsWith('UPDATE prodx_timeclock_operations SET result_id=')) {
+      const resultId = String(params[0]);
+      const operationId = String(params[1]);
+      const operationEntry = [...operations.entries()].find(([, value]) => value.id === operationId);
+      assert.ok(operationEntry, `Unknown timeclock operation id: ${operationId}`);
+      const [operationKey, operation] = operationEntry;
+      operations.set(operationKey, { ...operation, result_id: resultId });
+      operationResults.set(operationId, resultId);
+      return { rows: [] };
+    }
     if (sql.includes('INSERT INTO prodx_timeclock_operations')) {
       const operationKey = String(params[1]) + ':' + String(params[2]) + ':' + String(params[3]) + ':' + String(params[4]) + ':' + String(params[5]);
       if (operations.has(operationKey)) return { rows: [] };
@@ -140,16 +150,6 @@ const makeDb = async (
     }
     if (sql.includes('UPDATE prodx_timeclock_records SET status')) {
       if (record) record.status = 'clocked_out';
-      return { rows: [] };
-    }
-    if (sql.includes('UPDATE prodx_timeclock_operations')) {
-      const resultId = String(params[0]);
-      const operationId = String(params[1]);
-      const operationEntry = [...operations.entries()].find(([, value]) => value.id === operationId);
-      assert.ok(operationEntry, `Unknown timeclock operation id: ${operationId}`);
-      const [operationKey, operation] = operationEntry;
-      operationResults.set(operationId, resultId);
-      operations.set(operationKey, { ...operation, result_id: resultId });
       return { rows: [] };
     }
     if (sql.includes('SELECT t.id,t.store_id,t.user_id')) {
