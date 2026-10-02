@@ -6,12 +6,15 @@ export type SqlExecutor = {
 };
 
 export const createPostgresAuthenticationRepository = (db: SqlExecutor): AuthenticationRepository => ({
-  async findCredentialByUsername(username) {
+  async findCredentialByUsername(username, organizationId) {
     const rows = await db.query<CredentialRecord & { credential_type: 'password'; secret_hash: string; failed_attempts: number; locked_until: Date | null; }>(
       `SELECT u.id AS "userId", u.organization_id AS "organizationId", u.username,
               u.status, c.credential_type, c.secret_hash, c.failed_attempts, c.locked_until
          FROM prodx_users u JOIN prodx_user_credentials c ON c.user_id = u.id
-        WHERE lower(u.username) = lower($1) LIMIT 1`, [username],
+        WHERE lower(u.username) = lower($1)
+          AND ($2::uuid IS NULL OR u.organization_id = $2::uuid)
+        ORDER BY u.organization_id
+        LIMIT 1`, [username, organizationId ?? null],
     );
     const row = rows[0];
     if (!row) return null;
@@ -88,6 +91,10 @@ export const createPostgresAuthenticationRepository = (db: SqlExecutor): Authent
     const row = rows[0];
     if (!row) return null;
     return { id: row.id, organizationId: row.organization_id, storeId: row.store_id, status: row.status } satisfies DeviceRecord;
+  },
+  async revokeSession(sessionId, at) {
+    await db.query(`UPDATE prodx_sessions SET revoked_at = $2
+        WHERE id = $1 AND revoked_at IS NULL`, [sessionId, at]);
   },
   async touchSession(sessionId, at) {
     await db.query(`UPDATE prodx_sessions SET last_seen_at = $2
