@@ -106,7 +106,6 @@ const makeDb = async (
     if (sql.trimStart().startsWith('UPDATE prodx_timeclock_operations')) {
       const resultId = String(params[0]);
       const operationId = String(params[1]);
-      console.error('TIMECLOCK_OP_UPDATE', JSON.stringify({sql: sql.trim(), params, operationIds: [...operationIds.entries()], operations: [...operations.entries()]}));
       const operationEntry = [...operations.entries()].find(([, value]) => value.id === operationId);
       assert.ok(operationEntry, `Unknown timeclock operation id: ${operationId}`);
       const [operationKey, operation] = operationEntry;
@@ -122,16 +121,6 @@ const makeDb = async (
       operationIds.set(id, operationKey);
       return { rows: [{ id }] };
     }
-    if (sql.includes('FROM prodx_timeclock_operations')) {
-      const operationKey = String(params[0]) + ':' + String(params[1]) + ':' + String(params[2]) + ':' + String(params[3]) + ':' + String(params[4]);
-      const operation = operations.get(operationKey);
-      console.error('TIMECLOCK_OP_SELECT', JSON.stringify({operationKey, operation, operationResult: operation ? operationResults.get(operation.id) : null}));
-      return {
-        rows: operation
-          ? [{ ...operation, result_id: operationResults.get(operation.id) ?? operation.result_id }]
-          : [],
-      };
-    }
     if (sql.includes('DELETE FROM prodx_timeclock_operations')) {
       const operationId = String(params[0]);
       const operationKey = operationIds.get(operationId);
@@ -141,6 +130,15 @@ const makeDb = async (
         operationResults.delete(operationId);
       }
       return { rows: [] };
+    }
+    if (sql.includes('FROM prodx_timeclock_operations')) {
+      const operationKey = String(params[0]) + ':' + String(params[1]) + ':' + String(params[2]) + ':' + String(params[3]) + ':' + String(params[4]);
+      const operation = operations.get(operationKey);
+      return {
+        rows: operation
+          ? [{ ...operation, result_id: operationResults.get(operation.id) ?? operation.result_id }]
+          : [],
+      };
     }
     if (sql.includes('FROM prodx_timeclock_records') && sql.includes("status='clocked_in'")) {
       const userId = String(params[2]);
