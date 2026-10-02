@@ -33,6 +33,9 @@ export const createProductionApp = () => {
   const aiGateway = createAIGatewayService(sql, authorize);
 
   const app = createApp({
+    readinessCheck: async () => {
+      await sql.query<{ ok: number }>('SELECT 1 AS ok');
+    },
     configurePublicRoutes: (configuredApp) => {
       registerAuthRoutes(configuredApp, sql, sessions);
     },

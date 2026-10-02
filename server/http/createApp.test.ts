@@ -40,6 +40,61 @@ test('rejects requests when backend authentication does not produce a verified p
   }
 });
 
+test('exposes unauthenticated liveness and readiness boundaries', async () => {
+  const app = createApp({ authenticateRequest: () => null });
+  const server = await start(app);
+
+  try {
+    const liveness = await fetch(server.baseUrl + '/api/v1/healthz');
+    assert.equal(liveness.status, 200);
+    assert.deepEqual(await liveness.json(), { status: 'ok' });
+
+    const readiness = await fetch(server.baseUrl + '/api/v1/readyz');
+    assert.equal(readiness.status, 503);
+    assert.equal((await readiness.json()).error.code, 'READINESS_NOT_CONFIGURED');
+  } finally {
+    await server.close();
+  }
+});
+
+test('readiness reports database dependency failures without authentication', async () => {
+  const app = createApp({
+    authenticateRequest: () => null,
+    readinessCheck: async () => {
+      throw new Error('database unavailable');
+    },
+  });
+  const server = await start(app);
+
+  try {
+    const response = await fetch(server.baseUrl + '/api/v1/readyz');
+    assert.equal(response.status, 503);
+    assert.deepEqual((await response.json()).error.code, 'NOT_READY');
+  } finally {
+    await server.close();
+  }
+});
+
+test('readiness succeeds when the production dependency check succeeds', async () => {
+  let checks = 0;
+  const app = createApp({
+    authenticateRequest: () => null,
+    readinessCheck: async () => {
+      checks += 1;
+    },
+  });
+  const server = await start(app);
+
+  try {
+    const response = await fetch(server.baseUrl + '/api/v1/readyz');
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { status: 'ready' });
+    assert.equal(checks, 1);
+  } finally {
+    await server.close();
+  }
+});
+
 test('attaches verified principal and correlation id before application routes', async () => {
   const app = createApp({
     authenticateRequest: () => principal,
