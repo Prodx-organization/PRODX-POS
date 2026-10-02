@@ -321,6 +321,7 @@ export const BulkInventoryUploadModal: React.FC<BulkInventoryUploadModalProps> =
   const { language } = useLanguage();
   const { session, can } = useAuth();
   const { addToast } = useToast();
+  const catalogApi = useMemo(() => createCatalogReadApi(session?.token ?? ''), [session?.token]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
