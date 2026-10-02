@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { User, Role } from '../../domain/auth';
-import { SEED_USERS } from '../../adapters/mockAdapter';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import { playScannerSound } from '../../services/soundService';
@@ -47,7 +46,7 @@ export const SupervisorAuthModal: React.FC<SupervisorAuthModalProps> = ({
   const [isVerifyingPasskey, setIsVerifyingPasskey] = useState(false);
 
   // Eligible supervisors from system users
-  const eligibleSupervisors = (import.meta.env.DEV ? (staffUsers && staffUsers.length > 0 ? staffUsers : SEED_USERS) : staffUsers).filter((u) =>
+  const eligibleSupervisors = (staffUsers ?? []).filter((u) =>
     requiredRole === 'admin' ? u.role === 'admin' : u.role === 'admin' || u.role === 'manager'
   );
 

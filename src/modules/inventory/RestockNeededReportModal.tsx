@@ -8,7 +8,7 @@ import { SearchInput } from '../../components/common/SearchInput';
 import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
-import { catalogApi } from '../../adapters/mockAdapter';
+import { createProductionInventoryAdjustmentApi } from '../../adapters/productionInventoryAdjustmentApi';
 import {
   AlertTriangle,
   FileSpreadsheet,
@@ -62,6 +62,7 @@ export const RestockNeededReportModal: React.FC<RestockNeededReportModalProps> =
   const { language } = useLanguage();
   const { addToast } = useToast();
   const { session, can } = useAuth();
+  const inventoryAdjustmentApi = useMemo(() => createProductionInventoryAdjustmentApi(session?.token ?? ''), [session?.token]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -317,7 +318,7 @@ export const RestockNeededReportModal: React.FC<RestockNeededReportModalProps> =
       for (const item of selectedList) {
         if (item.activeQty <= 0) continue;
 
-        await catalogApi.adjustStock(
+        await inventoryAdjustmentApi.adjustStock(
           session.currentStore.id,
           item.product.id,
           item.activeQty,
