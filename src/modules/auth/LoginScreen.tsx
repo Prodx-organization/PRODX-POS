@@ -1,36 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
 import { ProdxLogo } from '../../components/common/ProdxLogo';
 import {
-  Globe,
-  ChevronDown,
-  User as UserIcon,
-  Lock,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
   Eye,
   EyeOff,
-  ArrowRight,
-  ShieldCheck,
   Fingerprint,
-  ScanFace,
-  Loader2,
-  X,
-  Delete,
-  CheckCircle2,
-  QrCode,
+  Globe,
   KeyRound,
-  Terminal,
-  Cpu,
-  Activity,
-  Layers,
-  Sparkles,
-  Zap,
+  Loader2,
+  Lock,
+  QrCode,
+  ScanFace,
   Settings2,
-  ShieldAlert,
-  Clock,
-  Wifi,
-  Users,
+  ShieldCheck,
+  User as UserIcon,
+  Zap,
 } from 'lucide-react';
 import { playScannerSound } from '../../services/soundService';
 import { PasskeyEnrollModal } from '../../components/auth/PasskeyEnrollModal';
@@ -45,97 +34,70 @@ import {
   PasskeyCredentialRecord,
   WebAuthnCapability,
 } from '../../services/webauthnService';
+import { IS_DEV_BUILD, STAFF_ACCOUNTS, type StaffAccount, type StaffId } from './staffAccounts';
+import { AuthModeTabs, type AuthMode } from './components/AuthModeTabs';
+import { LoginBackdrop } from './components/LoginBackdrop';
+import { LoginDialog } from './components/LoginDialog';
+import { PinPad } from './components/PinPad';
+import { ShowcasePanel } from './components/ShowcasePanel';
+import { StaffPicker } from './components/StaffPicker';
+
+const PIN_LENGTH = 4;
+const STORE_CODE = 'STR-01';
+const REGISTER_ID = 'REG-01';
+const LOGO_ON_DARK = { '--text-color': '#F8FAFC', '--text-muted': '#A1A1AA' } as React.CSSProperties;
+
+const formatClock = () =>
+  new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+
+const SECONDARY_BUTTON =
+  'flex h-12 items-center justify-center gap-2 rounded-xl border border-[rgba(255,255,255,0.09)] bg-[rgba(255,255,255,0.04)] px-4 text-[13px] font-semibold text-neutral-200 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 hover:border-[rgba(255,255,255,0.18)] hover:bg-[rgba(255,255,255,0.07)] active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70 disabled:pointer-events-none disabled:opacity-40';
+
+const PRIMARY_BUTTON =
+  'flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-violet-400 to-violet-600 text-[15px] font-semibold text-neutral-50 shadow-[0_14px_36px_-12px_rgba(139,92,246,0.85),inset_0_1px_0_0_rgba(255,255,255,0.28)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 hover:shadow-[0_18px_44px_-10px_rgba(139,92,246,0.95),inset_0_1px_0_0_rgba(255,255,255,0.28)] active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-200/80 disabled:pointer-events-none disabled:opacity-50';
 
 export const LoginScreen: React.FC = () => {
   const { login, isLoading } = useAuth();
   const { language: lang, setLanguage: setLang } = useLanguage();
   const { addToast } = useToast();
+  const language: 'th' | 'en' = lang === 'th' ? 'th' : 'en';
+  const t = (th: string, en: string) => (language === 'th' ? th : en);
 
-  // Mode: Default to 'pin' for standard retail POS workflow
-  const [authMode, setAuthMode] = useState<'pin' | 'credentials' | 'biometric'>('pin');
+  const [authMode, setAuthMode] = useState<AuthMode>('pin');
   const [username, setUsername] = useState('john.doe@prodx.io');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
-  // Terminal telemetry
-  const storeCode = 'STR-01';
-  const registerId = 'REG-01';
-
-  // PIN state
   const [pin, setPin] = useState('');
-  const [activeStaffPreset, setActiveStaffPreset] = useState<'john' | 'sarah' | 'alex'>('john');
+  const [pinError, setPinError] = useState(false);
+  const [activeStaffId, setActiveStaffId] = useState<StaffId>('john');
+  const isSubmittingPin = useRef(false);
 
-  // WebAuthn Passkeys & Biometric state
   const [biometricStatus, setBiometricStatus] = useState<'idle' | 'scanning' | 'success' | 'failed'>('idle');
-  const [biometricFeedback, setBiometricFeedback] = useState<string>('');
+  const [biometricFeedback, setBiometricFeedback] = useState('');
   const [capability, setCapability] = useState<WebAuthnCapability | null>(null);
   const [enrolledPasskeys, setEnrolledPasskeys] = useState<PasskeyCredentialRecord[]>([]);
-  const [showEnrollModal, setShowEnrollModal] = useState<boolean>(false);
+  const [showEnrollModal, setShowEnrollModal] = useState(false);
 
-  // QR Badge Scanner state
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [qrStatus, setQrStatus] = useState<'idle' | 'scanning' | 'success' | 'failed'>('idle');
 
-  // 2FA state
   const [show2FA, setShow2FA] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [isVerifying2FA, setIsVerifying2FA] = useState(false);
 
-  // Account Password Management & Policy State
   const [showAccountPasswordModal, setShowAccountPasswordModal] = useState(false);
   const [showPasswordPolicyGuide, setShowPasswordPolicyGuide] = useState(false);
 
-  // Realtime clock
-  const [currentTime, setCurrentTime] = useState<string>(() =>
-    new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
-  );
+  const [currentTime, setCurrentTime] = useState(formatClock);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(
-        new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
-      );
-    }, 1000);
+    const timer = setInterval(() => setCurrentTime(formatClock()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Staff accounts with passkey and PIN capability
-  const staffAccounts = [
-    {
-      id: 'john' as const,
-      userId: 'usr-cashier-john',
-      name: 'John Doe',
-      role: 'Head Cashier',
-      roleKey: 'cashier',
-      email: 'john.doe@prodx.io',
-      employeeCode: 'EMP-108',
-      defaultPin: '0000',
-      badgeColor: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-    },
-    {
-      id: 'sarah' as const,
-      userId: 'usr-manager-sarah',
-      name: 'Sarah Connor',
-      role: 'Shift Manager',
-      roleKey: 'manager',
-      email: 'sarah.connor@prodx.io',
-      employeeCode: 'EMP-014',
-      defaultPin: '5678',
-      badgeColor: 'border-amber-200 bg-amber-50 text-amber-800',
-    },
-    {
-      id: 'alex' as const,
-      userId: 'usr-admin-alex',
-      name: 'Alex Vance',
-      role: 'Store Lead & Admin',
-      roleKey: 'admin',
-      email: 'alex.vance@prodx.io',
-      employeeCode: 'EMP-001',
-      defaultPin: '1234',
-      badgeColor: 'border-indigo-200 bg-indigo-50 text-indigo-800',
-    },
-  ];
+  const activeStaff: StaffAccount = STAFF_ACCOUNTS.find((a) => a.id === activeStaffId) ?? STAFF_ACCOUNTS[0];
 
   const refreshPasskeys = async () => {
     const keys = getRegisteredPasskeys();
@@ -149,15 +111,81 @@ export const LoginScreen: React.FC = () => {
     refreshPasskeys();
   }, []);
 
-  // Keyboard shortcut listener for PIN entry
+  const executePinLogin = useCallback(
+    async (completedPin: string, account: StaffAccount) => {
+      if (isSubmittingPin.current) return;
+      isSubmittingPin.current = true;
+      try {
+        await login({
+          organizationSlug: 'prodx',
+          storeCode: STORE_CODE,
+          registerId: REGISTER_ID,
+          emailOrPin: account.email,
+          passwordOrPin: completedPin,
+        });
+        playScannerSound('success');
+        addToast({
+          title: t('เข้าสู่ระบบสำเร็จ', 'Login Successful'),
+          message: t(`ยินดีต้อนรับ ${account.name} (${account.role})`, `Welcome, ${account.name}`),
+          type: 'success',
+        });
+      } catch {
+        playScannerSound('error');
+        setPinError(true);
+        addToast({
+          title: t('รหัส PIN ไม่ถูกต้อง', 'Invalid PIN'),
+          message: IS_DEV_BUILD
+            ? t(
+                `รหัส PIN สำหรับ ${account.name} ไม่ถูกต้อง (ทดสอบ: ${account.defaultPin})`,
+                `Incorrect PIN for ${account.name} (Default: ${account.defaultPin})`
+              )
+            : t(`รหัส PIN สำหรับ ${account.name} ไม่ถูกต้อง`, `Incorrect PIN for ${account.name}`),
+          type: 'error',
+        });
+        setTimeout(() => {
+          setPinError(false);
+          setPin('');
+        }, 520);
+      } finally {
+        isSubmittingPin.current = false;
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [login, addToast, language]
+  );
+
+  const handlePinDigit = useCallback(
+    (digit: string) => {
+      if (isLoading || pinError || isSubmittingPin.current || pin.length >= PIN_LENGTH) return;
+      playScannerSound('click');
+      const nextPin = pin + digit;
+      setPin(nextPin);
+      if (nextPin.length === PIN_LENGTH) {
+        void executePinLogin(nextPin, activeStaff);
+      }
+    },
+    [isLoading, pinError, pin, activeStaff, executePinLogin]
+  );
+
+  const handlePinDelete = useCallback(() => {
+    if (pinError) return;
+    playScannerSound('click');
+    setPin((prev) => prev.slice(0, -1));
+  }, [pinError]);
+
+  const handlePinClear = useCallback(() => {
+    if (pinError) return;
+    playScannerSound('click');
+    setPin('');
+  }, [pinError]);
+
+  const isModalOpen = show2FA || showQrScanner || showEnrollModal || showAccountPasswordModal;
+
   useEffect(() => {
-    if (authMode !== 'pin' || show2FA || showQrScanner || showEnrollModal) return;
+    if (authMode !== 'pin' || isModalOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();
         handlePinDigit(e.key);
@@ -172,7 +200,7 @@ export const LoginScreen: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [authMode, pin, activeStaffPreset, show2FA, showQrScanner, showEnrollModal]);
+  }, [authMode, isModalOpen, handlePinDigit, handlePinDelete, handlePinClear]);
 
   const handleQrScan = () => {
     if (qrStatus === 'scanning' || qrStatus === 'success') return;
@@ -184,14 +212,14 @@ export const LoginScreen: React.FC = () => {
       setTimeout(() => {
         login({
           organizationSlug: 'prodx',
-          storeCode,
-          registerId,
+          storeCode: STORE_CODE,
+          registerId: REGISTER_ID,
           emailOrPin: 'john.doe@prodx.io',
           passwordOrPin: 'token-qr-auth',
-        }).catch((err: any) => {
+        }).catch((err: Error) => {
           setQrStatus('failed');
           addToast({
-            title: lang === 'th' ? 'สแกน QR ไม่ผ่าน' : 'QR Scan Failed',
+            title: t('สแกน QR ไม่ผ่าน', 'QR Scan Failed'),
             message: err.message || 'Authentication failed',
             type: 'error',
           });
@@ -200,101 +228,88 @@ export const LoginScreen: React.FC = () => {
     }, 1200);
   };
 
-  /**
-   * WebAuthn Passkeys Authentication Handler (Touch ID / Face ID / Windows Hello)
-   */
-  const handlePasskeyLogin = async (targetPreset?: (typeof staffAccounts)[0]) => {
+  const handlePasskeyLogin = async () => {
     if (biometricStatus === 'scanning' || biometricStatus === 'success') return;
     setBiometricStatus('scanning');
     playScannerSound('click');
     setBiometricFeedback(
-      lang === 'th'
-        ? 'กำลังเชื่อมต่อเซนเซอร์ Touch ID / Face ID / Windows Hello...'
-        : 'Connecting to hardware biometric sensor...'
+      t('กำลังเชื่อมต่อเซนเซอร์ Touch ID / Face ID / Windows Hello...', 'Connecting to hardware biometric sensor...')
     );
 
     try {
-      const selectedPreset =
-        targetPreset ||
-        staffAccounts.find((a) => a.id === activeStaffPreset) ||
-        staffAccounts[0];
-
       const result = await authenticatePasskey({
-        id: selectedPreset.userId,
-        email: selectedPreset.email,
-        name: selectedPreset.name,
+        id: activeStaff.userId,
+        email: activeStaff.email,
+        name: activeStaff.name,
       });
 
       if (result.success && result.credential) {
         setBiometricStatus('success');
         playScannerSound('supervisor_authorized');
         setBiometricFeedback(
-          lang === 'th'
-            ? `ยืนยันชีวมิติสำเร็จ! กำลังเข้าสู่ระบบ: ${result.credential.userName}`
-            : `Biometric verified! Authorizing ${result.credential.userName}`
+          t(
+            `ยืนยันชีวมิติสำเร็จ! กำลังเข้าสู่ระบบ: ${result.credential.userName}`,
+            `Biometric verified! Authorizing ${result.credential.userName}`
+          )
         );
 
         await login({
           organizationSlug: 'prodx',
-          storeCode,
-          registerId,
+          storeCode: STORE_CODE,
+          registerId: REGISTER_ID,
           emailOrPin: result.credential.userEmail,
           passwordOrPin: result.credential.id,
         });
 
         addToast({
-          title: lang === 'th' ? 'เข้าสู่ระบบสำเร็จ' : 'Authentication Successful',
-          message:
-            lang === 'th'
-              ? `เปิดกะการขายเรียบร้อย ยินดีต้อนรับ ${result.credential.userName}`
-              : `Fast shift takeover complete for ${result.credential.userName}`,
+          title: t('เข้าสู่ระบบสำเร็จ', 'Authentication Successful'),
+          message: t(
+            `เปิดกะการขายเรียบร้อย ยินดีต้อนรับ ${result.credential.userName}`,
+            `Fast shift takeover complete for ${result.credential.userName}`
+          ),
           type: 'success',
         });
       } else {
         setBiometricStatus('failed');
         playScannerSound('error');
-        setBiometricFeedback(
-          result.error || (lang === 'th' ? 'การยืนยันชีวมิติล้มเหลว' : 'Biometric verification cancelled')
-        );
+        setBiometricFeedback(result.error || t('การยืนยันชีวมิติล้มเหลว', 'Biometric verification cancelled'));
         addToast({
-          title: lang === 'th' ? 'ชีวมิติไม่ผ่าน' : 'Biometric Cancelled',
+          title: t('ชีวมิติไม่ผ่าน', 'Biometric Cancelled'),
           message: result.error || 'Authentication rejected or cancelled',
           type: 'error',
         });
         setTimeout(() => setBiometricStatus('idle'), 2500);
       }
-    } catch (err: any) {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Authentication failed';
       setBiometricStatus('failed');
       playScannerSound('error');
-      setBiometricFeedback(err.message || 'Authentication error');
-      addToast({
-        title: lang === 'th' ? 'เกิดข้อผิดพลาด' : 'Error',
-        message: err.message || 'Authentication failed',
-        type: 'error',
-      });
+      setBiometricFeedback(message);
+      addToast({ title: t('เกิดข้อผิดพลาด', 'Error'), message, type: 'error' });
       setTimeout(() => setBiometricStatus('idle'), 2500);
     }
   };
 
-  const handleCredentialsSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
+  const passwordAnalysis = analyzePassword(password, { email: username });
+
+  const handleCredentialsSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     if (!username.trim() || !password.trim()) {
       addToast({
-        title: lang === 'th' ? 'ข้อมูลไม่ครบถ้วน' : 'Missing Information',
-        message: lang === 'th' ? 'กรุณากรอกอีเมลและรหัสผ่าน' : 'Please enter email and password',
+        title: t('ข้อมูลไม่ครบถ้วน', 'Missing Information'),
+        message: t('กรุณากรอกอีเมลและรหัสผ่าน', 'Please enter email and password'),
         type: 'error',
       });
       return;
     }
 
-    // Real-time security policy evaluation
     if (!passwordAnalysis.isPolicyCompliant) {
       addToast({
-        title: lang === 'th' ? 'คำแนะนำความปลอดภัยรหัสผ่าน' : 'Password Security Advisory',
-        message:
-          lang === 'th'
-            ? 'รหัสผ่านยังไม่ตรงตามเกณฑ์ความปลอดภัยองค์กร (PCI-DSS & NIST) แนะนำให้อัปเดตผ่านปุ่ม "จัดการ / รีเซ็ตรหัสผ่าน"'
-            : 'Password does not meet enterprise security criteria. You can update it anytime via "Manage / Reset".',
+        title: t('คำแนะนำความปลอดภัยรหัสผ่าน', 'Password Security Advisory'),
+        message: t(
+          'รหัสผ่านยังไม่ตรงตามเกณฑ์ความปลอดภัยองค์กร (PCI-DSS & NIST) แนะนำให้อัปเดตผ่านปุ่ม "จัดการ / รีเซ็ตรหัสผ่าน"',
+          'Password does not meet enterprise security criteria. You can update it anytime via "Manage / Reset".'
+        ),
         type: 'warning',
       });
     }
@@ -305,8 +320,8 @@ export const LoginScreen: React.FC = () => {
   const submit2FA = async () => {
     if (twoFactorCode.length < 6) {
       addToast({
-        title: lang === 'th' ? 'รหัสไม่ครบ' : 'Incomplete Code',
-        message: lang === 'th' ? 'กรุณากรอกรหัสความปลอดภัย 6 หลัก' : 'Please enter 6-digit code',
+        title: t('รหัสไม่ครบ', 'Incomplete Code'),
+        message: t('กรุณากรอกรหัสความปลอดภัย 6 หลัก', 'Please enter 6-digit code'),
         type: 'error',
       });
       return;
@@ -315,16 +330,16 @@ export const LoginScreen: React.FC = () => {
     try {
       await login({
         organizationSlug: 'prodx',
-        storeCode,
-        registerId,
+        storeCode: STORE_CODE,
+        registerId: REGISTER_ID,
         emailOrPin: username,
         passwordOrPin: password,
       });
       setShow2FA(false);
-    } catch (err: any) {
+    } catch (err) {
       addToast({
-        title: lang === 'th' ? 'การยืนยันล้มเหลว' : 'Verification Failed',
-        message: err.message || 'Authentication failed',
+        title: t('การยืนยันล้มเหลว', 'Verification Failed'),
+        message: err instanceof Error ? err.message : 'Authentication failed',
         type: 'error',
       });
       setTwoFactorCode('');
@@ -333,809 +348,376 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
-  const handlePinDigit = (digit: string) => {
-    if (pin.length < 4) {
-      playScannerSound('click');
-      const nextPin = pin + digit;
-      setPin(nextPin);
-      if (nextPin.length === 4) {
-        executePinLogin(nextPin);
-      }
-    }
-  };
-
-  const handlePinDelete = () => {
-    playScannerSound('click');
-    setPin((prev) => prev.slice(0, -1));
-  };
-
-  const handlePinClear = () => {
-    playScannerSound('click');
+  const selectStaff = (id: StaffId) => {
+    setActiveStaffId(id);
     setPin('');
+    setPinError(false);
   };
 
-  const executePinLogin = async (completedPin: string) => {
-    const selectedAccount = staffAccounts.find((a) => a.id === activeStaffPreset) || staffAccounts[0];
-    try {
-      await login({
-        organizationSlug: 'prodx',
-        storeCode,
-        registerId,
-        emailOrPin: selectedAccount.email,
-        passwordOrPin: completedPin,
-      });
-      playScannerSound('success');
-      addToast({
-        title: lang === 'th' ? 'เข้าสู่ระบบสำเร็จ' : 'Login Successful',
-        message: lang === 'th' ? `ยินดีต้อนรับ ${selectedAccount.name} (${selectedAccount.role})` : `Welcome, ${selectedAccount.name}`,
-        type: 'success',
-      });
-    } catch (err: any) {
-      playScannerSound('error');
-      addToast({
-        title: lang === 'th' ? 'รหัส PIN ไม่ถูกต้อง' : 'Invalid PIN',
-        message:
-          lang === 'th'
-            ? `รหัส PIN สำหรับ ${selectedAccount.name} ไม่ถูกต้อง (ทดสอบ: ${selectedAccount.defaultPin})`
-            : `Incorrect PIN for ${selectedAccount.name} (Default: ${selectedAccount.defaultPin})`,
-        type: 'error',
-      });
-      setPin('');
-    }
-  };
-
-  // Quick 1-click demo filler
-  const handleQuickDemoFill = (account: (typeof staffAccounts)[0]) => {
-    setActiveStaffPreset(account.id);
+  const quickSignIn = (account: StaffAccount) => {
+    setActiveStaffId(account.id);
     setPin(account.defaultPin);
-    executePinLogin(account.defaultPin);
+    void executePinLogin(account.defaultPin, account);
   };
 
-  // Real-time enterprise password security analysis (NIST 800-63B & PCI-DSS)
-  const passwordAnalysis = analyzePassword(password, { email: username });
+  const changeMode = (mode: AuthMode) => {
+    setAuthMode(mode);
+    setPin('');
+    setPinError(false);
+    if (mode === 'biometric') setBiometricStatus('idle');
+  };
+
+  const openQrScanner = () => {
+    setQrStatus('idle');
+    setShowQrScanner(true);
+  };
+
+  const BiometricIcon = capability?.biometricLabel?.toLowerCase().includes('face') ? ScanFace : Fingerprint;
 
   return (
-    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-slate-50 text-text font-sans selection:bg-primary selection:text-white">
-      {/* Top Global Utility Bar (Desktop only absolute, mobile integrated into header) */}
-      <div className="hidden lg:flex absolute top-4 right-4 z-30 items-center gap-2">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-card/90 backdrop-blur-xs text-text text-xs font-semibold rounded-lg border border-border border-crisp shadow-2xs">
-          <Clock className="w-3.5 h-3.5 text-text/50" />
-          <span className="font-mono text-[11px] font-bold">{currentTime}</span>
-        </div>
-        <button
-          onClick={() => setLang(lang === 'th' ? 'en' : 'th')}
-          aria-label={lang === 'th' ? 'เปลี่ยนเป็นภาษาอังกฤษ' : 'Switch to Thai'}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-card hover:bg-slate-100 text-text text-xs font-bold rounded-lg border border-border border-crisp shadow-2xs transition-all cursor-pointer"
-        >
-          <Globe className="w-3.5 h-3.5 text-primary" />
-          <span>{lang === 'th' ? 'ไทย' : 'EN'}</span>
-          <ChevronDown className="w-3 h-3 text-text/50" />
-        </button>
-      </div>
+    <div className="relative flex min-h-dvh w-full bg-[#07070c] text-neutral-100 selection:bg-violet-500/40">
+      <LoginBackdrop />
+      <ShowcasePanel language={language} storeCode={STORE_CODE} registerId={REGISTER_ID} />
 
-      {/* LEFT PANEL: Enterprise Architecture Showcase (Visible on lg+ screens) */}
-      <div className="hidden lg:flex lg:w-5/12 xl:w-1/2 relative flex-col justify-between p-12 lg:p-14 bg-slate-950 text-white overflow-hidden border-r border-slate-800">
-        {/* Subtle geometric grid backdrop */}
-        <div
-          className="absolute inset-0 opacity-[0.05] pointer-events-none"
-          style={{
-            backgroundImage: 'radial-gradient(rgba(99, 102, 241, 0.5) 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
-          }}
-        />
-        <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-primary/10 rounded-full blur-[100px] pointer-events-none animate-pulse duration-[7000ms]" />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
-
-        {/* Brand Header */}
-        <div className="relative z-10 space-y-6">
-          <ProdxLogo variant="horizontal" size="lg" showTagline={true} />
-
-          <div className="space-y-3 pt-8">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/15 border border-primary/25 text-[11px] font-bold text-primary tracking-wide">
-              <Sparkles className="w-3 h-3" />
-              <span>ENTERPRISE POS WORKSTATION</span>
-            </div>
-            <h1 className="text-2xl xl:text-3xl font-black tracking-tight leading-tight text-slate-100">
-              {lang === 'th'
-                ? 'ระบบจัดการการขายและควบคุมสิทธิ์หน้าร้าน'
-                : 'Mission-Critical Retail POS & RBAC Terminal'}
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-400 leading-relaxed max-w-md">
-              {lang === 'th'
-                ? 'สถาปัตยกรรมความปลอดภัยระดับองค์กร รองรับการทำงานออฟไลน์ การตรวจสอบสิทธิ์หลายระดับ (RBAC) และบันทึกประวัติการเงินอย่างแม่นยำ 100%'
-                : 'Zero-downtime offline-first architecture with strict multi-role governance, granular permissions matrix, and hardware-grade security.'}
-            </p>
-          </div>
-
-          {/* Enterprise RBAC Role Hierarchy Showcase */}
-          <div className="pt-2 space-y-2 max-w-md">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              {lang === 'th' ? 'ลำดับขั้นและสิทธิ์การเข้าถึงระบบ (Role Hierarchy)' : 'Role & Security Governance Matrix'}
-            </span>
-            <div className="space-y-2">
-              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-black text-xs">
-                    ADM
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-200">Alex Vance (Administrator)</div>
-                    <div className="text-[10px] text-slate-400">
-                      {lang === 'th' ? 'ควบคุมทั้งระบบ ภาษี สต็อก รายงาน และนโยบายความปลอดภัย' : 'Full root access, fiscal tax rates & system governance'}
-                    </div>
-                  </div>
-                </div>
-                <span className="font-mono text-[10px] font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded">
-                  ADMIN
+      <main className="relative z-10 flex min-w-0 flex-1 justify-center px-5 pb-10 pt-5 sm:px-8 lg:items-center lg:px-12">
+        <div className="flex w-full max-w-[480px] flex-col gap-6">
+          <header className="flex flex-col gap-6">
+            <div className="flex items-center justify-between gap-3">
+              <span className="login-glass inline-flex items-center gap-2.5 rounded-full py-1.5 pl-3 pr-3.5 text-xs font-medium text-neutral-300">
+                <span className="relative flex h-2 w-2">
+                  <span className="login-ring absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
                 </span>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-xs">
-                    MGR
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-200">Sarah Connor (Shift Manager)</div>
-                    <div className="text-[10px] text-slate-400">
-                      {lang === 'th' ? 'อนุมัติการยกเลิกบิล คืนเงิน ปรับราคา และสรุปยอดกะ Z-Report' : 'Supervisor overrides, void/refund & cash drawer reconciliation'}
-                    </div>
-                  </div>
-                </div>
-                <span className="font-mono text-[10px] font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded">
-                  MANAGER
+                <span className="font-mono">
+                  {STORE_CODE} · {REGISTER_ID}
                 </span>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-xs">
-                    CSH
-                  </div>
-                  <div>
-                    <div className="font-bold text-slate-200">John Doe (Head Cashier)</div>
-                    <div className="text-[10px] text-slate-400">
-                      {lang === 'th' ? 'คิดเงินหน้าร้าน สแกนบาร์โค้ด และจัดการข้อมูลสมาชิกลูกค้า' : 'Frontline POS register, barcode checkout & loyalty CRM'}
-                    </div>
-                  </div>
-                </div>
-                <span className="font-mono text-[10px] font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded">
-                  CASHIER
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Telemetry Realtime Monitor Grid */}
-        <div className="relative z-10 py-6 border-t border-slate-800/80 my-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-xl bg-slate-900/50 border border-slate-800/80">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">TERMINAL NODE</span>
-                <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-              </div>
-              <div className="font-mono text-xs font-bold text-slate-200 mt-1">STR-01 · REG-01</div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5">Flagship Downtown</div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-900/50 border border-slate-800/80">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">SECURITY SUITE</span>
-                <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-              </div>
-              <div className="font-mono text-xs font-bold text-slate-200 mt-1">PCI-DSS · FIDO2</div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5">Hardware Passkeys Ready</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Telemetry Footer */}
-        <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-500 pt-2">
-          <div className="flex items-center gap-2 font-mono">
-            <Terminal className="w-3.5 h-3.5 text-primary" />
-            <span>CORE V4.2.0 · RUNTIME OK</span>
-          </div>
-          <div className="font-mono text-[10px]">
-            <span>OFFLINE DB READY</span>
-          </div>
-        </div>
-      </div>
-
-      {/* RIGHT PANEL: Balanced & Cohesive Authentication Workstation */}
-      <div className="w-full lg:w-7/12 xl:w-1/2 flex items-center justify-center p-5 sm:p-10 lg:p-12 relative bg-slate-50">
-        <div className="w-full max-w-md space-y-5 mx-auto">
-          {/* Mobile Top Utility Bar & Brand Header (Prevents overlapping) */}
-          <div className="flex lg:hidden flex-col space-y-3 pb-2 border-b border-slate-200/80">
-            <div className="flex items-center justify-between w-full">
-              <span className="text-[10px] font-mono text-text/50 font-bold uppercase">TERMINAL REG-01</span>
+                <span className="text-emerald-300">{t('ออนไลน์', 'Online')}</span>
+              </span>
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 px-2 py-1 bg-card text-text text-[11px] font-semibold rounded-lg border border-border shadow-2xs">
-                  <Clock className="w-3 h-3 text-text/50" />
-                  <span className="font-mono">{currentTime}</span>
-                </div>
+                <span className="login-glass inline-flex h-9 items-center gap-1.5 rounded-full px-3 font-mono text-xs text-neutral-300">
+                  <Clock className="h-3.5 w-3.5 text-neutral-500" strokeWidth={1.75} />
+                  {currentTime}
+                </span>
                 <button
-                  onClick={() => setLang(lang === 'th' ? 'en' : 'th')}
-                  className="flex items-center gap-1 px-2.5 py-1 bg-card hover:bg-slate-100 text-text text-xs font-bold rounded-lg border border-border shadow-2xs transition-all cursor-pointer"
+                  type="button"
+                  onClick={() => setLang(language === 'th' ? 'en' : 'th')}
+                  aria-label={t('เปลี่ยนเป็นภาษาอังกฤษ', 'Switch to Thai')}
+                  className="login-glass inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-neutral-200 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
                 >
-                  <Globe className="w-3 h-3 text-primary" />
-                  <span>{lang === 'th' ? 'ไทย' : 'EN'}</span>
+                  <Globe className="h-3.5 w-3.5 text-violet-300" strokeWidth={1.75} />
+                  {language === 'th' ? 'ไทย' : 'EN'}
                 </button>
               </div>
             </div>
-            <div className="flex flex-col items-center justify-center text-center pt-1">
-              <ProdxLogo variant="horizontal" size="md" showTagline={true} />
-              <p className="text-xs text-text/60 mt-1 font-medium">
-                {lang === 'th' ? 'เข้าสู่ระบบสถานีขายหน้าร้าน' : 'Sign in to Terminal Station'}
+
+            <div className="flex flex-col gap-4 lg:hidden" style={LOGO_ON_DARK}>
+              <ProdxLogo variant="horizontal" size="md" showTagline={false} />
+            </div>
+
+            <div className="space-y-2">
+              <h1 className="text-[32px] font-semibold leading-tight tracking-tight text-neutral-50">
+                {t('เข้าสู่ระบบสถานีขาย', 'Sign in to terminal')}
+              </h1>
+              <p className="text-[15px] leading-relaxed text-neutral-400">
+                {t('เลือกพนักงานและยืนยันตัวตนเพื่อเริ่มกะขาย', 'Choose your profile and verify to start your shift.')}
               </p>
             </div>
-          </div>
+          </header>
 
-          {/* Desktop Terminal Header */}
-          <div className="hidden lg:block text-left space-y-1">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                {lang === 'th' ? 'เข้าสู่ระบบแคชเชียร์' : 'Terminal Station Sign In'}
-              </h2>
-              <span className="text-[11px] font-mono font-bold bg-primary/10 text-primary px-2.5 py-0.5 rounded-full border border-primary/20">
-                REG-01 · ONLINE
-              </span>
-            </div>
-            <p className="text-xs text-text/60">
-              {lang === 'th'
-                ? 'เลือกรหัส PIN พนักงาน รหัสผ่านองค์กร หรือสแกนลายนิ้วมือเพื่อเริ่มกะ'
-                : 'Authenticate using Staff PIN, Enterprise Password, or Biometric Passkey'}
-            </p>
-          </div>
+          <AuthModeTabs mode={authMode} onChange={changeMode} language={language} />
 
-          {/* Segmented Mode Switcher Tabs */}
-          <div className="p-1 rounded-xl bg-slate-100 border border-slate-200/80 flex items-center gap-1 shadow-2xs">
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('pin');
-                setPin('');
-              }}
-              className={`flex-1 min-h-[40px] flex items-center justify-center gap-1.5 text-xs font-bold rounded-lg transition-all duration-200 cursor-pointer ${
-                authMode === 'pin'
-                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
-                  : 'text-text/70 hover:text-text hover:bg-white/50'
-              }`}
-            >
-              <KeyRound className={`w-3.5 h-3.5 ${authMode === 'pin' ? 'text-primary' : ''}`} />
-              <span>{lang === 'th' ? 'PIN พนักงาน' : 'Staff PIN'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setAuthMode('credentials')}
-              className={`flex-1 min-h-[40px] flex items-center justify-center gap-1.5 text-xs font-bold rounded-lg transition-all duration-200 cursor-pointer ${
-                authMode === 'credentials'
-                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
-                  : 'text-text/70 hover:text-text hover:bg-white/50'
-              }`}
-            >
-              <UserIcon className={`w-3.5 h-3.5 ${authMode === 'credentials' ? 'text-primary' : ''}`} />
-              <span>{lang === 'th' ? 'รหัสผ่าน' : 'Password'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMode('biometric');
-                setBiometricStatus('idle');
-              }}
-              className={`flex-1 min-h-[40px] flex items-center justify-center gap-1.5 text-xs font-bold rounded-lg transition-all duration-200 cursor-pointer ${
-                authMode === 'biometric'
-                  ? 'bg-white text-slate-900 shadow-xs border border-slate-200/60'
-                  : 'text-text/70 hover:text-text hover:bg-white/50'
-              }`}
-            >
-              <Fingerprint className={`w-3.5 h-3.5 ${authMode === 'biometric' ? 'text-emerald-600' : ''}`} />
-              <span>{lang === 'th' ? 'ชีวมิติ (Passkey)' : 'Passkey'}</span>
-            </button>
-          </div>
-
-          {/* ======================================================== */}
-          {/* MODE 1: STAFF PIN KEYPAD (PRIMARY POS INTERFACE)        */}
-          {/* ======================================================== */}
-          {authMode === 'pin' && (
-            <div className="p-5 sm:p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4 animate-in fade-in duration-150">
-              {/* Staff Member Avatar Selector */}
-              <div className="space-y-2">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-text/50 flex justify-between items-center">
-                  <span>{lang === 'th' ? '1. เลือกพนักงานที่เริ่มกะ' : '1. Select Staff Member'}</span>
-                  <span className="font-mono text-[10px] text-slate-500">
-                    {lang === 'th' ? 'กดตัวเลขเพื่อใส่ PIN' : 'Keypad / Keyboard enabled'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  {staffAccounts.map((account) => {
-                    const isSelected = activeStaffPreset === account.id;
-                    const initials = account.name.split(' ').map((n) => n[0]).join('');
-                    return (
-                      <button
-                        key={account.id}
-                        type="button"
-                        onClick={() => {
-                          setActiveStaffPreset(account.id);
-                          setPin('');
-                        }}
-                        className={`p-2.5 rounded-xl border text-left flex flex-col justify-between min-h-[72px] transition-all duration-150 cursor-pointer ${
-                          isSelected
-                            ? 'border-primary bg-primary/5 text-slate-950 font-bold ring-2 ring-primary/30 shadow-2xs'
-                            : 'border-slate-200 bg-slate-50/70 text-text/70 hover:border-slate-300 hover:bg-slate-100/60'
-                        }`}
-                      >
-                        <div className="flex justify-between items-center w-full">
-                          <span
-                            className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
-                              isSelected ? 'bg-primary text-white' : 'bg-slate-200 text-slate-700'
-                            }`}
-                          >
-                            {initials}
-                          </span>
-                          <span
-                            className={`text-[8px] font-bold uppercase px-1.5 py-0.2 rounded ${account.badgeColor}`}
-                          >
-                            {account.roleKey}
-                          </span>
-                        </div>
-                        <div className="mt-1.5 min-w-0">
-                          <div className="text-[11px] font-black leading-tight truncate text-slate-900">
-                            {account.name}
-                          </div>
-                          <div className="text-[9px] text-text/50 font-medium truncate mt-0.5">
-                            {account.employeeCode}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* PIN Bead Indicator */}
-              <div className="py-1 flex flex-col items-center justify-center space-y-1">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-text/50">
-                  {lang === 'th' ? '2. กรอกรหัส PIN (4 หลัก)' : '2. Enter 4-Digit PIN'}
-                </div>
-                <div className="flex items-center gap-3.5 pt-1">
-                  {[0, 1, 2, 3].map((idx) => {
-                    const isFilled = pin.length > idx;
-                    return (
-                      <div
-                        key={idx}
-                        className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
-                          isFilled
-                            ? 'bg-primary border-primary scale-110 shadow-xs'
-                            : 'bg-slate-100 border-slate-300'
-                        }`}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Tactical Numeric Keypad */}
-              <div className="grid grid-cols-3 gap-2 pt-1">
-                {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
-                  <button
-                    key={num}
-                    type="button"
-                    onClick={() => handlePinDigit(num)}
+          <section
+            key={authMode}
+            role="tabpanel"
+            className="login-glass login-sheet-in rounded-[28px] p-5 sm:p-6"
+          >
+            {authMode === 'pin' && (
+              <div className="space-y-7">
+                <StaffPicker
+                  accounts={STAFF_ACCOUNTS}
+                  selectedId={activeStaffId}
+                  onSelect={selectStaff}
+                  language={language}
+                  legend={t('1 · เลือกพนักงาน', '1 · Select staff')}
+                />
+                <div className="space-y-4">
+                  <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                    {t(`2 · กรอก PIN ${PIN_LENGTH} หลัก`, `2 · Enter ${PIN_LENGTH}-digit PIN`)}
+                  </p>
+                  <PinPad
+                    pin={pin}
+                    length={PIN_LENGTH}
+                    hasError={pinError}
                     disabled={isLoading}
-                    className="h-12 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 active:scale-95 text-lg font-mono font-black text-slate-800 transition-all cursor-pointer select-none flex items-center justify-center shadow-2xs disabled:opacity-50"
-                  >
-                    {num}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={handlePinClear}
-                  disabled={isLoading || pin.length === 0}
-                  className="h-12 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-600 active:scale-95 transition-all cursor-pointer flex items-center justify-center uppercase shadow-2xs disabled:opacity-40"
-                >
-                  {lang === 'th' ? 'ล้าง' : 'Clear'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handlePinDigit('0')}
-                  disabled={isLoading}
-                  className="h-12 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 active:scale-95 text-lg font-mono font-black text-slate-800 transition-all cursor-pointer select-none flex items-center justify-center shadow-2xs disabled:opacity-50"
-                >
-                  0
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePinDelete}
-                  disabled={isLoading || pin.length === 0}
-                  className="h-12 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 active:scale-95 transition-all cursor-pointer flex items-center justify-center shadow-2xs disabled:opacity-40"
-                  title="Backspace"
-                >
-                  <Delete className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Quick Demo 1-Click Login Shortcuts */}
-              <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                <div className="flex items-center justify-between text-[10px] text-text/50 font-bold uppercase tracking-wider">
-                  <span>{lang === 'th' ? 'เข้าสู่ระบบทดสอบทันที (1-Click Demo)' : 'Quick 1-Click Demo Fill'}</span>
-                  <span className="font-mono text-primary font-semibold">Ready</span>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {staffAccounts.map((acc) => (
-                    <button
-                      key={acc.id}
-                      type="button"
-                      onClick={() => handleQuickDemoFill(acc)}
-                      disabled={isLoading}
-                      className="py-1.5 px-2 rounded-lg bg-slate-100 hover:bg-primary/10 hover:text-primary hover:border-primary/30 border border-slate-200/80 text-left text-[11px] font-bold text-slate-700 transition-all cursor-pointer flex flex-col"
-                    >
-                      <span className="truncate">{acc.name.split(' ')[0]}</span>
-                      <span className="text-[9px] font-mono text-text/50 font-normal">
-                        PIN: {acc.defaultPin}
-                      </span>
-                    </button>
-                  ))}
+                    language={language}
+                    onDigit={handlePinDigit}
+                    onDelete={handlePinDelete}
+                    onClear={handlePinClear}
+                  />
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* ======================================================== */}
-          {/* MODE 2: ENTERPRISE CREDENTIALS & 2FA                     */}
-          {/* ======================================================== */}
-          {authMode === 'credentials' && (
-            <div className="p-5 sm:p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4 animate-in fade-in duration-150">
-              <form onSubmit={handleCredentialsSubmit} className="space-y-3.5">
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">
-                    {lang === 'th' ? 'อีเมลองค์กร' : 'Enterprise Email'}
+            {authMode === 'credentials' && (
+              <form onSubmit={handleCredentialsSubmit} className="space-y-5" noValidate>
+                <div className="space-y-2">
+                  <label htmlFor="login-email" className="text-[13px] font-semibold text-neutral-300">
+                    {t('อีเมลองค์กร', 'Enterprise email')}
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text/40">
-                      <UserIcon className="h-4 w-4" />
-                    </div>
+                    <UserIcon
+                      className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500"
+                      strokeWidth={1.75}
+                    />
                     <input
-                      type="text"
+                      id="login-email"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="username"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       placeholder="user@prodx.io"
-                      className="w-full h-10 pl-9 pr-3 rounded-lg border border-slate-200 bg-slate-50 text-text text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all placeholder:text-text/40 shadow-2xs"
+                      className="login-field h-14 w-full rounded-2xl pl-11 pr-4 text-[15px] transition-all duration-300"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold text-slate-800">
-                      {lang === 'th' ? 'รหัสผ่าน' : 'Password'}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <label htmlFor="login-password" className="text-[13px] font-semibold text-neutral-300">
+                      {t('รหัสผ่าน', 'Password')}
                     </label>
                     <button
                       type="button"
                       onClick={() => setShowAccountPasswordModal(true)}
-                      className="text-[11px] font-bold text-primary hover:text-primary-dark transition-colors cursor-pointer flex items-center gap-1 hover:underline"
+                      className="flex items-center gap-1.5 text-xs font-semibold text-violet-300 transition-colors hover:text-violet-200 focus-visible:outline-none focus-visible:underline"
                     >
-                      <KeyRound className="w-3 h-3" />
-                      <span>{lang === 'th' ? 'จัดการ / รีเซ็ตรหัสผ่าน' : 'Manage / Reset'}</span>
+                      <KeyRound className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      {t('จัดการ / รีเซ็ต', 'Manage / Reset')}
                     </button>
                   </div>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text/40">
-                      <Lock className="h-4 w-4" />
-                    </div>
+                    <Lock
+                      className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500"
+                      strokeWidth={1.75}
+                    />
                     <input
+                      id="login-password"
                       type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder={lang === 'th' ? 'กรอกรหัสผ่านองค์กร' : 'Enter enterprise password'}
-                      className="w-full h-10 pl-9 pr-9 rounded-lg border border-slate-200 bg-slate-50 text-text text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all placeholder:text-text/40 shadow-2xs"
+                      placeholder={t('กรอกรหัสผ่านองค์กร', 'Enter enterprise password')}
+                      className="login-field h-14 w-full rounded-2xl pl-11 pr-14 text-[15px] transition-all duration-300"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-text/40 hover:text-text cursor-pointer"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? t('ซ่อนรหัสผ่าน', 'Hide password') : t('แสดงรหัสผ่าน', 'Show password')}
+                      className="absolute right-1.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-xl text-neutral-500 transition-colors hover:text-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? (
+                        <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.75} />
+                      ) : (
+                        <Eye className="h-[18px] w-[18px]" strokeWidth={1.75} />
+                      )}
                     </button>
                   </div>
 
-                  {/* Real-time Password Strength Meter & Validation Criteria */}
                   {password.length > 0 ? (
-                    <div className="mt-2.5">
+                    <div className="pt-1">
                       <PasswordStrengthMeter
                         analysis={passwordAnalysis}
-                        language={lang}
+                        language={language}
                         showCriteriaList={true}
                         showEntropyInfo={true}
                         compact={false}
                       />
                     </div>
                   ) : (
-                    <div className="mt-1.5 flex items-center justify-between text-[10px] text-text/50 font-mono">
-                      <button
-                        type="button"
-                        onClick={() => setShowPasswordPolicyGuide(!showPasswordPolicyGuide)}
-                        className="hover:text-primary underline cursor-pointer text-left transition-colors"
-                      >
-                        {showPasswordPolicyGuide
-                          ? (lang === 'th' ? 'ซ่อนเกณฑ์ความปลอดภัย' : 'Hide security criteria')
-                          : (lang === 'th' ? 'ดูเกณฑ์ความปลอดภัยรหัสผ่าน (NIST & PCI-DSS)' : 'View password criteria (NIST & PCI-DSS)')}
-                      </button>
-                      <span className="text-primary font-bold">256-BIT CRYPTO</span>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordPolicyGuide((v) => !v)}
+                      aria-expanded={showPasswordPolicyGuide}
+                      className="flex items-center gap-1.5 pt-1 text-xs text-neutral-500 transition-colors hover:text-violet-300 focus-visible:outline-none focus-visible:underline"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      {showPasswordPolicyGuide
+                        ? t('ซ่อนเกณฑ์ความปลอดภัย', 'Hide security criteria')
+                        : t('ดูเกณฑ์ความปลอดภัยรหัสผ่าน (NIST & PCI-DSS)', 'View password criteria (NIST & PCI-DSS)')}
+                    </button>
                   )}
 
-                  {/* Expandable Criteria Preview when password is empty */}
                   {password.length === 0 && showPasswordPolicyGuide && (
-                    <div className="mt-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-700 space-y-1 animate-in fade-in duration-150">
-                      <div className="font-bold text-slate-900 text-xs mb-1 flex items-center gap-1.5">
-                        <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-                        <span>{lang === 'th' ? 'เกณฑ์ความปลอดภัยรหัสผ่านที่กำหนด:' : 'Enterprise Password Policy:'}</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1 text-[10px]">
-                        <div>• {lang === 'th' ? 'ความยาวอย่างน้อย 8 ตัวอักษร' : 'Minimum 8 characters'}</div>
-                        <div>• {lang === 'th' ? 'ตัวพิมพ์ใหญ่ (A-Z)' : 'Uppercase letter (A-Z)'}</div>
-                        <div>• {lang === 'th' ? 'ตัวพิมพ์เล็ก (a-z)' : 'Lowercase letter (a-z)'}</div>
-                        <div>• {lang === 'th' ? 'ตัวเลข (0-9)' : 'Numeric digit (0-9)'}</div>
-                        <div>• {lang === 'th' ? 'อักขระพิเศษ (!@#$...)' : 'Special symbol (!@#$...)'}</div>
-                        <div>• {lang === 'th' ? 'ไม่มีรูปแบบคาดเดาได้' : 'No keyboard walk or patterns'}</div>
-                      </div>
-                    </div>
+                    <ul className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-2xl border border-[rgba(255,255,255,0.07)] bg-[rgba(255,255,255,0.03)] p-3.5 text-xs text-neutral-400">
+                      <li>{t('อย่างน้อย 8 ตัวอักษร', 'Minimum 8 characters')}</li>
+                      <li>{t('ตัวพิมพ์ใหญ่ (A-Z)', 'Uppercase (A-Z)')}</li>
+                      <li>{t('ตัวพิมพ์เล็ก (a-z)', 'Lowercase (a-z)')}</li>
+                      <li>{t('ตัวเลข (0-9)', 'Digit (0-9)')}</li>
+                      <li>{t('อักขระพิเศษ (!@#$)', 'Symbol (!@#$)')}</li>
+                      <li>{t('ไม่มีรูปแบบคาดเดาง่าย', 'No guessable patterns')}</li>
+                    </ul>
                   )}
                 </div>
 
-                <div className="flex items-center justify-between text-xs pt-1">
-                  <label className="flex items-center gap-1.5 cursor-pointer select-none text-text/70">
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="rounded border-slate-300 text-primary focus:ring-primary bg-slate-50"
-                    />
-                    <span className="text-[11px]">{lang === 'th' ? 'จดจำอุปกรณ์' : 'Remember terminal'}</span>
-                  </label>
-                  <span className="text-slate-400 font-mono text-[10px]">2FA SECURED</span>
-                </div>
+                <label className="flex cursor-pointer select-none items-center gap-3 text-sm text-neutral-400">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="h-5 w-5 rounded-md border-neutral-600 bg-transparent accent-violet-500"
+                  />
+                  {t('จดจำอุปกรณ์นี้', 'Remember this terminal')}
+                </label>
 
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full h-11 rounded-xl bg-primary hover:bg-primary-dark text-white text-xs sm:text-sm font-bold shadow-xs active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
+                <button type="submit" disabled={isLoading} className={PRIMARY_BUTTON}>
                   {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
                     <>
-                      <span>{lang === 'th' ? 'เข้าสู่ระบบด้วยรหัสผ่าน' : 'Sign In with Password'}</span>
-                      <ArrowRight className="w-4 h-4" />
+                      {t('เข้าสู่ระบบ', 'Sign in')}
+                      <ArrowRight className="h-[18px] w-[18px]" strokeWidth={1.75} />
                     </>
                   )}
                 </button>
               </form>
+            )}
 
-              {/* Quick Fill Credentials Chips */}
-              <div className="pt-2 border-t border-slate-100 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-text/50">
-                    {lang === 'th' ? 'เลือกบัญชีทดสอบด่วน (รหัสผ่านความปลอดภัยสูง)' : 'Quick Demo Accounts (Secure)'}
-                  </span>
-                  <span className="text-[9px] text-emerald-600 font-mono font-bold">100% PCI-DSS</span>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {staffAccounts.map((acc) => {
-                    const storedPasswords = getStoredStaffPasswords();
-                    const userPass = storedPasswords[acc.userId] ?? '';
-                    return (
-                      <button
-                        key={acc.id}
-                        type="button"
-                        onClick={() => {
-                          setUsername(acc.email);
-                          setPassword(userPass);
-                        }}
-                        className="p-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 text-left text-[11px] transition-all cursor-pointer group"
-                      >
-                        <div className="font-bold text-slate-800 truncate group-hover:text-primary">{acc.name.split(' ')[0]}</div>
-                        <div className="text-[9px] text-text/50 uppercase">{acc.roleKey}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+            {authMode === 'biometric' && (
+              <div className="space-y-7">
+                <StaffPicker
+                  accounts={STAFF_ACCOUNTS}
+                  selectedId={activeStaffId}
+                  onSelect={setActiveStaffId}
+                  language={language}
+                  legend={t('เลือกบัญชีพนักงาน', 'Select staff')}
+                />
 
-              {/* Secondary Options */}
-              <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAuthMode('biometric')}
-                  className="h-9 flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                >
-                  <Fingerprint className="w-3.5 h-3.5 text-primary" />
-                  <span>Passkey</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQrStatus('idle');
-                    setShowQrScanner(true);
-                  }}
-                  className="h-9 flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                >
-                  <QrCode className="w-3.5 h-3.5 text-primary" />
-                  <span>Scan QR Badge</span>
-                </button>
-              </div>
-            </div>
-          )}
+                <div className="flex flex-col items-center gap-5 text-center">
+                  <div className="relative flex h-40 w-40 items-center justify-center">
+                    {biometricStatus === 'scanning' && (
+                      <>
+                        <span className="login-ring absolute inset-4 rounded-full border border-violet-300/50" />
+                        <span
+                          className="login-ring absolute inset-4 rounded-full border border-violet-300/40"
+                          style={{ animationDelay: '-1.1s' }}
+                        />
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handlePasskeyLogin}
+                      disabled={biometricStatus === 'scanning' || biometricStatus === 'success' || isLoading}
+                      aria-label={t('สแกนชีวมิติ', 'Scan biometrics')}
+                      className={`relative flex h-28 w-28 items-center justify-center rounded-full border transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/80 disabled:pointer-events-none ${
+                        biometricStatus === 'success'
+                          ? 'border-emerald-300/60 bg-emerald-400/15 text-emerald-300 shadow-[0_0_60px_-6px_rgba(52,211,153,0.6)]'
+                          : biometricStatus === 'failed'
+                            ? 'border-rose-300/60 bg-rose-400/15 text-rose-300 shadow-[0_0_60px_-6px_rgba(251,113,133,0.55)]'
+                            : 'border-violet-300/40 bg-violet-400/15 text-violet-200 shadow-[0_0_60px_-10px_rgba(139,92,246,0.8)] hover:border-violet-200/70'
+                      }`}
+                    >
+                      {biometricStatus === 'scanning' ? (
+                        <Loader2 className="h-12 w-12 animate-spin" strokeWidth={1.25} />
+                      ) : biometricStatus === 'success' ? (
+                        <CheckCircle2 className="h-12 w-12" strokeWidth={1.25} />
+                      ) : (
+                        <BiometricIcon className="h-12 w-12" strokeWidth={1.25} />
+                      )}
+                    </button>
+                  </div>
 
-          {/* ======================================================== */}
-          {/* MODE 3: WEBAUTHN BIOMETRIC PASSKEYS                      */}
-          {/* ======================================================== */}
-          {authMode === 'biometric' && (
-            <div className="p-5 sm:p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4 animate-in fade-in duration-150">
-              {/* Cashier Target Selector */}
-              <div className="space-y-1.5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-text/50 flex justify-between items-center">
-                  <span>{lang === 'th' ? 'เลือกบัญชีพนักงาน' : 'Select Target Staff'}</span>
-                  <span className="font-mono text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                    FIDO2
-                  </span>
+                  <div className="space-y-1" role="status" aria-live="polite">
+                    <p className="text-[15px] font-semibold text-neutral-100">
+                      {biometricFeedback || t('แตะเพื่อสแกนลายนิ้วมือหรือใบหน้า', 'Tap to scan fingerprint or face')}
+                    </p>
+                    <p className="font-mono text-xs text-neutral-500">
+                      {capability?.biometricLabel || 'WebAuthn · FIDO2'}
+                      {enrolledPasskeys.length > 0 && ` · ${enrolledPasskeys.length} ${t('คีย์', 'keys')}`}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                  {staffAccounts.map((account) => {
-                    const isSelected = activeStaffPreset === account.id;
-                    const initials = account.name.split(' ').map((n) => n[0]).join('');
-                    return (
-                      <button
-                        key={account.id}
-                        type="button"
-                        onClick={() => setActiveStaffPreset(account.id)}
-                        className={`p-2.5 rounded-xl border text-left flex flex-col justify-between min-h-[68px] transition-all duration-150 cursor-pointer ${
-                          isSelected
-                            ? 'border-emerald-500 bg-emerald-50/50 text-slate-950 font-bold ring-2 ring-emerald-500/30'
-                            : 'border-slate-200 bg-slate-50/70 text-text/70 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex justify-between items-center w-full">
-                          <span
-                            className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
-                              isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
-                            }`}
-                          >
-                            {initials}
-                          </span>
-                          <span className="text-[8px] font-mono text-emerald-800 font-bold">READY</span>
-                        </div>
-                        <div className="mt-1 min-w-0">
-                          <div className="text-[11px] font-black leading-tight truncate text-slate-900">
-                            {account.name}
-                          </div>
-                          <div className="text-[9px] text-text/50 font-medium truncate">
-                            {account.roleKey}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={handlePasskeyLogin}
+                    disabled={biometricStatus === 'scanning' || biometricStatus === 'success' || isLoading}
+                    className={PRIMARY_BUTTON}
+                  >
+                    <Fingerprint className="h-5 w-5" strokeWidth={1.75} />
+                    {t('ยืนยันตัวตนด้วยชีวมิติ', 'Authenticate with biometrics')}
+                  </button>
+                  <button type="button" onClick={() => setShowEnrollModal(true)} className={`${SECONDARY_BUTTON} w-full`}>
+                    <Settings2 className="h-4 w-4 text-violet-300" strokeWidth={1.75} />
+                    {t('จัดการ Passkeys', 'Manage passkeys')}
+                  </button>
                 </div>
               </div>
+            )}
+          </section>
 
-              {/* Centered Biometric Sensor Pod */}
-              <div className="py-3 flex flex-col items-center justify-center text-center space-y-3">
-                <button
-                  type="button"
-                  onClick={() => handlePasskeyLogin()}
-                  disabled={biometricStatus === 'scanning' || isLoading}
-                  className={`w-24 h-24 rounded-2xl border-2 flex flex-col items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer shadow-xs active:scale-95 ${
-                    biometricStatus === 'scanning'
-                      ? 'border-primary bg-primary/10 text-primary ring-4 ring-primary/20 scale-105'
-                      : biometricStatus === 'success'
-                      ? 'border-emerald-500 bg-emerald-50 text-emerald-600 scale-105'
-                      : biometricStatus === 'failed'
-                      ? 'border-rose-500 bg-rose-50 text-rose-600'
-                      : 'border-emerald-500/60 bg-gradient-to-b from-white to-emerald-50/30 text-emerald-700 ring-4 ring-emerald-100 hover:border-emerald-600 hover:scale-102'
-                  }`}
-                >
-                  {biometricStatus === 'scanning' ? (
-                    <Loader2 className="w-8 h-8 animate-spin" />
-                  ) : biometricStatus === 'success' ? (
-                    <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-                  ) : capability?.biometricLabel?.toLowerCase().includes('face') ? (
-                    <ScanFace className="w-8 h-8 text-emerald-600" />
-                  ) : (
-                    <Fingerprint className="w-8 h-8 text-emerald-600" />
-                  )}
-                  <span className="text-[9px] font-mono font-black uppercase tracking-wider">
-                    {biometricStatus === 'scanning'
-                      ? 'SCANNING'
-                      : biometricStatus === 'success'
-                      ? 'VERIFIED'
-                      : 'TOUCH SENSOR'}
-                  </span>
-                </button>
-
-                <div className="text-center px-4 space-y-0.5">
-                  <p className="text-xs font-bold text-slate-800">
-                    {biometricFeedback ||
-                      (lang === 'th'
-                        ? 'แตะเซนเซอร์ลายนิ้วมือหรือคลิกเพื่อเริ่มสแกน'
-                        : 'Touch hardware sensor or click above to authenticate')}
-                  </p>
-                  <p className="text-[10px] text-slate-400 font-mono">
-                    {capability?.biometricLabel || 'W3C WebAuthn Level 3 Standard'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Main Action Button */}
-              <button
-                type="button"
-                onClick={() => handlePasskeyLogin()}
-                disabled={biometricStatus === 'scanning' || isLoading}
-                className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-xs active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {biometricStatus === 'scanning' ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <Fingerprint className="w-4 h-4" />
-                    <span>
-                      {lang === 'th'
-                        ? 'ยืนยันตัวตนด้วยชีวมิติ'
-                        : 'Authenticate with Biometrics'}
-                    </span>
-                  </>
-                )}
-              </button>
-
-              {/* Passkey Management Link */}
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                <button
-                  type="button"
-                  onClick={() => setShowEnrollModal(true)}
-                  className="text-text/70 hover:text-primary transition-colors flex items-center gap-1.5 font-bold cursor-pointer"
-                >
-                  <Settings2 className="w-3.5 h-3.5 text-primary" />
-                  <span>{lang === 'th' ? 'จัดการ Passkeys' : 'Manage Passkeys'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setAuthMode('pin')}
-                  className="text-slate-400 hover:text-slate-600 transition-colors font-medium cursor-pointer"
-                >
-                  {lang === 'th' ? 'ใช้รหัส PIN แทน' : 'Use PIN instead'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Bottom Footer Info with Developed By */}
-          <div className="pt-3 border-t border-slate-200/80 space-y-2">
-            <div className="flex items-center justify-between text-[10px] text-text/40 font-mono uppercase tracking-wider px-1">
-              <span>PRODX POS · ENTERPRISE RUNTIME v4.2</span>
-              <div className="flex items-center gap-1">
-                <Wifi className="w-3 h-3 text-emerald-600" />
-                <span>OFFLINE MESH READY</span>
-              </div>
-            </div>
-            <div className="text-center pt-1 pb-1">
-              <span className="text-[10px] font-mono font-black tracking-widest text-slate-500 uppercase bg-slate-100/80 px-3 py-1 rounded-full border border-slate-200/80 shadow-2xs inline-block">
-                DEVELOPED BY THODSAWAT
-              </span>
-            </div>
+          <div className="grid grid-cols-2 gap-3">
+            <button type="button" onClick={openQrScanner} className={SECONDARY_BUTTON}>
+              <QrCode className="h-4 w-4 text-violet-300" strokeWidth={1.75} />
+              {t('สแกนบัตรพนักงาน', 'Scan staff badge')}
+            </button>
+            <button
+              type="button"
+              onClick={() => changeMode(authMode === 'pin' ? 'biometric' : 'pin')}
+              className={SECONDARY_BUTTON}
+            >
+              {authMode === 'pin' ? (
+                <>
+                  <Fingerprint className="h-4 w-4 text-violet-300" strokeWidth={1.75} />
+                  {t('ใช้ Passkey', 'Use passkey')}
+                </>
+              ) : (
+                <>
+                  <KeyRound className="h-4 w-4 text-violet-300" strokeWidth={1.75} />
+                  {t('ใช้ PIN แทน', 'Use PIN instead')}
+                </>
+              )}
+            </button>
           </div>
-        </div>
-      </div>
 
-      {/* WEBAUTHN PASSKEYS ENROLLMENT MODAL */}
+          {IS_DEV_BUILD && authMode !== 'biometric' && (
+            <div className="rounded-2xl border border-dashed border-[rgba(255,255,255,0.12)] p-3.5">
+              <div className="mb-2.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                <Zap className="h-3.5 w-3.5 text-amber-300" strokeWidth={1.75} />
+                {t('ทางลัดสำหรับนักพัฒนา', 'Developer quick sign-in')}
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {STAFF_ACCOUNTS.map((account) => (
+                  <button
+                    key={account.id}
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => {
+                      if (authMode === 'pin') {
+                        quickSignIn(account);
+                      } else {
+                        setUsername(account.email);
+                        setPassword(getStoredStaffPasswords()[account.userId] ?? '');
+                      }
+                    }}
+                    className="flex min-h-12 flex-col items-start justify-center rounded-xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-3 py-2 text-left transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 hover:border-[rgba(255,255,255,0.18)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70 disabled:opacity-40"
+                  >
+                    <span className="text-[13px] font-semibold text-neutral-200">{account.firstName}</span>
+                    <span className="font-mono text-[10px] text-neutral-500">PIN {account.defaultPin}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <footer className="flex items-center justify-between gap-3 px-1 pt-1 text-[11px] text-neutral-600">
+            <span className="font-mono uppercase tracking-widest">PRODX POS · v4.2</span>
+            <span className="font-mono uppercase tracking-widest">Developed by Thodsawat</span>
+          </footer>
+        </div>
+      </main>
+
       {showEnrollModal && (
         <PasskeyEnrollModal
           isOpen={showEnrollModal}
@@ -1144,127 +726,104 @@ export const LoginScreen: React.FC = () => {
         />
       )}
 
-      {/* 2-FACTOR AUTHENTICATION MODAL */}
       {show2FA && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl border border-slate-200 space-y-4 text-center">
-            <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-base font-black text-slate-900">
-                {lang === 'th' ? 'การยืนยันตัวตนสองขั้นตอน (2FA)' : 'Two-Factor Authentication'}
-              </h3>
-              <p className="text-xs text-text/60 mt-1">
-                {lang === 'th'
-                  ? 'กรอกรหัสความปลอดภัย 6 หลักจาก Authenticator App'
-                  : 'Enter 6-digit security code (Demo: any 6 digits e.g. 123456)'}
+        <LoginDialog
+          title={t('ยืนยันตัวตนสองขั้นตอน', 'Two-factor authentication')}
+          icon={<ShieldCheck className="h-5 w-5" strokeWidth={1.75} />}
+          closeLabel={t('ปิด', 'Close')}
+          onClose={() => setShow2FA(false)}
+        >
+          <div className="space-y-5">
+            <p className="text-sm leading-relaxed text-neutral-400">
+              {t('กรอกรหัสความปลอดภัย 6 หลักจากแอป Authenticator', 'Enter the 6-digit code from your authenticator app.')}
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={twoFactorCode}
+              onChange={(e) => setTwoFactorCode(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder="000000"
+              aria-label={t('รหัส 6 หลัก', '6-digit code')}
+              autoFocus
+              className="login-field h-16 w-full rounded-2xl text-center font-mono text-3xl tracking-[0.4em]"
+            />
+            {IS_DEV_BUILD && (
+              <p className="text-center font-mono text-[11px] text-neutral-600">
+                {t('โหมดทดสอบ: กรอกเลขใดก็ได้ 6 หลัก', 'Dev mode: any 6 digits are accepted')}
               </p>
-            </div>
-
-            <div className="space-y-2">
-              <input
-                type="text"
-                maxLength={6}
-                value={twoFactorCode}
-                onChange={(e) => setTwoFactorCode(e.target.value.replace(/[^0-9]/g, ''))}
-                placeholder="123456"
-                autoFocus
-                className="w-full text-center tracking-[0.5em] font-mono text-xl font-black h-12 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-primary focus:outline-none"
-              />
-              <p className="text-[10px] text-text/50 font-mono">
-                {lang === 'th' ? 'โหมดทดสอบ: กรอกเลขใดก็ได้ 6 หลัก' : 'Demo bypass: Type any 6 digits'}
-              </p>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShow2FA(false)}
-                className="flex-1 h-10 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-bold text-slate-700 transition-all cursor-pointer"
-              >
-                {lang === 'th' ? 'ยกเลิก' : 'Cancel'}
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setShow2FA(false)} className={SECONDARY_BUTTON}>
+                {t('ยกเลิก', 'Cancel')}
               </button>
               <button
                 type="button"
                 onClick={submit2FA}
                 disabled={isVerifying2FA || twoFactorCode.length < 6}
-                className="flex-1 h-10 rounded-xl bg-primary hover:bg-primary-dark text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className={`${PRIMARY_BUTTON} !h-12 !rounded-xl !text-sm`}
               >
-                {isVerifying2FA ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <span>{lang === 'th' ? 'ยืนยัน' : 'Verify'}</span>
-                )}
+                {isVerifying2FA ? <Loader2 className="h-5 w-5 animate-spin" /> : t('ยืนยัน', 'Verify')}
               </button>
             </div>
           </div>
-        </div>
+        </LoginDialog>
       )}
 
-      {/* QR BADGE SCANNER MODAL */}
       {showQrScanner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl border border-slate-200 space-y-4 text-center">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
-                <QrCode className="w-4 h-4 text-primary" />
-                <span>{lang === 'th' ? 'สแกนบัตรพนักงาน (QR Badge)' : 'Scan Staff Badge'}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowQrScanner(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="relative aspect-square w-48 mx-auto rounded-xl border-2 border-dashed border-primary/50 bg-slate-50 flex flex-col items-center justify-center p-4 overflow-hidden">
+        <LoginDialog
+          title={t('สแกนบัตรพนักงาน', 'Scan staff badge')}
+          icon={<QrCode className="h-5 w-5" strokeWidth={1.75} />}
+          closeLabel={t('ปิด', 'Close')}
+          onClose={() => setShowQrScanner(false)}
+        >
+          <div className="space-y-5">
+            <div
+              className="relative mx-auto flex aspect-square w-52 flex-col items-center justify-center gap-3 overflow-hidden rounded-3xl border border-dashed border-violet-300/40 bg-[rgba(139,92,246,0.06)]"
+              role="status"
+              aria-live="polite"
+            >
               {qrStatus === 'scanning' ? (
                 <>
-                  <div className="absolute inset-x-0 h-0.5 bg-primary animate-bounce shadow-md" />
-                  <Loader2 className="w-10 h-10 text-primary animate-spin" />
-                  <span className="text-[11px] font-mono text-primary font-bold mt-2">SCANNING BADGE...</span>
+                  <span className="absolute inset-x-6 top-1/2 h-0.5 animate-bounce rounded-full bg-violet-300 shadow-[0_0_20px_4px_rgba(167,139,250,0.8)]" />
+                  <Loader2 className="h-10 w-10 animate-spin text-violet-300" strokeWidth={1.5} />
+                  <span className="font-mono text-xs text-violet-200">{t('กำลังสแกน...', 'Scanning...')}</span>
                 </>
               ) : qrStatus === 'success' ? (
                 <>
-                  <CheckCircle2 className="w-12 h-12 text-emerald-500 animate-bounce" />
-                  <span className="text-xs font-bold text-emerald-600 mt-2">BADGE VERIFIED!</span>
+                  <CheckCircle2 className="h-12 w-12 text-emerald-300" strokeWidth={1.5} />
+                  <span className="text-sm font-semibold text-emerald-300">{t('ยืนยันบัตรแล้ว', 'Badge verified')}</span>
                 </>
               ) : (
                 <>
-                  <QrCode className="w-14 h-14 text-slate-400" />
-                  <span className="text-[11px] text-slate-500 font-medium mt-2">
-                    {lang === 'th' ? 'วางบัตรหน้ากล้องสแกน' : 'Place badge in front of scanner'}
+                  <QrCode className="h-14 w-14 text-neutral-500" strokeWidth={1.25} />
+                  <span className="px-4 text-center text-xs text-neutral-400">
+                    {t('วางบัตรหน้ากล้องเพื่อสแกน', 'Hold your badge in front of the scanner')}
                   </span>
                 </>
               )}
             </div>
-
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={handleQrScan}
-                disabled={qrStatus === 'scanning' || qrStatus === 'success'}
-                className="w-full h-10 rounded-xl bg-primary hover:bg-primary-dark text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-50"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                <span>{lang === 'th' ? 'จำลองการสแกนบัตรพนักงาน' : 'Simulate Badge Scan'}</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleQrScan}
+              disabled={qrStatus === 'scanning' || qrStatus === 'success'}
+              className={PRIMARY_BUTTON}
+            >
+              <Zap className="h-[18px] w-[18px]" strokeWidth={1.75} />
+              {t('จำลองการสแกนบัตร', 'Simulate badge scan')}
+            </button>
           </div>
-        </div>
+        </LoginDialog>
       )}
 
-      {/* Account Password Management Modal */}
       {showAccountPasswordModal && (
         <AccountPasswordModal
           isOpen={showAccountPasswordModal}
           onClose={() => setShowAccountPasswordModal(false)}
-          language={lang}
+          language={language}
           onPasswordUpdated={(userId, newPass) => {
-            const staff = staffAccounts.find((s) => s.userId === userId);
+            const staff = STAFF_ACCOUNTS.find((s) => s.userId === userId);
             if (staff) {
               setUsername(staff.email);
               setPassword(newPass);
