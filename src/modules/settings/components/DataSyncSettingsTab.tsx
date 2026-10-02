@@ -27,7 +27,6 @@ import { SystemDiagnosticOverlay } from './SystemDiagnosticOverlay';
 import { useLanguage } from '../../../context/LanguageContext';
 import { useOffline } from '../../../context/OfflineContext';
 import { useToast } from '../../../context/ToastContext';
-import { mockState } from '../../../adapters/mockAdapter';
 import { clearEntireSystemCache } from '../../../services/systemReset';
 import { getCachedProducts, getCachedCategories, getCachedOrders } from '../../../lib/indexedDb';
 
@@ -46,7 +45,6 @@ export const DataSyncSettingsTab: React.FC = () => {
   } = useOffline();
   const { addToast } = useToast();
 
-  const [simulatedLatency, setSimulatedLatency] = useState<number>(() => mockState.getSimulatedLatency());
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [isDiagnosticOverlayOpen, setIsDiagnosticOverlayOpen] = useState(false);
@@ -82,17 +80,6 @@ export const DataSyncSettingsTab: React.FC = () => {
   useEffect(() => {
     loadCacheStats();
   }, []);
-
-  const handleLatencyChange = (ms: number) => {
-    mockState.setSimulatedLatency(ms);
-    setSimulatedLatency(ms);
-    measureSyncLatency();
-    addToast({
-      title: language === 'th' ? 'ปรับความหน่วงเครือข่าย' : 'Network Latency Updated',
-      message: `Simulated network delay: ${ms}ms`,
-      type: 'info',
-    });
-  };
 
   const handleManualSync = async () => {
     await triggerSync();
@@ -445,55 +432,22 @@ export const DataSyncSettingsTab: React.FC = () => {
         </CardHeader>
 
         <CardBody className="p-5 space-y-6">
-          {/* Network Latency Simulator */}
+          {/* Measured Production Sync Latency */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
                 <label className="block text-[11px] font-bold text-text/80 uppercase tracking-wide">
-                  {language === 'th' ? 'จำลองความหน่วงเครือข่าย (Network Latency Simulator)' : 'Simulated Network Latency'}
+                  {language === 'th' ? 'ความหน่วง Sync จริง' : 'Measured Production Sync Latency'}
                 </label>
                 <span className="text-[11px] text-text/50">
-                  {language === 'th' ? 'จำลองความเร็วอินเทอร์เน็ตจริงในการตอบสนองคำสั่ง API' : 'Injects artificial latency to simulate realistic mobile POS network environments.'}
+                  {language === 'th' ? 'วัด latency จาก production sync จริง ไม่ใช้ mock adapter' : 'Measured from the active production sync boundary; no mock adapter is involved.'}
                 </span>
               </div>
-              <Badge variant="primary" size="sm" className="font-mono">
-                {simulatedLatency} ms
-              </Badge>
+              <Badge variant="primary" size="sm" className="font-mono">{syncLatencyMs} ms</Badge>
             </div>
-
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min="0"
-                max="2000"
-                step="50"
-                value={simulatedLatency}
-                onChange={(e) => handleLatencyChange(Number(e.target.value))}
-                className="w-full accent-primary h-2 bg-background rounded-lg cursor-pointer"
-              />
-            </div>
-
-            <div className="grid grid-cols-4 gap-2">
-              {[
-                { ms: 0, label: '0ms (Instant)' },
-                { ms: 150, label: '150ms (Fast 4G)' },
-                { ms: 400, label: '400ms (3G / Edge)' },
-                { ms: 1000, label: '1,000ms (Laggy)' },
-              ].map((preset) => (
-                <button
-                  key={preset.ms}
-                  type="button"
-                  onClick={() => handleLatencyChange(preset.ms)}
-                  className={`p-2 rounded-md border text-center text-xs font-mono font-bold cursor-pointer transition ${
-                    simulatedLatency === preset.ms
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border bg-card text-text/70 hover:bg-background'
-                  }`}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => measureSyncLatency()} disabled={isSyncing}>
+              {language === 'th' ? 'วัดอีกครั้ง' : 'Measure Again'}
+            </Button>
           </div>
 
           {/* Backup & System Reset Actions */}
