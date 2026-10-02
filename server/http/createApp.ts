@@ -1,5 +1,3 @@
-[Reading 140 lines from start (total: 140 lines, 0 remaining)]
-
 import crypto from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import type {
@@ -140,5 +138,3 @@ export const createApp = (options: BackendBoundaryOptions) => {
 
   return app;
 };
-
-[executed on device: codespaces-23b5a3 (461ec0f2-eaf2-4b37-9d2f-3805dc2937ae)]
