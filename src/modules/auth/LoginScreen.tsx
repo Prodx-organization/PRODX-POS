@@ -395,7 +395,7 @@ export const LoginScreen: React.FC = () => {
   const passwordAnalysis = analyzePassword(password, { email: username });
 
   return (
-    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#f8fafc] text-text font-sans selection:bg-primary selection:text-white">
+    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-slate-50 text-text font-sans selection:bg-primary selection:text-white">
       {/* Top Global Utility Bar (Desktop only absolute, mobile integrated into header) */}
       <div className="hidden lg:flex absolute top-4 right-4 z-30 items-center gap-2">
         <div className="flex items-center gap-1.5 px-3 py-1.5 bg-card/90 backdrop-blur-xs text-text text-xs font-semibold rounded-lg border border-border border-crisp shadow-2xs">
@@ -404,6 +404,7 @@ export const LoginScreen: React.FC = () => {
         </div>
         <button
           onClick={() => setLang(lang === 'th' ? 'en' : 'th')}
+          aria-label={lang === 'th' ? 'เปลี่ยนเป็นภาษาอังกฤษ' : 'Switch to Thai'}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-card hover:bg-slate-100 text-text text-xs font-bold rounded-lg border border-border border-crisp shadow-2xs transition-all cursor-pointer"
         >
           <Globe className="w-3.5 h-3.5 text-primary" />
@@ -413,7 +414,7 @@ export const LoginScreen: React.FC = () => {
       </div>
 
       {/* LEFT PANEL: Enterprise Architecture Showcase (Visible on lg+ screens) */}
-      <div className="hidden lg:flex lg:w-5/12 xl:w-1/2 relative flex-col justify-between p-12 lg:p-14 bg-[#090d16] text-white overflow-hidden border-r border-slate-800">
+      <div className="hidden lg:flex lg:w-5/12 xl:w-1/2 relative flex-col justify-between p-12 lg:p-14 bg-slate-950 text-white overflow-hidden border-r border-slate-800">
         {/* Subtle geometric grid backdrop */}
         <div
           className="absolute inset-0 opacity-[0.05] pointer-events-none"
@@ -465,7 +466,7 @@ export const LoginScreen: React.FC = () => {
                   </div>
                 </div>
                 <span className="font-mono text-[10px] font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded">
-                  PIN: 1234
+                  ADMIN
                 </span>
               </div>
 
@@ -482,7 +483,7 @@ export const LoginScreen: React.FC = () => {
                   </div>
                 </div>
                 <span className="font-mono text-[10px] font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded">
-                  PIN: 5678
+                  MANAGER
                 </span>
               </div>
 
@@ -499,7 +500,7 @@ export const LoginScreen: React.FC = () => {
                   </div>
                 </div>
                 <span className="font-mono text-[10px] font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded">
-                  PIN: 0000
+                  CASHIER
                 </span>
               </div>
             </div>
@@ -545,7 +546,7 @@ export const LoginScreen: React.FC = () => {
       </div>
 
       {/* RIGHT PANEL: Balanced & Cohesive Authentication Workstation */}
-      <div className="w-full lg:w-7/12 xl:w-1/2 flex items-center justify-center p-5 sm:p-10 lg:p-12 relative bg-[#f8fafc]">
+      <div className="w-full lg:w-7/12 xl:w-1/2 flex items-center justify-center p-5 sm:p-10 lg:p-12 relative bg-slate-50">
         <div className="w-full max-w-md space-y-5 mx-auto">
           {/* Mobile Top Utility Bar & Brand Header (Prevents overlapping) */}
           <div className="flex lg:hidden flex-col space-y-3 pb-2 border-b border-slate-200/80">
