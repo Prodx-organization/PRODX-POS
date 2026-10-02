@@ -10,7 +10,7 @@ const makeDb = async (pin = '1234'): Promise<TransactionalSqlExecutor> => {
   const pinHash = await hashPassword(pin);
   const credentials = new Map<string, { failed_attempts: number; locked_until: Date | null }>();
   let record: { id: string; user_id: string; status: 'clocked_in' | 'clocked_out' } | null = null;
-  let operation: { id: string; payload_hash: string; result_id: string | null } | null = null;
+  const operations = new Map<string, { id: string; payload_hash: string; result_id: string | null }>();
 
   const query = async (sql: string, params: readonly unknown[] = []) => {
     if (sql.includes('FROM prodx_timeclock_auth_attempts')) return { rows: [] };
@@ -31,11 +31,17 @@ const makeDb = async (pin = '1234'): Promise<TransactionalSqlExecutor> => {
     }
     if (sql.includes('INSERT INTO prodx_timeclock_auth_attempts') || sql.includes('DELETE FROM prodx_timeclock_auth_attempts')) return { rows: [] };
     if (sql.includes('INSERT INTO prodx_timeclock_operations')) {
-      if (operation) return { rows: [] };
-      operation = { id: 'op-1', payload_hash: String(params[6]), result_id: null };
-      return { rows: [{ id: 'op-1' }] };
+      const key = String(params[5]);
+      if (operations.has(key)) return { rows: [] };
+      const id = `op-${operations.size + 1}`;
+      operations.set(key, { id, payload_hash: String(params[6]), result_id: null });
+      return { rows: [{ id }] };
     }
-    if (sql.includes('FROM prodx_timeclock_operations')) return { rows: operation ? [operation] : [] };
+    if (sql.includes('FROM prodx_timeclock_operations')) {
+      const key = String(params[2]);
+      const op = operations.get(key);
+      return { rows: op ? [op] : [] };
+    }
     if (sql.includes('FROM prodx_timeclock_records') && sql.includes("status='clocked_in'")) {
       return { rows: record?.status === 'clocked_in' ? [{ id: record.id }] : [] };
     }
@@ -48,7 +54,7 @@ const makeDb = async (pin = '1234'): Promise<TransactionalSqlExecutor> => {
       return { rows: [] };
     }
     if (sql.includes('UPDATE prodx_timeclock_operations')) {
-      if (operation) operation.result_id = String(params[0]);
+      for (const op of operations.values()) if (op.id === String(params[1])) op.result_id = String(params[0]);
       return { rows: [] };
     }
     if (sql.includes('SELECT t.id,t.store_id,t.user_id')) {
@@ -69,6 +75,8 @@ test('clock-in is idempotent and duplicate open clock is rejected', async () => 
   const service = createTimeclockService(await makeDb());
   const first = await service.clockIn(context, '1234', 'clock-in-1');
   assert.equal(first.status, 'clocked_in');
+  const replay = await service.clockIn(context, '1234', 'clock-in-1');
+  assert.equal(replay.id, first.id);
   await assert.rejects(service.clockIn(context, '1234', 'clock-in-2'), TimeclockConflictError);
 });
 
