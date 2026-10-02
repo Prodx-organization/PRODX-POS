@@ -14,9 +14,11 @@ const device: DeviceRecord = {
 const repositoryFixture = () => {
   let session: SessionRecord | null = null;
   let currentCredential = { ...credential };
-  const calls = { failed: 0, reset: 0, touched: 0, lastLockedUntil: null as Date | null };
+  const calls = { failed: 0, reset: 0, touched: 0, revoked: 0, lastLockedUntil: null as Date | null };
   const repository: AuthenticationRepository = {
-    findCredentialByUsername: async (username) => username === currentCredential.username ? currentCredential : null,
+    findCredentialByUsername: async (username, organizationId) =>
+      username === currentCredential.username && (organizationId === undefined || organizationId === currentCredential.organizationId)
+        ? currentCredential : null,
     recordFailedAttempt: async (_userId, lockedUntil) => {
       calls.failed += 1;
       currentCredential = { ...currentCredential, failedAttempts: currentCredential.failedAttempts + 1, lockedUntil: lockedUntil ?? currentCredential.lockedUntil };
@@ -26,6 +28,7 @@ const repositoryFixture = () => {
     createSession: async (input) => { session = { ...input, revokedAt: null, userStatus: 'active' }; },
     findSessionByTokenHash: async (tokenHash) => session?.tokenHash === tokenHash ? session : null,
     findDevice: async (deviceId) => deviceId === device.id ? device : null,
+    revokeSession: async (_sessionId, at) => { calls.revoked += 1; if (session) session = { ...session, revokedAt: at }; },
     touchSession: async () => { calls.touched += 1; },
   };
   return { repository, calls, getSession: () => session, getCredential: () => currentCredential };
@@ -109,4 +112,25 @@ test('bearer authentication rejects expired, revoked, disabled-user, and disable
   repository.findSessionByTokenHash = async () => ({ ...getSession()!, expiresAt: new Date(clock.getTime() + 60_000), revokedAt: null });
   repository.findDevice = async () => ({ ...device, status: 'disabled' });
   assert.equal(await issuer.authenticateBearer(result.token), null);
+});
+
+test('revokeBearer revokes an active session once and rejects unknown tokens', async () => {
+  const { repository, calls } = repositoryFixture();
+  const issuer = createSessionIssuer(repository, async () => true, () => clock);
+  const result = await issuer.authenticateCredentials({ username: 'cashier', password: 'good', deviceId: device.id });
+  assert.ok(result);
+  assert.ok(result.expiresAt > clock);
+  assert.equal(await issuer.revokeBearer(''), false);
+  assert.equal(await issuer.revokeBearer('unknown-token'), false);
+  assert.equal(await issuer.revokeBearer(result.token), true);
+  assert.equal(calls.revoked, 1);
+  assert.equal(await issuer.revokeBearer(result.token), false);
+  assert.equal(await issuer.authenticateBearer(result.token), null);
+});
+
+test('credential lookup is scoped to the device organization', async () => {
+  const { repository } = repositoryFixture();
+  const issuer = createSessionIssuer(repository, async () => true, () => clock);
+  repository.findDevice = async () => ({ ...device, organizationId: '00000000-0000-0000-0000-000000000099' });
+  assert.equal(await issuer.authenticateCredentials({ username: 'cashier', password: 'good', deviceId: device.id }), null);
 });
