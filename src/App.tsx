@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { SoundProvider } from './context/SoundContext';
@@ -20,21 +20,42 @@ import { SettingsProvider } from './context/SettingsContext';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { GlobalErrorRecoveryProvider } from './context/GlobalErrorRecoveryProvider';
 import { AppShell } from './components/layout/AppShell';
-import { CustomerDisplayView } from './modules/customerDisplay/CustomerDisplayView';
 import { NavRoute } from './components/layout/Sidebar';
 import { LoginScreen } from './modules/auth/LoginScreen';
 import { PosScreen } from './modules/pos/PosScreen';
-import { DashboardScreen } from './modules/dashboard/DashboardScreen';
-import { OrdersScreen } from './modules/orders/OrdersScreen';
-import { InventoryScreen } from './modules/inventory/InventoryScreen';
-import { ShiftScreen } from './modules/shift/ShiftScreen';
-import { CustomersScreen } from './modules/customers/CustomersScreen';
-import { AuditScreen } from './modules/audit/AuditScreen';
-import { SettingsScreen } from './modules/settings/SettingsScreen';
-import { ReceiptValidationPortal } from './components/receipt/ReceiptValidationPortal';
 import { ShortcutsOverlay } from './components/common/ShortcutsOverlay';
 import { DevPerformanceOverlay } from './components/dev/DevPerformanceOverlay';
 import { RbacGuard } from './components/auth/RbacGuard';
+import { ModuleLoadingFallback } from './components/common/ModuleLoadingFallback';
+
+// Lazy-loaded auxiliary modules for faster initial load & optimal code splitting
+const DashboardScreen = lazy(() =>
+  import('./modules/dashboard/DashboardScreen').then((m) => ({ default: m.DashboardScreen }))
+);
+const OrdersScreen = lazy(() =>
+  import('./modules/orders/OrdersScreen').then((m) => ({ default: m.OrdersScreen }))
+);
+const InventoryScreen = lazy(() =>
+  import('./modules/inventory/InventoryScreen').then((m) => ({ default: m.InventoryScreen }))
+);
+const ShiftScreen = lazy(() =>
+  import('./modules/shift/ShiftScreen').then((m) => ({ default: m.ShiftScreen }))
+);
+const CustomersScreen = lazy(() =>
+  import('./modules/customers/CustomersScreen').then((m) => ({ default: m.CustomersScreen }))
+);
+const AuditScreen = lazy(() =>
+  import('./modules/audit/AuditScreen').then((m) => ({ default: m.AuditScreen }))
+);
+const SettingsScreen = lazy(() =>
+  import('./modules/settings/SettingsScreen').then((m) => ({ default: m.SettingsScreen }))
+);
+const CustomerDisplayView = lazy(() =>
+  import('./modules/customerDisplay/CustomerDisplayView').then((m) => ({ default: m.CustomerDisplayView }))
+);
+const ReceiptValidationPortal = lazy(() =>
+  import('./components/receipt/ReceiptValidationPortal').then((m) => ({ default: m.ReceiptValidationPortal }))
+);
 
 const MainApplication: React.FC = () => {
   const { session } = useAuth();
@@ -109,74 +130,76 @@ const MainApplication: React.FC = () => {
   return (
     <>
       <AppShell currentRoute={currentRoute} onNavigate={setCurrentRoute}>
-        {currentRoute === 'pos' && (
-          <ErrorBoundary moduleName="POS Cash Register & Checkout">
-            <PosScreen />
-          </ErrorBoundary>
-        )}
-        {currentRoute === 'dashboard' && (
-          <ErrorBoundary moduleName="Sales & Analytics Dashboard">
-            <RbacGuard
-              module="dashboard"
-              allowedRoles={['manager', 'admin']}
-              hideMode="denied-card"
-              onRedirectToPos={() => setCurrentRoute('pos')}
-            >
-              <DashboardScreen onNavigate={setCurrentRoute} />
-            </RbacGuard>
-          </ErrorBoundary>
-        )}
-        {currentRoute === 'orders' && (
-          <ErrorBoundary moduleName="Orders & Receipts Management">
-            <OrdersScreen onNavigate={setCurrentRoute} />
-          </ErrorBoundary>
-        )}
-        {currentRoute === 'inventory' && (
-          <ErrorBoundary moduleName="Inventory & Stock Tracking">
-            <InventoryScreen />
-          </ErrorBoundary>
-        )}
-        {currentRoute === 'shift' && (
-          <ErrorBoundary moduleName="Cash Drawer & Shift Management">
-            <RbacGuard
-              module="shift"
-              allowedRoles={['manager', 'admin']}
-              hideMode="denied-card"
-              onRedirectToPos={() => setCurrentRoute('pos')}
-            >
-              <ShiftScreen />
-            </RbacGuard>
-          </ErrorBoundary>
-        )}
-        {currentRoute === 'customers' && (
-          <ErrorBoundary moduleName="Customer Loyalty & CRM">
-            <CustomersScreen />
-          </ErrorBoundary>
-        )}
-        {currentRoute === 'audit' && (
-          <ErrorBoundary moduleName="Security & Audit Trail">
-            <RbacGuard
-              module="audit"
-              allowedRoles={['manager', 'admin']}
-              hideMode="denied-card"
-              onRedirectToPos={() => setCurrentRoute('pos')}
-            >
-              <AuditScreen />
-            </RbacGuard>
-          </ErrorBoundary>
-        )}
-        {currentRoute === 'settings' && (
-          <ErrorBoundary moduleName="System & Hardware Settings">
-            <RbacGuard
-              module="settings"
-              allowedRoles={['manager', 'admin']}
-              hideMode="denied-card"
-              onRedirectToPos={() => setCurrentRoute('pos')}
-            >
-              <SettingsScreen />
-            </RbacGuard>
-          </ErrorBoundary>
-        )}
+        <Suspense fallback={<ModuleLoadingFallback />}>
+          {currentRoute === 'pos' && (
+            <ErrorBoundary moduleName="POS Cash Register & Checkout">
+              <PosScreen />
+            </ErrorBoundary>
+          )}
+          {currentRoute === 'dashboard' && (
+            <ErrorBoundary moduleName="Sales & Analytics Dashboard">
+              <RbacGuard
+                module="dashboard"
+                allowedRoles={['manager', 'admin']}
+                hideMode="denied-card"
+                onRedirectToPos={() => setCurrentRoute('pos')}
+              >
+                <DashboardScreen onNavigate={setCurrentRoute} />
+              </RbacGuard>
+            </ErrorBoundary>
+          )}
+          {currentRoute === 'orders' && (
+            <ErrorBoundary moduleName="Orders & Receipts Management">
+              <OrdersScreen onNavigate={setCurrentRoute} />
+            </ErrorBoundary>
+          )}
+          {currentRoute === 'inventory' && (
+            <ErrorBoundary moduleName="Inventory & Stock Tracking">
+              <InventoryScreen />
+            </ErrorBoundary>
+          )}
+          {currentRoute === 'shift' && (
+            <ErrorBoundary moduleName="Cash Drawer & Shift Management">
+              <RbacGuard
+                module="shift"
+                allowedRoles={['manager', 'admin']}
+                hideMode="denied-card"
+                onRedirectToPos={() => setCurrentRoute('pos')}
+              >
+                <ShiftScreen />
+              </RbacGuard>
+            </ErrorBoundary>
+          )}
+          {currentRoute === 'customers' && (
+            <ErrorBoundary moduleName="Customer Loyalty & CRM">
+              <CustomersScreen />
+            </ErrorBoundary>
+          )}
+          {currentRoute === 'audit' && (
+            <ErrorBoundary moduleName="Security & Audit Trail">
+              <RbacGuard
+                module="audit"
+                allowedRoles={['manager', 'admin']}
+                hideMode="denied-card"
+                onRedirectToPos={() => setCurrentRoute('pos')}
+              >
+                <AuditScreen />
+              </RbacGuard>
+            </ErrorBoundary>
+          )}
+          {currentRoute === 'settings' && (
+            <ErrorBoundary moduleName="System & Hardware Settings">
+              <RbacGuard
+                module="settings"
+                allowedRoles={['manager', 'admin']}
+                hideMode="denied-card"
+                onRedirectToPos={() => setCurrentRoute('pos')}
+              >
+                <SettingsScreen />
+              </RbacGuard>
+            </ErrorBoundary>
+          )}
+        </Suspense>
       </AppShell>
 
       {/* Global Application Keyboard Shortcuts Modal Overlay (F9) */}
@@ -214,7 +237,9 @@ export default function App() {
         <ErrorBoundary isGlobal moduleName="PRODX Receipt Validation Portal">
           <ThemeProvider>
             <LanguageProvider>
-              <ReceiptValidationPortal />
+              <Suspense fallback={<ModuleLoadingFallback />}>
+                <ReceiptValidationPortal />
+              </Suspense>
             </LanguageProvider>
           </ThemeProvider>
         </ErrorBoundary>
@@ -228,7 +253,9 @@ export default function App() {
         <ErrorBoundary isGlobal moduleName="PRODX Customer-Facing Display">
           <ThemeProvider>
             <LanguageProvider>
-              <CustomerDisplayView />
+              <Suspense fallback={<ModuleLoadingFallback />}>
+                <CustomerDisplayView />
+              </Suspense>
             </LanguageProvider>
           </ThemeProvider>
         </ErrorBoundary>

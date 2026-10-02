@@ -134,9 +134,28 @@ export function saveStoredRolePermissions(matrix: Record<Role, Permission[]>): v
   try { localStorage.setItem(ROLE_PERMS_STORAGE_KEY, JSON.stringify(matrix)); } catch (e) { console.error('Failed to save role permissions to storage', e); }
 }
 
+export const DEFAULT_STAFF_PINS: Record<string, string> = {
+  'usr-admin-alex': '1234',
+  'usr-manager-sarah': '5678',
+  'usr-cashier-john': '0000',
+  'usr-cashier-emily': '1111',
+};
+
+export const DEFAULT_STAFF_PASSWORDS: Record<string, string> = {
+  'usr-admin-alex': 'Prodx@Admin2026',
+  'usr-manager-sarah': 'Prodx@Manager2026',
+  'usr-cashier-john': 'Prodx@Cashier2026',
+  'usr-cashier-emily': 'Prodx@Cashier2026',
+};
+
 export function getStoredStaffPins(): Record<string, string> {
-  try { const raw = localStorage.getItem(STAFF_PINS_STORAGE_KEY); if (raw) return JSON.parse(raw); } catch (e) { console.error('Failed to parse staff pins from storage', e); }
-  return {};
+  try {
+    const raw = localStorage.getItem(STAFF_PINS_STORAGE_KEY);
+    if (raw) return { ...DEFAULT_STAFF_PINS, ...JSON.parse(raw) };
+  } catch (e) {
+    console.error('Failed to parse staff pins from storage', e);
+  }
+  return { ...DEFAULT_STAFF_PINS };
 }
 
 export function saveStoredStaffPins(pins: Record<string, string>): void {
@@ -144,8 +163,13 @@ export function saveStoredStaffPins(pins: Record<string, string>): void {
 }
 
 export function getStoredStaffPasswords(): Record<string, string> {
-  try { const raw = localStorage.getItem(STAFF_PASSWORDS_STORAGE_KEY); if (raw) return JSON.parse(raw); } catch (e) { console.error('Failed to parse staff passwords from storage', e); }
-  return {};
+  try {
+    const raw = localStorage.getItem(STAFF_PASSWORDS_STORAGE_KEY);
+    if (raw) return { ...DEFAULT_STAFF_PASSWORDS, ...JSON.parse(raw) };
+  } catch (e) {
+    console.error('Failed to parse staff passwords from storage', e);
+  }
+  return { ...DEFAULT_STAFF_PASSWORDS };
 }
 
 export function saveStoredStaffPasswords(passwords: Record<string, string>): void {

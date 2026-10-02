@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useShift } from '../../context/ShiftContext';
 import { useOffline } from '../../context/OfflineContext';
@@ -32,7 +32,10 @@ import { StaffOperationalKPIs } from './components/StaffOperationalKPIs';
 import { HourlyVelocityChart } from './components/HourlyVelocityChart';
 import { DashboardQuickActions } from './components/DashboardQuickActions';
 import { RecentTransactionsSection } from './components/RecentTransactionsSection';
-import { AiDashboardInsightsWidget } from './components/AiDashboardInsightsWidget';
+
+const AiDashboardInsightsWidget = lazy(() =>
+  import('./components/AiDashboardInsightsWidget').then((m) => ({ default: m.AiDashboardInsightsWidget }))
+);
 
 export interface DashboardScreenProps {
   onNavigate: (route: NavRoute) => void;
@@ -564,18 +567,26 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             }));
 
             widgetContent = (
-              <AiDashboardInsightsWidget
-                totalRevenue={formatMoney(metrics.netSales)}
-                totalOrders={metrics.ordersCount}
-                topProducts={topProductsSummary}
-                paymentBreakdown={{
-                  cash: formatMoney(metrics.cashSales),
-                  digital: formatMoney(metrics.digitalSales),
-                }}
-                dateRangeText={`${dateRange.startDate.toLocaleDateString()} - ${dateRange.endDate.toLocaleDateString()}`}
-                timeframeText={language === 'th' ? 'ช่วงเวลาที่เลือก' : 'Selected Period'}
-                onOpenSettings={() => onNavigate('settings')}
-              />
+              <Suspense
+                fallback={
+                  <div className="p-6 rounded-2xl border border-border border-crisp bg-card shadow-2xs animate-pulse h-48 flex items-center justify-center text-xs text-text/50">
+                    {language === 'th' ? 'กำลังโหลดการวิเคราะห์ AI...' : 'Loading AI Insights...'}
+                  </div>
+                }
+              >
+                <AiDashboardInsightsWidget
+                  totalRevenue={formatMoney(metrics.netSales)}
+                  totalOrders={metrics.ordersCount}
+                  topProducts={topProductsSummary}
+                  paymentBreakdown={{
+                    cash: formatMoney(metrics.cashSales),
+                    digital: formatMoney(metrics.digitalSales),
+                  }}
+                  dateRangeText={`${dateRange.startDate.toLocaleDateString()} - ${dateRange.endDate.toLocaleDateString()}`}
+                  timeframeText={language === 'th' ? 'ช่วงเวลาที่เลือก' : 'Selected Period'}
+                  onOpenSettings={() => onNavigate('settings')}
+                />
+              </Suspense>
             );
           } else if (widgetId === 'low_stock') {
             if (lowStockProducts.length === 0 && isCustomizeMode) {

@@ -97,9 +97,9 @@ export const InventoryAiOptimizationModal: React.FC<InventoryAiOptimizationModal
       <div className="space-y-4 font-sans">
         {/* Metric Summary Cards */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-center">
+          <div className="p-3 rounded-xl border border-border border-crisp bg-background text-center">
             <div className="text-xs text-slate-500 font-semibold">{isThai ? 'สินค้าทั้งหมด' : 'Total SKUs'}</div>
-            <div className="text-lg font-black text-slate-900 dark:text-white mt-0.5">{products.length}</div>
+            <div className="text-lg font-black text-text mt-0.5">{products.length}</div>
           </div>
           <div className="p-3 rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-950/20 text-center">
             <div className="text-xs text-amber-700 dark:text-amber-400 font-semibold">{isThai ? 'ใกล้หมดสต็อก' : 'Low Stock'}</div>
@@ -113,7 +113,7 @@ export const InventoryAiOptimizationModal: React.FC<InventoryAiOptimizationModal
 
         {/* Action button */}
         <div className="flex items-center justify-between">
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-text/60">
             {isThai
               ? 'AI จะวิเคราะห์รายการของขาดเพื่อจัดลำดับความเร่งด่วนและปริมาณสั่งซื้อ'
               : 'AI synthesizes supply velocity and prioritizes purchase orders.'}
@@ -150,7 +150,7 @@ export const InventoryAiOptimizationModal: React.FC<InventoryAiOptimizationModal
         </div>
 
         {/* Report Output Box */}
-        <div className="min-h-[220px] max-h-80 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 p-4 text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+        <div className="min-h-[220px] max-h-80 overflow-y-auto rounded-xl border border-border border-crisp bg-slate-50/70 dark:bg-slate-950/50 p-4 text-xs sm:text-sm text-text leading-relaxed whitespace-pre-wrap">
           {aiReport ? (
             aiReport
           ) : (

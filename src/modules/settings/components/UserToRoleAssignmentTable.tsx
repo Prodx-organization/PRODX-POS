@@ -1011,7 +1011,7 @@ export const UserToRoleAssignmentTable: React.FC = () => {
                                   ? 'bg-primary/20 text-primary border border-primary/40'
                                   : u.role === 'manager'
                                   ? 'bg-amber-500/20 text-amber-950 dark:text-amber-100 border border-amber-500/50'
-                                  : 'bg-slate-500/20 text-slate-900 dark:text-slate-100 border border-slate-500/50'
+                                  : 'bg-slate-500/20 text-text border border-slate-500/50'
                               }`}
                             >
                               {u.role === 'admin' && <ShieldCheck className="w-3 h-3" />}

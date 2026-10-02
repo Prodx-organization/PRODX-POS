@@ -1,9 +1,8 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
-import { CustomerDisplayView } from '../../modules/customerDisplay/CustomerDisplayView';
 import {
   Monitor,
   ExternalLink,
@@ -12,6 +11,10 @@ import {
   Tv,
   CheckCircle2,
 } from 'lucide-react';
+
+const CustomerDisplayView = lazy(() =>
+  import('../../modules/customerDisplay/CustomerDisplayView').then((m) => ({ default: m.CustomerDisplayView }))
+);
 
 export interface CustomerDisplayLauncherModalProps {
   isOpen: boolean;
@@ -124,7 +127,15 @@ export const CustomerDisplayLauncherModal: React.FC<CustomerDisplayLauncherModal
 
           <div className="w-full h-80 rounded-lg border border-border border-crisp overflow-hidden shadow-xs relative bg-card">
             <div className="w-[125%] h-[125%] origin-top-left scale-80 pointer-events-none">
-              <CustomerDisplayView />
+              <Suspense
+                fallback={
+                  <div className="w-full h-full flex items-center justify-center text-xs text-text/50">
+                    Loading Customer Display...
+                  </div>
+                }
+              >
+                <CustomerDisplayView />
+              </Suspense>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
@@ -23,7 +23,10 @@ import { triggerHaptic } from '../../services/hapticService';
 import { BarcodeScannerTesterModal } from './BarcodeScannerTesterModal';
 import { QuickPayDrawer } from './QuickPayDrawer';
 import { PaymentConfirmationModal } from './PaymentConfirmationModal';
-import { PosAiAssistantModal } from './PosAiAssistantModal';
+
+const PosAiAssistantModal = lazy(() =>
+  import('./PosAiAssistantModal').then((m) => ({ default: m.PosAiAssistantModal }))
+);
 import {
   Barcode,
   Search,
@@ -893,15 +896,19 @@ export const PosScreen: React.FC = () => {
       </Modal>
 
       {/* POS AI Cashier Assistant Modal */}
-      <PosAiAssistantModal
-        isOpen={isAiModalOpen}
-        onClose={() => setIsAiModalOpen(false)}
-        products={products}
-        onAddProductToCart={(prod) => {
-          addItem(prod, 1);
-          setIsAiModalOpen(false);
-        }}
-      />
+      {isAiModalOpen && (
+        <Suspense fallback={null}>
+          <PosAiAssistantModal
+            isOpen={isAiModalOpen}
+            onClose={() => setIsAiModalOpen(false)}
+            products={products}
+            onAddProductToCart={(prod) => {
+              addItem(prod, 1);
+              setIsAiModalOpen(false);
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* Barcode Scan Visual Feedback Overlays */}
       <AnimatePresence>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -44,9 +44,12 @@ import {
 import { ShelfLabelPrintModal } from '../../components/inventory/ShelfLabelPrintModal';
 import { BulkInventoryUploadModal } from '../../components/inventory/BulkInventoryUploadModal';
 import { LowStockThresholdModal } from '../../components/inventory/LowStockThresholdModal';
-import { InventoryAiOptimizationModal } from './InventoryAiOptimizationModal';
 import { InventoryBarcodeLookupModal } from './InventoryBarcodeLookupModal';
 import { RestockNeededReportModal } from './RestockNeededReportModal';
+
+const InventoryAiOptimizationModal = lazy(() =>
+  import('./InventoryAiOptimizationModal').then((m) => ({ default: m.InventoryAiOptimizationModal }))
+);
 import { BulkImportResult } from '../../domain/catalog';
 import { generateInventoryCsv, downloadCsvFile } from '../../utils/csvExport';
 import { useBarcodeScanner } from '../../hooks/useBarcodeScanner';
@@ -2678,12 +2681,16 @@ export const InventoryScreen: React.FC = () => {
       />
 
       {/* 9. AI Inventory Optimization & Replenishment Modal */}
-      <InventoryAiOptimizationModal
-        isOpen={isAiOptimizationModalOpen}
-        onClose={() => setIsAiOptimizationModalOpen(false)}
-        products={products}
-        categories={categories}
-      />
+      {isAiOptimizationModalOpen && (
+        <Suspense fallback={null}>
+          <InventoryAiOptimizationModal
+            isOpen={isAiOptimizationModalOpen}
+            onClose={() => setIsAiOptimizationModalOpen(false)}
+            products={products}
+            categories={categories}
+          />
+        </Suspense>
+      )}
 
       {/* 10. Hardware Barcode Scanner Stock Lookup Modal */}
       <InventoryBarcodeLookupModal
