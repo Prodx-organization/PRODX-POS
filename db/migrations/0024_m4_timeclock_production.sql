@@ -101,8 +101,8 @@ CREATE INDEX IF NOT EXISTS prodx_timeclock_operations_store_user_idx
 
 INSERT INTO prodx_permissions (id, permission_key, description)
 VALUES
-  ('10000000-0000-4000-8000-000000000016', 'timeclock.use', 'Clock employees in and out'),
-  ('10000000-0000-4000-8000-000000000017', 'timeclock.manage', 'Provision and manage store timeclock PINs')
+  ('10000000-0000-4000-8000-000000000018', 'timeclock.use', 'Clock employees in and out'),
+  ('10000000-0000-4000-8000-000000000019', 'timeclock.manage', 'Provision and manage store timeclock PINs')
 ON CONFLICT (permission_key) DO NOTHING;
 
 INSERT INTO prodx_role_permissions (organization_id, role_id, permission_id)
