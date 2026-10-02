@@ -15,7 +15,7 @@ import { SearchInput } from '../../components/common/SearchInput';
 import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
-import { createProductionInventoryAdjustmentApi } from '../../adapters/productionInventoryAdjustmentApi';
+import { createCatalogApi } from '../../adapters/catalogApiFactory';
 import {
   FileText,
   Printer,
@@ -70,7 +70,7 @@ export const DraftPurchaseOrderModal: React.FC<DraftPurchaseOrderModalProps> = (
   const { language } = useLanguage();
   const { addToast } = useToast();
   const { session } = useAuth();
-  const inventoryAdjustmentApi = useMemo(() => createProductionInventoryAdjustmentApi(session?.token ?? ''), [session?.token]);
+  const inventoryAdjustmentApi = useMemo(() => createCatalogApi(session?.token ?? ''), [session?.token]);
 
   // PO Identification
   const [poNumber, setPoNumber] = useState('');

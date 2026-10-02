@@ -1,0 +1,48 @@
+name: Production Mock Boundary Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  production-mock-boundary:
+    name: No direct mockAdapter imports in production application code
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Reject direct mock adapter imports outside adapter factories
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          violations=()
+
+          while IFS= read -r -d '' file; do
+            case "$file" in
+              src/adapters/mockAdapter.ts|src/adapters/*Factory.ts)
+                continue
+                ;;
+            esac
+
+            if grep -nE "from ['\"][^'\"]*mockAdapter|require\\(['\"][^'\"]*mockAdapter" "$file" >/tmp/mock-boundary-match; then
+              while IFS= read -r match; do
+                violations+=( "$file:$match" )
+              done </tmp/mock-boundary-match
+            fi
+          done < <(find src -type f \( -name '*.ts' -o -name '*.tsx' \) -print0)
+
+          if (( ${#violations[@]} > 0 )); then
+            printf 'Direct mockAdapter import detected in production application code:\n'
+            printf ' - %s\n' "${violations[@]}"
+            exit 1
+          fi
+
+          echo "Production mock boundary verified: no direct mockAdapter imports outside adapter factories."

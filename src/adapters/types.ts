@@ -14,8 +14,6 @@ import {
   BulkImportItem,
   BulkImportMode,
   BulkImportResult,
-  BatchPriceAdjustmentParams,
-  BatchPriceAdjustmentResult,
 } from '../domain/catalog';
 import { Order, CartLineItem, CartTotals, TenderPayment } from '../domain/order';
 import { Shift, CashMovement, CashMovementType, TimeclockRecord } from '../domain/shift';
@@ -87,9 +85,6 @@ export interface ICatalogApi {
     value: number,
     userId: string
   ): Promise<readonly Product[]>;
-  batchPriceAdjustment(
-    params: BatchPriceAdjustmentParams
-  ): Promise<BatchPriceAdjustmentResult>;
   bulkImportProducts(
     storeId: string,
     items: readonly BulkImportItem[],

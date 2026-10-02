@@ -4,7 +4,7 @@ import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useBreadcrumb, BreadcrumbLevel } from '../../context/BreadcrumbContext';
 import { createCatalogReadApi } from '../../adapters/catalogApiFactory';
-import { createProductionInventoryAdjustmentApi } from '../../adapters/productionInventoryAdjustmentApi';
+import { createCatalogApi } from '../../adapters/catalogApiFactory';
 import { Product, InventoryLedgerEntry, StockMovementReason, Category } from '../../domain/catalog';
 import { formatMoney, createMoney } from '../../domain/money';
 import { Card, CardHeader, CardBody } from '../../components/common/Card';
@@ -55,7 +55,7 @@ import { playScannerSound } from '../../services/soundService';
 export const InventoryScreen: React.FC = () => {
   const { session, can } = useAuth();
   const catalogReadApi = useMemo(() => createCatalogReadApi(session?.token ?? ''), [session?.token]);
-  const inventoryAdjustmentApi = useMemo(() => createProductionInventoryAdjustmentApi(session?.token ?? ''), [session?.token]);
+  const inventoryAdjustmentApi = useMemo(() => createCatalogApi(session?.token ?? ''), [session?.token]);
   const { addToast } = useToast();
   const { t, language } = useLanguage();
   const { setSubLevels } = useBreadcrumb();
