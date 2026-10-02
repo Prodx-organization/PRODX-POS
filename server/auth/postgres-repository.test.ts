@@ -16,8 +16,36 @@ test('credential lookup maps authoritative user and credential state', async () 
   const result = await repository.findCredentialByUsername('cashier');
   assert.deepEqual(result, { userId: 'user-1', organizationId: 'org-1', username: 'cashier', status: 'active',
     credentialType: 'password', secretHash: 'scrypt$hash', failedAttempts: 2, lockedUntil: null });
-  assert.deepEqual(calls[0].parameters, ['cashier']);
+  assert.deepEqual(calls[0].parameters, ['cashier', null]);
   assert.match(calls[0].sql, /lower\(u\.username\) = lower\(\$1\)/);
+});
+
+test('credential lookup is scoped to the requested organization', async () => {
+  const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
+  const db: SqlExecutor = {
+    async query<T extends Record<string, unknown>>(sql: string, parameters = []): Promise<readonly T[]> {
+      calls.push({ sql, parameters });
+      return [];
+    },
+  };
+  assert.equal(await createPostgresAuthenticationRepository(db).findCredentialByUsername('cashier', 'org-2'), null);
+  assert.deepEqual(calls[0].parameters, ['cashier', 'org-2']);
+  assert.match(calls[0].sql, /u\.organization_id = \$2::uuid/);
+});
+
+test('session revocation only revokes active sessions', async () => {
+  const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
+  const db: SqlExecutor = {
+    async query<T extends Record<string, unknown>>(sql: string, parameters = []): Promise<readonly T[]> {
+      calls.push({ sql, parameters });
+      return [];
+    },
+  };
+  const at = new Date('2030-01-01T00:00:00Z');
+  await createPostgresAuthenticationRepository(db).revokeSession('session-1', at);
+  assert.deepEqual(calls[0].parameters, ['session-1', at]);
+  assert.match(calls[0].sql, /SET revoked_at = \$2/);
+  assert.match(calls[0].sql, /revoked_at IS NULL/);
 });
 
 test('session lookup joins user status instead of trusting session state', async () => {

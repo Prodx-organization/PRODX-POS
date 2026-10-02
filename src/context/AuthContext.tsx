@@ -11,6 +11,7 @@ import {
 } from '../domain/auth';
 import { CustomPermissionSet, DEFAULT_PERMISSION_SETS, getStoredCustomPermissionSets, saveStoredCustomPermissionSets } from '../domain/permissionSets';
 import { authApi } from '../adapters/authApiFactory';
+import { aiService } from '../services/aiService';
 import { LoginRequest } from '../adapters/types';
 
 export interface AddStaffPayload { name: string; email: string; role: Role; employeeCode: string; pin?: string; isActive?: boolean; }
@@ -42,6 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => { async function restoreSession() { try { const raw = localStorage.getItem(STORAGE_KEY); const storedCustomStore = localStorage.getItem(CUSTOM_STORE_KEY); const customStoreOverrides = storedCustomStore ? JSON.parse(storedCustomStore) : null; if (raw) { const parsed = JSON.parse(raw) as SessionContext; const verified = await authApi.verifySession(parsed.token); if (verified) { const finalStore = customStoreOverrides ? { ...parsed.currentStore, ...customStoreOverrides } : parsed.currentStore; setSession({ ...parsed, currentStore: finalStore, organization: verified.organization }); } else localStorage.removeItem(STORAGE_KEY); } } catch (err) { console.error('[AuthContext] Session restore error:', err); localStorage.removeItem(STORAGE_KEY); } finally { setIsLoading(false); } } restoreSession(); }, []);
   useEffect(() => { if (!session || isLocked) return; const handleActivity = () => { lastActivityRef.current = Date.now(); }; const events = ['mousemove','mousedown','keydown','touchstart','scroll']; events.forEach(ev => window.addEventListener(ev, handleActivity, { passive: true })); const timer = setInterval(() => { if (!isLocked && session && inactivityTimeoutMinutes > 0 && Date.now() - lastActivityRef.current >= inactivityTimeoutMinutes * 60 * 1000) setIsLocked(true); }, 10000); return () => { events.forEach(ev => window.removeEventListener(ev, handleActivity)); clearInterval(timer); }; }, [session, isLocked, inactivityTimeoutMinutes]);
+  useEffect(() => { aiService.setSessionToken(session?.token); }, [session?.token]);
   const login = async (req: LoginRequest) => { setIsLoading(true); try { const newSession = await authApi.login(req); setSession(newSession); setIsLocked(false); lastActivityRef.current = Date.now(); localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession)); } finally { setIsLoading(false); } };
   const logout = async () => { setIsLoading(true); try { await authApi.logout(); setSession(null); setIsLocked(false); localStorage.removeItem(STORAGE_KEY); } finally { setIsLoading(false); } };
   const switchStore = (store: Store) => { if (!session) return; const updated = { ...session, currentStore: store }; setSession(updated); localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); };
