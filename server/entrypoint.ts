@@ -12,6 +12,7 @@ import { createApp } from './http/createApp';
 import { registerRefundRoute } from './http/refund-route';
 import { registerAuditRoute } from './http/audit-route';
 import { registerShiftRoute } from './http/shift-route';
+import { registerTimeclockRoute } from './http/timeclock-route';
 import { registerCatalogRoute } from './http/catalog-route';
 import { registerPaymentLifecycleRoute } from './http/payment-lifecycle-route';
 import { registerSyncRoute } from './http/sync-route';
@@ -42,6 +43,7 @@ export const createProductionApp = () => {
     configureRoutes: (configuredApp) => {
       registerAuditRoute(configuredApp, transactions);
       registerShiftRoute(configuredApp, transactions);
+      registerTimeclockRoute(configuredApp, transactions);
       registerCheckoutRoute(configuredApp, transactions);
       registerRefundRoute(configuredApp, transactions);
       registerCatalogRoute(configuredApp, transactions);

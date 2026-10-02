@@ -134,8 +134,8 @@ export interface IShiftApi {
     userId: string,
     idempotencyKey?: string
   ): Promise<CashMovement>;
-  clockIn(pin: string, storeId: string): Promise<TimeclockRecord>;
-  clockOut(pin: string, storeId: string): Promise<TimeclockRecord>;
+  clockIn(pin: string, storeId: string, idempotencyKey?: string): Promise<TimeclockRecord>;
+  clockOut(pin: string, storeId: string, idempotencyKey?: string): Promise<TimeclockRecord>;
   getTimeclockRecords(storeId: string): Promise<TimeclockRecord[]>;
 }
 
