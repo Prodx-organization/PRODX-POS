@@ -134,19 +134,27 @@ export function saveStoredRolePermissions(matrix: Record<Role, Permission[]>): v
   try { localStorage.setItem(ROLE_PERMS_STORAGE_KEY, JSON.stringify(matrix)); } catch (e) { console.error('Failed to save role permissions to storage', e); }
 }
 
-export const DEFAULT_STAFF_PINS: Record<string, string> = {
-  'usr-admin-alex': '1234',
-  'usr-manager-sarah': '5678',
-  'usr-cashier-john': '0000',
-  'usr-cashier-emily': '1111',
-};
+// Demo credentials exist only for local development with the mock adapters.
+// The DEV guard lets bundlers strip them from production builds entirely.
+const IS_DEV_BUILD = (import.meta as { env?: { DEV?: boolean } }).env?.DEV === true;
 
-export const DEFAULT_STAFF_PASSWORDS: Record<string, string> = {
-  'usr-admin-alex': 'Prodx@Admin2026',
-  'usr-manager-sarah': 'Prodx@Manager2026',
-  'usr-cashier-john': 'Prodx@Cashier2026',
-  'usr-cashier-emily': 'Prodx@Cashier2026',
-};
+export const DEFAULT_STAFF_PINS: Record<string, string> = IS_DEV_BUILD
+  ? {
+      'usr-admin-alex': '1234',
+      'usr-manager-sarah': '5678',
+      'usr-cashier-john': '0000',
+      'usr-cashier-emily': '1111',
+    }
+  : {};
+
+export const DEFAULT_STAFF_PASSWORDS: Record<string, string> = IS_DEV_BUILD
+  ? {
+      'usr-admin-alex': 'Prodx@Admin2026',
+      'usr-manager-sarah': 'Prodx@Manager2026',
+      'usr-cashier-john': 'Prodx@Cashier2026',
+      'usr-cashier-emily': 'Prodx@Cashier2026',
+    }
+  : {};
 
 export function getStoredStaffPins(): Record<string, string> {
   try {

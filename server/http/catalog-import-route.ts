@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { requirePermission } from './createApp';
 import type { TransactionalSqlExecutor } from '../db/transaction';
+import { numericToCents } from '../db/money';
 
 type Mode = 'upsert' | 'update_only' | 'stock_override' | 'stock_replenish';
 type ProductRow = {
@@ -16,8 +17,8 @@ type LedgerRow = {
 
 const productDto = (row: ProductRow) => ({
   id: row.id, storeId: row.store_id, sku: row.sku, barcode: row.barcode, name: row.name, categoryId: row.category_id,
-  price: { amountInCents: Math.round(Number(row.price_amount) * 100), currency: row.currency },
-  costPrice: { amountInCents: Math.round(Number(row.cost_price_amount) * 100), currency: row.currency },
+  price: { amountInCents: numericToCents(row.price_amount, 'price'), currency: row.currency },
+  costPrice: { amountInCents: numericToCents(row.cost_price_amount, 'cost price'), currency: row.currency },
   taxRateBps: row.tax_rate_bps, currentStock: row.current_stock, reorderPoint: row.reorder_point, unitOfMeasure: row.unit_of_measure,
 });
 const ledgerDto = (row: LedgerRow) => ({

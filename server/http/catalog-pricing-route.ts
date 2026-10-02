@@ -2,14 +2,17 @@ import crypto from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { requirePermission } from './createApp';
 import type { TransactionalSqlExecutor } from '../db/transaction';
+import { numericToCents } from '../db/money';
+
+const MAX_PRICE_VALUE = 99_999_999;
 
 type PriceChangeType = 'set_amount' | 'percent_markup' | 'percent_discount';
 type ProductRow = { id: string; store_id: string; sku: string; barcode: string; name: string; category_id: string; price_amount: string; cost_price_amount: string; currency: string; tax_rate_bps: number; current_stock: number; reorder_point: number; unit_of_measure: string; };
 
 const productDto = (row: ProductRow) => ({
   id: row.id, storeId: row.store_id, sku: row.sku, barcode: row.barcode, name: row.name, categoryId: row.category_id,
-  price: { amountInCents: Math.round(Number(row.price_amount) * 100), currency: row.currency },
-  costPrice: { amountInCents: Math.round(Number(row.cost_price_amount) * 100), currency: row.currency },
+  price: { amountInCents: numericToCents(row.price_amount, 'price'), currency: row.currency },
+  costPrice: { amountInCents: numericToCents(row.cost_price_amount, 'cost price'), currency: row.currency },
   taxRateBps: row.tax_rate_bps, currentStock: row.current_stock, reorderPoint: row.reorder_point, unitOfMeasure: row.unit_of_measure,
 });
 const hashPayload = (value: unknown) => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -27,6 +30,7 @@ export const registerCatalogPricingRoute = (app: Express, db: TransactionalSqlEx
     if (productIds.length === 0 || productIds.length > 100 || !productIds.every((id) => /^[0-9a-f-]{36}$/i.test(id))) { response.status(400).json({ error: { code: 'INVALID_PRODUCT_IDS', message: 'Between 1 and 100 valid product IDs are required.', requestId: request.id } }); return; }
     if (!['set_amount', 'percent_markup', 'percent_discount'].includes(priceChangeType)) { response.status(400).json({ error: { code: 'INVALID_PRICE_CHANGE_TYPE', message: 'Invalid price change type.', requestId: request.id } }); return; }
     if (typeof value !== 'number' || !Number.isFinite(value)) { response.status(400).json({ error: { code: 'INVALID_PRICE_VALUE', message: 'A finite price value is required.', requestId: request.id } }); return; }
+    if (Math.abs(value) > MAX_PRICE_VALUE) { response.status(400).json({ error: { code: 'INVALID_PRICE_VALUE', message: 'Price value is out of the allowed range.', requestId: request.id } }); return; }
     if (priceChangeType === 'set_amount' && value < 0) { response.status(400).json({ error: { code: 'INVALID_PRICE_VALUE', message: 'Set amount cannot be negative.', requestId: request.id } }); return; }
     if (priceChangeType === 'percent_discount' && value < 0) { response.status(400).json({ error: { code: 'INVALID_PRICE_VALUE', message: 'Discount percentage cannot be negative.', requestId: request.id } }); return; }
     if (!idempotencyKey) { response.status(400).json({ error: { code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'Idempotency key is required.', requestId: request.id } }); return; }
