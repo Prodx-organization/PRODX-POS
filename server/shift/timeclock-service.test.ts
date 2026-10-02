@@ -43,6 +43,7 @@ const makeDb = async (
   let record: { id: string; user_id: string; status: 'clocked_in' | 'clocked_out' } | null = null;
   const operations = new Map<string, { id: string; payload_hash: string; result_id: string | null }>();
   const operationIds = new Map<string, string>();
+  const operationResults = new Map<string, string>();
   let nextOperationId = 1;
 
   const query = async (sql: string, params: readonly unknown[] = []) => {
@@ -113,7 +114,11 @@ const makeDb = async (
     if (sql.includes('FROM prodx_timeclock_operations')) {
       const operationKey = String(params[0]) + ':' + String(params[1]) + ':' + String(params[2]) + ':' + String(params[3]) + ':' + String(params[4]);
       const operation = operations.get(operationKey);
-      return { rows: operation ? [operation] : [] };
+      return {
+        rows: operation
+          ? [{ ...operation, result_id: operationResults.get(operation.id) ?? operation.result_id }]
+          : [],
+      };
     }
     if (sql.includes('DELETE FROM prodx_timeclock_operations')) {
       const operationId = String(params[0]);
@@ -121,6 +126,7 @@ const makeDb = async (
       if (operationKey) {
         operations.delete(operationKey);
         operationIds.delete(operationId);
+        operationResults.delete(operationId);
       }
       return { rows: [] };
     }
@@ -143,6 +149,7 @@ const makeDb = async (
       assert.ok(operationKey, `Unknown timeclock operation id: ${operationId}`);
       const operation = operations.get(operationKey);
       assert.ok(operation, `Missing timeclock operation: ${operationKey}`);
+      operationResults.set(operationId, resultId);
       operations.set(operationKey, { ...operation, result_id: resultId });
       return { rows: [] };
     }
