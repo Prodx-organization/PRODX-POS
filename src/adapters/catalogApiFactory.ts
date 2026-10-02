@@ -1,2 +1,5 @@
-import { createProductionCatalogReadApi } from './productionCatalogApi';
-export function createCatalogReadApi(token: string) { return createProductionCatalogReadApi(token); }
+import { createProductionCatalogReadApi, createProductionCatalogApi } from './productionCatalogApi';
+import type { ICatalogApi } from './types';
+
+export const createCatalogReadApi = (token: string) => createProductionCatalogReadApi(token);
+export const createCatalogApi = (token: string): ICatalogApi => createProductionCatalogApi(token);

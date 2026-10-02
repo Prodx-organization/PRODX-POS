@@ -1,4 +1,6 @@
 import type { Category, Product } from '../domain/catalog';
+import type { ICatalogApi } from './types';
+import { createProductionInventoryAdjustmentApi } from './productionInventoryAdjustmentApi';
 
 const API_BASE_URL = import.meta.env.VITE_AUTH_API_BASE_URL;
 const baseUrl = () => {
@@ -46,5 +48,20 @@ export function createProductionCatalogReadApi(token: string): IProductionCatalo
       const result = await request<{ products: Product[] }>('/api/v1/catalog/pricing/bulk', token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ storeId, productIds, priceChangeType, value, idempotencyKey: `catalog-price-${crypto.randomUUID()}` }) });
       return result.products;
     },
+  };
+}
+
+export function createProductionCatalogApi(token: string): ICatalogApi {
+  const read = createProductionCatalogReadApi(token);
+  const inventory = createProductionInventoryAdjustmentApi(token);
+  return {
+    getCategories: (_storeId) => read.getCategories(),
+    getProducts: (_storeId, categoryId, search) => read.getProducts(categoryId, search),
+    getProductByBarcode: (_storeId, barcode) => read.getProductByBarcode(barcode),
+    getInventoryLedger: (_storeId, productId) => read.getInventoryLedger(productId),
+    adjustStock: inventory.adjustStock,
+    bulkAdjustStock: inventory.bulkAdjustStock,
+    bulkUpdatePricing: read.bulkUpdatePricing,
+    bulkImportProducts: read.bulkImportProducts,
   };
 }
