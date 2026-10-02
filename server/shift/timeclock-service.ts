@@ -100,7 +100,7 @@ const recordFailedActorAttempt = async (tx: SqlQueryExecutor, context: Context) 
     `INSERT INTO prodx_timeclock_auth_attempts
        (organization_id,store_id,actor_user_id,failed_attempts,locked_until,updated_at)
      VALUES($1,$2,$3,$4,
-       CASE WHEN $4 >= $5 THEN CURRENT_TIMESTAMP + ($6 || ' minutes')::interval ELSE NULL END,
+       CASE WHEN $4::integer >= $5::integer THEN CURRENT_TIMESTAMP + ($6::integer || ' minutes')::interval ELSE NULL END,
        CURRENT_TIMESTAMP)
      ON CONFLICT(organization_id,store_id,actor_user_id)
      DO UPDATE SET failed_attempts=EXCLUDED.failed_attempts,
