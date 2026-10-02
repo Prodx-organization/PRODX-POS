@@ -106,6 +106,7 @@ const makeDb = async (
     if (sql.trimStart().startsWith('UPDATE prodx_timeclock_operations')) {
       const resultId = String(params[0]);
       const operationId = String(params[1]);
+      console.error('TIMECLOCK_OP_UPDATE', JSON.stringify({sql: sql.trim(), params, operationIds: [...operationIds.entries()], operations: [...operations.entries()]}));
       const operationEntry = [...operations.entries()].find(([, value]) => value.id === operationId);
       assert.ok(operationEntry, `Unknown timeclock operation id: ${operationId}`);
       const [operationKey, operation] = operationEntry;
