@@ -101,7 +101,7 @@ const makeDb = async (
       return { rows: [] };
     }
     if (sql.includes('INSERT INTO prodx_timeclock_operations')) {
-      const operationKey = String(params[0]) + ':' + String(params[1]) + ':' + String(params[2]) + ':' + String(params[4]) + ':' + String(params[5]);
+      const operationKey = String(params[1]) + ':' + String(params[2]) + ':' + String(params[3]) + ':' + String(params[4]) + ':' + String(params[5]);
       if (operations.has(operationKey)) return { rows: [] };
       const id = 'op-' + String(operations.size + 1);
       operations.set(operationKey, { id, payload_hash: String(params[6]), result_id: null });
