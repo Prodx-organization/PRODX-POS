@@ -125,6 +125,7 @@ const makeDb = async (
     if (sql.includes('FROM prodx_timeclock_operations')) {
       const operationKey = String(params[0]) + ':' + String(params[1]) + ':' + String(params[2]) + ':' + String(params[3]) + ':' + String(params[4]);
       const operation = operations.get(operationKey);
+      console.error('TIMECLOCK_OP_SELECT', JSON.stringify({operationKey, operation, operationResult: operation ? operationResults.get(operation.id) : null}));
       return {
         rows: operation
           ? [{ ...operation, result_id: operationResults.get(operation.id) ?? operation.result_id }]
