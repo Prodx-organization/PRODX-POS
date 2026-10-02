@@ -103,7 +103,7 @@ const makeDb = async (
       current.locked_until = null;
       return { rows: [] };
     }
-    if (sql.startsWith('UPDATE prodx_timeclock_operations SET result_id=')) {
+    if (sql.trimStart().startsWith('UPDATE prodx_timeclock_operations SET result_id=')) {
       const resultId = String(params[0]);
       const operationId = String(params[1]);
       const operationEntry = [...operations.entries()].find(([, value]) => value.id === operationId);
