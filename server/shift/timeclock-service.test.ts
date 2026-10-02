@@ -116,7 +116,7 @@ const makeDb = async (
       const operation = operations.get(operationKey);
       return {
         rows: operation
-          ? [{ ...operation, result_id: operationResults.get(operationKey) ?? operation.result_id }]
+          ? [{ ...operation, result_id: operationResults.get(operation.id) ?? operation.result_id }]
           : [],
       };
     }
@@ -126,7 +126,7 @@ const makeDb = async (
       if (operationKey) {
         operations.delete(operationKey);
         operationIds.delete(operationId);
-        operationResults.delete(operationKey);
+        operationResults.delete(operationId);
       }
       return { rows: [] };
     }
@@ -149,7 +149,7 @@ const makeDb = async (
       assert.ok(operationKey, `Unknown timeclock operation id: ${operationId}`);
       const operation = operations.get(operationKey);
       assert.ok(operation, `Missing timeclock operation: ${operationKey}`);
-      operationResults.set(operationKey, resultId);
+      operationResults.set(operationId, resultId);
       operations.set(operationKey, { ...operation, result_id: resultId });
       return { rows: [] };
     }
