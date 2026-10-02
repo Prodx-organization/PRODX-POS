@@ -219,7 +219,10 @@ export const createTimeclockService = (db: TransactionalSqlExecutor) => ({
           FOR UPDATE`,
         [context.organizationId, context.storeId, resolution.user.user_id],
       );
-      if (existing.rows[0]) return { error: new TimeclockConflictError('User is already clocked in at this store.') };
+      if (existing.rows[0]) {
+        await tx.query(`DELETE FROM prodx_timeclock_operations WHERE id=$1`, [op.id]);
+        return { error: new TimeclockConflictError('User is already clocked in at this store.') };
+      }
 
       const id = crypto.randomUUID();
       await tx.query(
@@ -259,7 +262,10 @@ export const createTimeclockService = (db: TransactionalSqlExecutor) => ({
           FOR UPDATE`,
         [context.organizationId, context.storeId, resolution.user.user_id],
       );
-      if (!current.rows[0]) return { error: new TimeclockConflictError('User is not currently clocked in at this store.') };
+      if (!current.rows[0]) {
+        await tx.query(`DELETE FROM prodx_timeclock_operations WHERE id=$1`, [op.id]);
+        return { error: new TimeclockConflictError('User is not currently clocked in at this store.') };
+      }
 
       await tx.query(
         `UPDATE prodx_timeclock_records SET status='clocked_out',clocked_out_at=CURRENT_TIMESTAMP
