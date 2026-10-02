@@ -143,7 +143,7 @@ const makeDb = async (
       assert.ok(operationKey, `Unknown timeclock operation id: ${operationId}`);
       const operation = operations.get(operationKey);
       assert.ok(operation, `Missing timeclock operation: ${operationKey}`);
-      operation.result_id = resultId;
+      operations.set(operationKey, { ...operation, result_id: resultId });
       return { rows: [] };
     }
     if (sql.includes('SELECT t.id,t.store_id,t.user_id')) {
