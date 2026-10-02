@@ -42,7 +42,6 @@ import { useLanguage } from '../../../context/LanguageContext';
 import { useOffline } from '../../../context/OfflineContext';
 import { useToast } from '../../../context/ToastContext';
 import { useAuth } from '../../../context/AuthContext';
-import { mockState, syncApi } from '../../../adapters/mockAdapter';
 import { getZIndexClass } from '../../../utils/ZIndexManager';
 import {
   getCachedProducts,
@@ -104,6 +103,8 @@ export const SystemDiagnosticOverlay: React.FC<SystemDiagnosticOverlayProps> = (
     lastSyncedAt,
     triggerSync,
     clearOutbox,
+    syncLatencyMs,
+    measureSyncLatency,
   } = useOffline();
   const { session } = useAuth();
   const { addToast } = useToast();
@@ -181,7 +182,7 @@ export const SystemDiagnosticOverlay: React.FC<SystemDiagnosticOverlayProps> = (
     isSupported: false,
   });
 
-  const [liveLatencyMs, setLiveLatencyMs] = useState<number>(() => mockState.getSimulatedLatency());
+  const [liveLatencyMs, setLiveLatencyMs] = useState<number>(syncLatencyMs);
   const [roundtripPingMs, setRoundtripPingMs] = useState<number | null>(null);
 
   // Self-Test Suite State
