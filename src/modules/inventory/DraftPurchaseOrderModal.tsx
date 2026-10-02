@@ -70,6 +70,7 @@ export const DraftPurchaseOrderModal: React.FC<DraftPurchaseOrderModalProps> = (
   const { language } = useLanguage();
   const { addToast } = useToast();
   const { session } = useAuth();
+  const inventoryAdjustmentApi = useMemo(() => createProductionInventoryAdjustmentApi(session?.token ?? ''), [session?.token]);
 
   // PO Identification
   const [poNumber, setPoNumber] = useState('');
