@@ -106,5 +106,3 @@ test('sync route denies unauthorized access before database work', async () => {
     await server.close();
   }
 });
-
-[executed on device: codespaces-23b5a3 (461ec0f2-eaf2-4b37-9d2f-3805dc2937ae)]
