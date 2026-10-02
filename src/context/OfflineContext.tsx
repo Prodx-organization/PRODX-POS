@@ -8,6 +8,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { OutboxItem } from '../domain/sync';
+import { normalizeOutboxForRecovery } from '../domain/sync-recovery';
 import { createSyncApi } from '../adapters/syncApiFactory';
 import { Order } from '../domain/order';
 import { useToast } from './ToastContext';
@@ -84,7 +85,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [outbox, setOutbox] = useState<OutboxItem[]>(() => {
     try {
       const raw = localStorage.getItem(OUTBOX_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
+      return raw ? normalizeOutboxForRecovery(JSON.parse(raw)) : [];
     } catch {
       return [];
     }
@@ -274,6 +275,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setIsSyncing(true);
     let currentOutbox = [...outbox];
+    let lastSuccessfulSyncAt: string | null = null;
 
     for (const item of queuedItems) {
       try {
@@ -289,6 +291,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
         recordLatency(roundTripMs, 'outbox_sync', 'success');
 
         // Mark synced with server confirmed timestamp
+        lastSuccessfulSyncAt = result.syncedAt;
         currentOutbox = currentOutbox.map((i) =>
           i.id === item.id
             ? {
@@ -317,7 +320,9 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     setIsSyncing(false);
-    updateLastSynced(new Date().toISOString());
+    if (lastSuccessfulSyncAt) {
+      updateLastSynced(lastSuccessfulSyncAt);
+    }
   }, [isEffectiveOnline, isSyncing, outbox, recordLatency]);
 
   // Auto-trigger sync when transitioning to online
