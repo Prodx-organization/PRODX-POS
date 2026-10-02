@@ -19,7 +19,7 @@ export const registerCatalogPricingRoute = (app: Express, db: TransactionalSqlEx
     const context = request.prodxContext;
     if (!context) { response.status(500).json({ error: { code: 'REQUEST_CONTEXT_MISSING', message: 'Request context is required.', requestId: request.id } }); return; }
     const body = request.body as { productIds?: unknown; priceChangeType?: unknown; value?: unknown; idempotencyKey?: unknown };
-    const productIds = Array.isArray(body.productIds) ? [...new Set(body.productIds.filter((value): value is string => typeof value === 'string' && value.trim()).map((value) => value.trim()))] : [];
+    const productIds = Array.isArray(body.productIds) ? [...new Set(body.productIds.filter((value): value is string => typeof value === 'string' && !!value.trim()).map((value) => value.trim()))] : [];
     const priceChangeType = body.priceChangeType as PriceChangeType;
     const value = body.value;
     const idempotencyKey = typeof body.idempotencyKey === 'string' ? body.idempotencyKey.trim() : '';
