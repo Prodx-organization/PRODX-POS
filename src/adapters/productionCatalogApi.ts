@@ -9,10 +9,11 @@ const requireToken = (token: string) => {
   if (!token.trim()) throw new Error('Authenticated session token is required for catalog access.');
   return token.trim();
 };
-async function request<T>(path: string, token: string): Promise<T> {
+async function request<T>(path: string, token: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${baseUrl()}${path}`, {
+    ...init,
     credentials: 'include',
-    headers: { Accept: 'application/json', Authorization: `Bearer ${requireToken(token)}` },
+    headers: { Accept: 'application/json', Authorization: `Bearer ${requireToken(token)}`, ...(init?.headers ?? {}) },
   });
   const body = await response.json().catch(() => null);
   if (!response.ok) throw new Error(body?.error?.message ?? 'Catalog request failed.');
@@ -23,6 +24,7 @@ export interface IProductionCatalogReadApi {
   getProducts(categoryId?: string, search?: string): Promise<readonly Product[]>;
   getProductByBarcode(barcode: string): Promise<Product | null>;
   getInventoryLedger(productId?: string): Promise<readonly import('../domain/catalog').InventoryLedgerEntry[]>;
+  bulkUpdatePricing(storeId: string, productIds: readonly string[], priceChangeType: 'set_amount' | 'percent_markup' | 'percent_discount', value: number, userId: string): Promise<readonly Product[]>;
 }
 export function createProductionCatalogReadApi(token: string): IProductionCatalogReadApi {
   return {
@@ -35,5 +37,6 @@ export function createProductionCatalogReadApi(token: string): IProductionCatalo
     },
     getProductByBarcode: barcode => request(`/api/v1/catalog/products/by-barcode/${encodeURIComponent(barcode)}`, token),
     getInventoryLedger: productId => { const query = productId ? `?productId=${encodeURIComponent(productId)}` : ''; return request(`/api/v1/catalog/inventory-ledger${query}`, token); },
+    bulkUpdatePricing: async (storeId, productIds, priceChangeType, value, _userId) => request('/api/v1/catalog/pricing/bulk', token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ storeId, productIds, priceChangeType, value, idempotencyKey: `catalog-price-${crypto.randomUUID()}` }) }),
   };
 }
