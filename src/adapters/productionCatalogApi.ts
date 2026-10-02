@@ -25,6 +25,7 @@ export interface IProductionCatalogReadApi {
   getProductByBarcode(barcode: string): Promise<Product | null>;
   getInventoryLedger(productId?: string): Promise<readonly import('../domain/catalog').InventoryLedgerEntry[]>;
   bulkUpdatePricing(storeId: string, productIds: readonly string[], priceChangeType: 'set_amount' | 'percent_markup' | 'percent_discount', value: number, userId: string): Promise<readonly Product[]>;
+  bulkImportProducts(storeId: string, items: readonly import('../domain/catalog').BulkImportItem[], mode: import('../domain/catalog').BulkImportMode, userId: string, notes?: string): Promise<import('../domain/catalog').BulkImportResult>;
 }
 export function createProductionCatalogReadApi(token: string): IProductionCatalogReadApi {
   return {
@@ -37,6 +38,10 @@ export function createProductionCatalogReadApi(token: string): IProductionCatalo
     },
     getProductByBarcode: barcode => request(`/api/v1/catalog/products/by-barcode/${encodeURIComponent(barcode)}`, token),
     getInventoryLedger: productId => { const query = productId ? `?productId=${encodeURIComponent(productId)}` : ''; return request(`/api/v1/catalog/inventory-ledger${query}`, token); },
+    bulkImportProducts: async (_storeId, items, mode, _userId, notes) => {
+      const result = await request<import('../domain/catalog').BulkImportResult>('/api/v1/catalog/import', token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items, mode, notes, idempotencyKey: `catalog-import-${crypto.randomUUID()}` }) });
+      return result;
+    },
     bulkUpdatePricing: async (storeId, productIds, priceChangeType, value, _userId) => {
       const result = await request<{ products: Product[] }>('/api/v1/catalog/pricing/bulk', token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ storeId, productIds, priceChangeType, value, idempotencyKey: `catalog-price-${crypto.randomUUID()}` }) });
       return result.products;
