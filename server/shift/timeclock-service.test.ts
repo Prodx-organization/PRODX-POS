@@ -145,10 +145,9 @@ const makeDb = async (
     if (sql.includes('UPDATE prodx_timeclock_operations')) {
       const resultId = String(params[0]);
       const operationId = String(params[1]);
-      const operationKey = operationIds.get(operationId);
-      assert.ok(operationKey, `Unknown timeclock operation id: ${operationId}`);
-      const operation = operations.get(operationKey);
-      assert.ok(operation, `Missing timeclock operation: ${operationKey}`);
+      const operationEntry = [...operations.entries()].find(([, value]) => value.id === operationId);
+      assert.ok(operationEntry, `Unknown timeclock operation id: ${operationId}`);
+      const [operationKey, operation] = operationEntry;
       operationResults.set(operationId, resultId);
       operations.set(operationKey, { ...operation, result_id: resultId });
       return { rows: [] };
