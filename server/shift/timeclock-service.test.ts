@@ -139,9 +139,11 @@ const makeDb = async (
     if (sql.includes('UPDATE prodx_timeclock_operations')) {
       const resultId = String(params[0]);
       const operationId = String(params[1]);
-      for (const operation of operations.values()) {
-        if (operation.id === operationId) operation.result_id = resultId;
-      }
+      const operationKey = operationIds.get(operationId);
+      assert.ok(operationKey, `Unknown timeclock operation id: ${operationId}`);
+      const operation = operations.get(operationKey);
+      assert.ok(operation, `Missing timeclock operation: ${operationKey}`);
+      operation.result_id = resultId;
       return { rows: [] };
     }
     if (sql.includes('SELECT t.id,t.store_id,t.user_id')) {
