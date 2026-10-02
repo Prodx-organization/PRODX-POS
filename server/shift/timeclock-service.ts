@@ -23,12 +23,14 @@ type CredentialRow = {
 const PIN_RE = /^\d{4}$/;
 const MAX_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
-const PIN_PEPPER = process.env.TIMECLOCK_PIN_PEPPER;
-
-const lookupHash = (pin: string) => {
-  if (!PIN_PEPPER) throw new Error('TIMECLOCK_PIN_PEPPER is required for production timeclock credentials.');
-  return crypto.createHmac('sha256', PIN_PEPPER).update(pin).digest('hex');
+const getPinPepper = () => {
+  const pepper = process.env.TIMECLOCK_PIN_PEPPER;
+  if (!pepper) throw new Error('TIMECLOCK_PIN_PEPPER is required for production timeclock credentials.');
+  return pepper;
 };
+
+const lookupHash = (pin: string) =>
+  crypto.createHmac('sha256', getPinPepper()).update(pin).digest('hex');
 
 const hashPayload = (value: unknown) =>
   crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
