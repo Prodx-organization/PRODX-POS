@@ -42,6 +42,8 @@ const makeDb = async (
   const actorAttempts = new Map<string, { failed_attempts: number; locked_until: Date | null }>();
   let record: { id: string; user_id: string; status: 'clocked_in' | 'clocked_out' } | null = null;
   const operations = new Map<string, { id: string; payload_hash: string; result_id: string | null }>();
+  const operationIds = new Map<string, string>();
+  let nextOperationId = 1;
 
   const query = async (sql: string, params: readonly unknown[] = []) => {
     const actorKey = String(params[0]) + ':' + String(params[1]) + ':' + String(params[2]);
@@ -103,8 +105,9 @@ const makeDb = async (
     if (sql.includes('INSERT INTO prodx_timeclock_operations')) {
       const operationKey = String(params[1]) + ':' + String(params[2]) + ':' + String(params[3]) + ':' + String(params[4]) + ':' + String(params[5]);
       if (operations.has(operationKey)) return { rows: [] };
-      const id = 'op-' + String(operations.size + 1);
+      const id = 'op-' + String(nextOperationId++);
       operations.set(operationKey, { id, payload_hash: String(params[6]), result_id: null });
+      operationIds.set(id, operationKey);
       return { rows: [{ id }] };
     }
     if (sql.includes('FROM prodx_timeclock_operations')) {
@@ -114,8 +117,10 @@ const makeDb = async (
     }
     if (sql.includes('DELETE FROM prodx_timeclock_operations')) {
       const operationId = String(params[0]);
-      for (const [key, operation] of operations.entries()) {
-        if (operation.id === operationId) operations.delete(key);
+      const operationKey = operationIds.get(operationId);
+      if (operationKey) {
+        operations.delete(operationKey);
+        operationIds.delete(operationId);
       }
       return { rows: [] };
     }
