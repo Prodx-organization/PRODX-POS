@@ -16,9 +16,17 @@ if (!databaseUrl) throw new Error('DATABASE_URL is required for database migrati
 
 const pool = new Pool({ connectionString: databaseUrl });
 const client = await pool.connect();
+let transactionStarted = false;
 
 try {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS prodx_schema_migrations (
+      version TEXT PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
   await client.query('BEGIN');
+  transactionStarted = true;
   await client.query("SELECT pg_advisory_xact_lock(hashtextextended('prodx-pos:migrations', 0))");
 
   for (const file of migrationFiles) {
@@ -26,10 +34,7 @@ try {
     const result = await client.query(
       'SELECT 1 FROM prodx_schema_migrations WHERE version = $1 LIMIT 1',
       [version],
-    ).catch((error: unknown) => {
-      if (version === '0001_m0_foundation') return { rowCount: 0 };
-      throw error;
-    });
+    );
 
     if (result.rowCount === 1) continue;
 
@@ -51,7 +56,7 @@ try {
   await client.query('COMMIT');
   console.log(`Database migrations verified: ${migrationFiles.length} migration files.`);
 } catch (error) {
-  await client.query('ROLLBACK');
+  if (transactionStarted) await client.query('ROLLBACK');
   throw error;
 } finally {
   client.release();
