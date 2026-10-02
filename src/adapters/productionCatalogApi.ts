@@ -37,6 +37,9 @@ export function createProductionCatalogReadApi(token: string): IProductionCatalo
     },
     getProductByBarcode: barcode => request(`/api/v1/catalog/products/by-barcode/${encodeURIComponent(barcode)}`, token),
     getInventoryLedger: productId => { const query = productId ? `?productId=${encodeURIComponent(productId)}` : ''; return request(`/api/v1/catalog/inventory-ledger${query}`, token); },
-    bulkUpdatePricing: async (storeId, productIds, priceChangeType, value, _userId) => request('/api/v1/catalog/pricing/bulk', token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ storeId, productIds, priceChangeType, value, idempotencyKey: `catalog-price-${crypto.randomUUID()}` }) }),
+    bulkUpdatePricing: async (storeId, productIds, priceChangeType, value, _userId) => {
+      const result = await request<{ products: Product[] }>('/api/v1/catalog/pricing/bulk', token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ storeId, productIds, priceChangeType, value, idempotencyKey: `catalog-price-${crypto.randomUUID()}` }) });
+      return result.products;
+    },
   };
 }
