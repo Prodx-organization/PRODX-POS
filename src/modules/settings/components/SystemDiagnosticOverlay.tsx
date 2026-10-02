@@ -409,9 +409,9 @@ export const SystemDiagnosticOverlay: React.FC<SystemDiagnosticOverlayProps> = (
     try {
       // Simulate quick roundtrip check
       await new Promise((resolve) => setTimeout(resolve, 15 + Math.floor(Math.random() * 20)));
-      const ping = Math.round(performance.now() - startTime + mockState.getSimulatedLatency());
+      const ping = Math.round(performance.now() - startTime);
       setRoundtripPingMs(ping);
-      setLiveLatencyMs(mockState.getSimulatedLatency());
+      setLiveLatencyMs(ping);
     } catch {
       setRoundtripPingMs(null);
     }
