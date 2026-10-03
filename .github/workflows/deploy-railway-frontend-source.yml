@@ -1,0 +1,58 @@
+name: Repair Railway Frontend Source
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/deploy-railway-frontend-source.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: railway-frontend-source-repair
+  cancel-in-progress: false
+
+jobs:
+  repair-and-deploy:
+    name: Connect frontend service to authoritative repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: ccb77b99-9bca-4b59-bd16-debe0d8d3431
+      RAILWAY_ENVIRONMENT: production
+      RAILWAY_SERVICE: prodx-pos-test
+    steps:
+      - name: Checkout authoritative main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+
+      - name: Require Railway credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${RAILWAY_TOKEN:-}" || {
+            echo "RAILWAY_TOKEN GitHub Actions secret is required."
+            exit 1
+          }
+
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli
+
+      - name: Connect frontend source to authoritative repository
+        run: |
+          set -euo pipefail
+          railway service source connect             --project "${RAILWAY_PROJECT_ID}"             --environment "${RAILWAY_ENVIRONMENT}"             --service "${RAILWAY_SERVICE}"             --repo "Prodx-organization/PRODX-POS"             --branch "main"             --json
+
+      - name: Deploy exact checked-out main source
+        run: |
+          set -euo pipefail
+          railway up             --project "${RAILWAY_PROJECT_ID}"             --environment "${RAILWAY_ENVIRONMENT}"             --service "${RAILWAY_SERVICE}"             --ci
+
+      - name: Record deployed source
+        run: |
+          echo "GitHub source commit deployed:"
+          git rev-parse HEAD
