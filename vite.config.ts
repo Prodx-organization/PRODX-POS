@@ -46,7 +46,7 @@ export default defineConfig(() => {
           runtimeCaching: [
             {
               urlPattern: ({ request, url }) =>
-                request.mode === 'navigate' && url.origin === self.location.origin,
+                request.mode === 'navigate',
               handler: 'NetworkFirst',
               options: {
                 cacheName: 'prodx-navigation-cache',
