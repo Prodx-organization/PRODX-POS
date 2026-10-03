@@ -185,51 +185,48 @@ export const LoginScreen: React.FC = () => {
 
   return (
     <main className="min-h-[100svh] bg-white text-slate-950">
-      <div className="grid min-h-[100svh] lg:grid-cols-[56%_44%]">
-        <section className="relative hidden overflow-hidden bg-[#06101c] text-white lg:flex">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_35%_35%,rgba(255,103,22,.18),transparent_25%),radial-gradient(circle_at_70%_80%,rgba(17,94,163,.24),transparent_34%),linear-gradient(135deg,#06101c,#081827_55%,#030912)]" />
-          <div className="absolute inset-0 opacity-[0.08]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.5) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.5) 1px,transparent 1px)', backgroundSize: '52px 52px' }} />
+      <div className="grid min-h-[100svh] lg:grid-cols-[57%_43%]">
+        <section className="relative hidden overflow-hidden bg-[#07111f] text-white lg:flex">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_20%,rgba(255,107,26,.16),transparent_22%),radial-gradient(circle_at_76%_78%,rgba(16,91,145,.28),transparent_38%),linear-gradient(135deg,#06101c,#091a2b_52%,#030913)]" />
+          <div className="absolute inset-0 opacity-[0.055]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.8) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.8) 1px,transparent 1px)', backgroundSize: '48px 48px' }} />
+          <div className="absolute -left-24 top-1/2 h-72 w-72 rounded-full bg-cyan-500/10 blur-[100px]" />
+          <div className="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-orange-500/10 blur-[110px]" />
 
-          <div className="relative z-10 flex min-h-[100svh] w-full flex-col px-10 py-9 xl:px-14">
-            <div className="flex items-start justify-between">
+          <div className="relative z-10 flex min-h-[100svh] w-full flex-col px-8 py-8 xl:px-14 xl:py-10">
+            <header className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-xl font-black tracking-[-0.08em] text-slate-950">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[22px] font-black tracking-[-0.08em] text-[#08111d] shadow-[0_12px_30px_rgba(0,0,0,.22)]">
                     P<span className="text-[#ff6b1a]">.</span>
                   </div>
                   <div>
-                    <div className="text-[23px] font-black tracking-[-0.055em]">PRODX<span className="font-medium text-slate-300">POS</span></div>
-                    <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.28em] text-slate-400">People · Process · Progress</div>
+                    <div className="text-[25px] font-black tracking-[-0.06em]">PRODX<span className="font-medium text-slate-300">POS</span></div>
+                    <div className="mt-0.5 text-[9px] font-bold uppercase tracking-[0.3em] text-slate-500">People · Process · Progress</div>
                   </div>
                 </div>
               </div>
-              <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[9px] font-bold uppercase tracking-[0.22em] text-slate-500">
                 Production Terminal
-              </div>
-            </div>
+              </span>
+            </header>
 
-            <div className="my-auto grid grid-cols-[minmax(0,1fr)_190px] items-center gap-8 xl:gap-12">
+            <div className="my-auto grid items-center gap-10 xl:grid-cols-[minmax(0,1fr)_210px]">
               <div className="max-w-2xl">
-                <div className="mb-4 text-[11px] font-black uppercase tracking-[0.28em] text-[#ff7a2a]">
+                <div className="mb-4 text-[10px] font-black uppercase tracking-[0.28em] text-[#ff7a2a]">
                   {copy.verified}
                 </div>
-                <h1 className="max-w-xl text-5xl font-black leading-[0.98] tracking-[-0.055em] xl:text-[4.25rem]">
+                <h1 className="text-[3.4rem] font-black leading-[0.98] tracking-[-0.065em] xl:text-[4.8rem]">
                   {isThai ? (
-                    <>เปิดกะให้ไว.<span className="block text-[#ff6b1a]">ขายได้ทันที.</span></>
+                    <>ยกระดับ<span className="block text-[#ff6b1a]">งานหน้าร้าน.</span></>
                   ) : (
                     <>Streamline<span className="block text-[#ff6b1a]">store operations.</span></>
                   )}
                 </h1>
-                <p className="mt-6 max-w-lg text-sm leading-6 text-slate-400">
+                <p className="mt-6 max-w-lg text-[14px] leading-6 text-slate-400">
                   {isThai
-                    ? 'ระบบปฏิบัติการหน้าร้านสำหรับการขาย สินค้าคงคลัง ลูกค้า และงานประจำวันของสาขา'
-                    : 'A focused operating workspace for sales, inventory, customers, and daily store operations.'}
+                    ? 'ศูนย์ควบคุมการขาย สินค้าคงคลัง ลูกค้า และงานประจำวันของสาขา — จากเครื่องเดียว'
+                    : 'A unified workspace for sales, inventory, customers, and everyday store operations.'}
                 </p>
-
-                <div className="mt-8 flex items-center gap-2 text-[11px] font-bold text-slate-300">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.9)]" />
-                  {copy.security}
-                </div>
               </div>
 
               <div className="space-y-3">
@@ -239,12 +236,12 @@ export const LoginScreen: React.FC = () => {
                   { icon: ShieldCheck, title: isThai ? 'Security' : 'Security', sub: isThai ? 'Server authority' : 'Server authority' },
                   { icon: Wifi, title: isThai ? 'Live System' : 'Live System', sub: isThai ? 'Connected terminal' : 'Connected terminal' },
                 ].map(({ icon: Icon, title, sub }) => (
-                  <div key={title} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-3.5 backdrop-blur">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
-                      <Icon className="h-5 w-5 text-[#ff8a45]" />
+                  <div key={title} className="group flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-3.5 backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.07]">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] transition-all duration-300 group-hover:border-[#ff6b1a]/40 group-hover:bg-[#ff6b1a]/10">
+                      <Icon className="h-5 w-5 text-[#ff8a45] stroke-[1.6]" />
                     </div>
                     <div>
-                      <div className="text-sm font-bold text-white">{title}</div>
+                      <div className="text-[13px] font-bold text-white">{title}</div>
                       <div className="mt-0.5 text-[10px] font-medium text-slate-500">{sub}</div>
                     </div>
                   </div>
@@ -252,12 +249,13 @@ export const LoginScreen: React.FC = () => {
               </div>
             </div>
 
-            <div className="relative mt-2 h-32 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900 to-[#02060b]">
-              <div className="absolute inset-x-0 bottom-0 h-10 bg-[linear-gradient(90deg,transparent,rgba(255,107,26,.28),transparent)] blur-xl" />
-              <div className="absolute bottom-4 left-10 flex items-end gap-3">
-                {[68,84,58,92,76].map((height, index) => (
-                  <div key={index} className="relative w-16 rounded-t-lg border border-slate-600 bg-gradient-to-b from-slate-700 to-slate-950 shadow-[0_0_30px_rgba(255,107,26,.08)]" style={{ height }}>
-                    <div className="absolute inset-x-2 top-3 space-y-1.5">
+            <div className="relative mt-3 h-36 overflow-hidden rounded-[26px] border border-white/10 bg-[#050b13] shadow-2xl shadow-black/30">
+              <div className="absolute inset-x-0 bottom-0 h-24 bg-[radial-gradient(ellipse_at_center,rgba(255,107,26,.18),transparent_65%)] blur-2xl" />
+              <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[#ff6b1a]/80 to-transparent" />
+              <div className="absolute bottom-4 left-7 flex items-end gap-2.5">
+                {[48,66,82,60,92,74].map((height, index) => (
+                  <div key={index} className="relative w-12 rounded-t-lg border border-slate-600/80 bg-gradient-to-b from-slate-700/90 to-slate-950/95 shadow-[0_0_22px_rgba(255,107,26,.08)] xl:w-14" style={{ height }}>
+                    <div className="absolute inset-x-2 top-3 space-y-1.5 opacity-80">
                       {[0,1,2,3].map((row) => (
                         <div key={row} className="flex items-center gap-1">
                           <span className="h-1 w-1 rounded-full bg-[#ff6b1a]" />
@@ -268,20 +266,21 @@ export const LoginScreen: React.FC = () => {
                   </div>
                 ))}
               </div>
-              <div className="absolute bottom-5 right-8 flex h-16 w-24 items-center justify-center rounded-2xl border border-[#ff6b1a]/30 bg-[#ff6b1a]/10 shadow-[0_0_35px_rgba(255,107,26,.12)]">
-                <div className="h-9 w-12 rounded-lg border border-cyan-300/30 bg-cyan-300/10 shadow-[0_0_25px_rgba(34,211,238,.12)]" />
+              <div className="absolute bottom-5 right-8 flex h-20 w-28 items-center justify-center rounded-2xl border border-[#ff6b1a]/30 bg-[#ff6b1a]/10 shadow-[0_0_45px_rgba(255,107,26,.13)]">
+                <div className="h-11 w-16 rounded-xl border border-cyan-300/30 bg-cyan-300/10 shadow-[0_0_25px_rgba(34,211,238,.16)]" />
               </div>
-              <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-[#ff6b1a]/70 to-transparent" />
+              <div className="absolute right-1/3 top-4 h-1.5 w-1.5 rounded-full bg-[#ff6b1a] shadow-[0_0_12px_rgba(255,107,26,.9)]" />
+              <div className="absolute right-1/3 top-5 h-20 w-px bg-gradient-to-b from-[#ff6b1a]/80 to-transparent" />
             </div>
 
             <div className="mt-5 grid grid-cols-3 divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/[0.035]">
               {[
-                { icon: ShieldCheck, title: isThai ? 'Secure' : 'Secure', sub: isThai ? 'Server verified' : 'Server verified' },
-                { icon: Monitor, title: isThai ? 'Touch ready' : 'Touch ready', sub: isThai ? 'Built for registers' : 'Built for registers' },
-                { icon: CheckCircle2, title: isThai ? 'Reliable' : 'Reliable', sub: isThai ? 'Production flow' : 'Production flow' },
+                { icon: ShieldCheck, title: 'Secure', sub: 'Server verified' },
+                { icon: Monitor, title: 'Touch ready', sub: 'Built for registers' },
+                { icon: CheckCircle2, title: 'Reliable', sub: 'Production flow' },
               ].map(({ icon: Icon, title, sub }) => (
                 <div key={title} className="flex items-center gap-3 px-4 py-3.5">
-                  <Icon className="h-5 w-5 text-[#ff7a2a]" />
+                  <Icon className="h-5 w-5 text-[#ff7a2a] stroke-[1.6]" />
                   <div>
                     <div className="text-xs font-bold text-white">{title}</div>
                     <div className="text-[9px] font-medium text-slate-500">{sub}</div>
@@ -293,7 +292,7 @@ export const LoginScreen: React.FC = () => {
         </section>
 
         <section className="relative min-h-[100svh] bg-white">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_0%,rgba(255,107,26,.05),transparent_24%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_0%,rgba(255,107,26,.055),transparent_25%)]" />
           <header className="relative z-10 flex items-center justify-between px-6 py-6 sm:px-10 xl:px-14">
             <div className="lg:hidden">
               <div className="text-xl font-black tracking-[-0.05em]">PRODX<span className="text-[#ff6b1a]">POS</span></div>
@@ -304,8 +303,8 @@ export const LoginScreen: React.FC = () => {
                 <Clock3 className="h-3.5 w-3.5" />
                 {clock}
               </div>
-              <button type="button" onClick={() => setLanguage(isThai ? 'en' : 'th')} className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 transition hover:border-[#ff6b1a] hover:text-[#e85d0c] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff6b1a]/30">
-                <Globe2 className="h-3.5 w-3.5" />
+              <button type="button" onClick={() => setLanguage(isThai ? 'en' : 'th')} className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 transition-all duration-300 hover:border-[#ff6b1a] hover:text-[#e85d0c] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff6b1a]/30">
+                <Globe2 className="h-3.5 w-3.5 stroke-[1.6]" />
                 {copy.language}
               </button>
             </div>
@@ -317,27 +316,25 @@ export const LoginScreen: React.FC = () => {
                 <div className="mb-3 text-[10px] font-black uppercase tracking-[0.3em] text-[#e85d0c]">
                   {isThai ? 'Welcome back' : 'Welcome back'}
                 </div>
-                <h2 className="text-4xl font-black leading-none tracking-[-0.055em] text-[#0b1a2a] sm:text-[3.25rem]">
+                <h2 className="text-4xl font-black leading-none tracking-[-0.06em] text-[#0b1a2a] sm:text-[3.25rem]">
                   {isThai ? 'เข้าสู่ระบบ' : 'Operator Access'}
                 </h2>
-                <p className="mt-4 max-w-md text-sm leading-6 text-slate-500">
-                  {copy.subtitle}
-                </p>
+                <p className="mt-4 max-w-md text-sm leading-6 text-slate-500">{copy.subtitle}</p>
               </div>
 
-              <button type="button" onClick={() => setTerminalOpen((value) => !value)} className="mb-5 flex w-full items-center gap-3 border-b border-slate-200 pb-4 text-left">
+              <button type="button" onClick={() => setTerminalOpen((value) => !value)} className="group mb-5 flex w-full items-center gap-3 border-b border-slate-200 pb-4 text-left transition-all duration-300 hover:border-slate-300 active:scale-[0.995]">
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${terminalReady ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                  {terminalReady ? <Check className="h-4 w-4" /> : <Wifi className="h-4 w-4" />}
+                  {terminalReady ? <Check className="h-4 w-4 stroke-[2]" /> : <Wifi className="h-4 w-4 stroke-[1.6]" />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-black text-slate-900">{copy.terminal} <span className={terminalReady ? 'text-emerald-600' : 'text-amber-600'}>· {terminalReady ? copy.ready : copy.setup}</span></div>
                   <div className="truncate text-[11px] font-medium text-slate-400">{terminalReady ? `${storeCode} · ${registerId}` : copy.serverNote}</div>
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{terminalOpen ? copy.done : copy.edit}</span>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 transition-colors group-hover:text-[#e85d0c]">{terminalOpen ? copy.done : copy.edit}</span>
               </button>
 
               {terminalOpen && (
-                <div className="mb-5 grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-3">
+                <div className="mb-5 grid gap-3 rounded-2xl bg-slate-50 p-4">
                   {[
                     { icon: Building2, label: copy.organization, value: organizationSlug, set: setOrganizationSlug },
                     { icon: Store, label: copy.store, value: storeCode, set: setStoreCode },
@@ -345,7 +342,7 @@ export const LoginScreen: React.FC = () => {
                   ].map(({ icon: Icon, label, value, set }) => (
                     <label key={label} className="block">
                       <span className="mb-1.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-wide text-slate-500"><Icon className="h-3 w-3" />{label}</span>
-                      <input value={value} onChange={(event) => set(event.target.value)} autoComplete="off" maxLength={256} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 outline-none transition focus:border-[#ff6b1a] focus:ring-4 focus:ring-[#ff6b1a]/10" />
+                      <input value={value} onChange={(event) => set(event.target.value)} autoComplete="off" maxLength={256} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 outline-none transition-all duration-300 focus:border-[#ff6b1a] focus:ring-4 focus:ring-[#ff6b1a]/10" />
                     </label>
                   ))}
                 </div>
@@ -357,8 +354,8 @@ export const LoginScreen: React.FC = () => {
                     { id: 'pin' as const, icon: KeyRound, label: copy.pin },
                     { id: 'password' as const, icon: Lock, label: copy.password },
                   ].map(({ id, icon: Icon, label }) => (
-                    <button key={id} type="button" onClick={() => { setMode(id); setSecret(''); setShowSecret(false); }} className={`relative flex h-11 flex-1 items-center justify-center gap-2 text-xs font-black transition ${mode === id ? 'text-[#e85d0c]' : 'text-slate-400 hover:text-slate-700'}`}>
-                      <Icon className="h-3.5 w-3.5" />
+                    <button key={id} type="button" onClick={() => { setMode(id); setSecret(''); setShowSecret(false); }} className={`relative flex h-11 flex-1 items-center justify-center gap-2 text-xs font-black transition-all duration-300 active:scale-[0.98] ${mode === id ? 'text-[#e85d0c]' : 'text-slate-400 hover:text-slate-700'}`}>
+                      <Icon className="h-3.5 w-3.5 stroke-[1.6]" />
                       {label}
                       {mode === id && <span className="absolute bottom-[-1px] left-0 right-0 h-0.5 bg-[#ff6b1a]" />}
                     </button>
@@ -368,8 +365,8 @@ export const LoginScreen: React.FC = () => {
                 <label className="block">
                   <span className="mb-2 block text-xs font-black text-slate-700">{copy.identity}</span>
                   <span className="relative block">
-                    <UserRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input value={identity} onChange={(event) => setIdentity(event.target.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={256} placeholder={copy.identityPlaceholder} className="h-14 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-300 focus:border-[#ff6b1a] focus:ring-4 focus:ring-[#ff6b1a]/10" />
+                    <UserRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 stroke-[1.6]" />
+                    <input value={identity} onChange={(event) => setIdentity(event.target.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={256} placeholder={copy.identityPlaceholder} className="h-14 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-900 outline-none transition-all duration-300 placeholder:text-slate-300 hover:border-slate-300 focus:border-[#ff6b1a] focus:ring-4 focus:ring-[#ff6b1a]/10" />
                   </span>
                 </label>
 
@@ -384,40 +381,36 @@ export const LoginScreen: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                       {['1','2','3','4','5','6','7','8','9'].map((digit) => (
-                        <button key={digit} type="button" onClick={() => addDigit(digit)} disabled={isLoading || secret.length >= 4} className="h-11 rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,.04)] transition hover:border-[#ff6b1a]/40 hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff6b1a]/30 disabled:opacity-40">{digit}</button>
+                        <button key={digit} type="button" onClick={() => addDigit(digit)} disabled={isLoading || secret.length >= 4} className="h-11 rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,.04)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#ff6b1a]/40 hover:bg-orange-50 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff6b1a]/30 disabled:opacity-40">{digit}</button>
                       ))}
-                      <button type="button" onClick={() => setSecret('')} disabled={isLoading || !secret} className="h-11 rounded-xl border border-slate-200 bg-slate-50 text-[10px] font-black text-slate-500 disabled:opacity-40">{copy.clear}</button>
-                      <button type="button" onClick={() => addDigit('0')} disabled={isLoading || secret.length >= 4} className="h-11 rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,.04)] transition hover:border-[#ff6b1a]/40 hover:bg-orange-50 disabled:opacity-40">0</button>
-                      <button type="button" onClick={() => setSecret((value) => value.slice(0, -1))} disabled={isLoading || !secret} aria-label={isThai ? 'ลบตัวเลขล่าสุด' : 'Delete last digit'} className="flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 disabled:opacity-40"><Delete className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => setSecret('')} disabled={isLoading || !secret} className="h-11 rounded-xl border border-slate-200 bg-slate-50 text-[10px] font-black text-slate-500 transition-all duration-300 hover:bg-slate-100 active:scale-[0.98] disabled:opacity-40">{copy.clear}</button>
+                      <button type="button" onClick={() => addDigit('0')} disabled={isLoading || secret.length >= 4} className="h-11 rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,.04)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#ff6b1a]/40 hover:bg-orange-50 active:scale-[0.98] disabled:opacity-40">0</button>
+                      <button type="button" onClick={() => setSecret((value) => value.slice(0, -1))} disabled={isLoading || !secret} aria-label={isThai ? 'ลบตัวเลขล่าสุด' : 'Delete last digit'} className="flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 transition-all duration-300 hover:bg-slate-100 active:scale-[0.98] disabled:opacity-40"><Delete className="h-4 w-4" /></button>
                     </div>
                   </div>
                 ) : (
                   <label className="mt-5 block">
                     <span className="mb-2 block text-xs font-black text-slate-700">{copy.secretPassword}</span>
                     <span className="relative block">
-                      <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                      <input value={secret} onChange={(event) => setSecret(event.target.value)} type={showSecret ? 'text' : 'password'} autoComplete="current-password" maxLength={256} className="h-14 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-12 text-sm font-medium outline-none transition placeholder:text-slate-300 focus:border-[#ff6b1a] focus:ring-4 focus:ring-[#ff6b1a]/10" />
-                      <button type="button" onClick={() => setShowSecret((value) => !value)} className="absolute right-1 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50" aria-label={showSecret ? 'Hide password' : 'Show password'}>{showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
+                      <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 stroke-[1.6]" />
+                      <input value={secret} onChange={(event) => setSecret(event.target.value)} type={showSecret ? 'text' : 'password'} autoComplete="current-password" maxLength={256} className="h-14 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-12 text-sm font-medium outline-none transition-all duration-300 placeholder:text-slate-300 hover:border-slate-300 focus:border-[#ff6b1a] focus:ring-4 focus:ring-[#ff6b1a]/10" />
+                      <button type="button" onClick={() => setShowSecret((value) => !value)} className="absolute right-1 top-1 flex h-12 w-12 items-center justify-center rounded-lg text-slate-400 transition-all duration-300 hover:bg-slate-50 hover:text-slate-700 active:scale-[0.98]" aria-label={showSecret ? 'Hide password' : 'Show password'}>{showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
                     </span>
                   </label>
                 )}
 
-                <button type="submit" disabled={!canSubmit || isLoading} className="mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#ff6b1a] px-5 text-sm font-black text-white shadow-[0_10px_25px_rgba(255,107,26,.20)] transition hover:bg-[#eb5b0c] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#ff6b1a]/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none">
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                <button type="submit" disabled={!canSubmit || isLoading} className="group mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#ff6b1a] px-5 text-sm font-black text-white shadow-[0_12px_28px_rgba(255,107,26,.22)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#eb5b0c] hover:shadow-[0_18px_35px_rgba(255,107,26,.26)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#ff6b1a]/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none">
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />}
                   {isLoading ? copy.signingIn : copy.signIn}
                 </button>
               </form>
 
-              <div className="mt-7 rounded-2xl bg-slate-50 p-4">
+              <div className="mt-6 rounded-2xl bg-slate-50 p-4">
                 <div className="flex items-start gap-3">
-                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#ff6b1a]" />
+                  <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#ff6b1a] stroke-[1.6]" />
                   <div>
                     <div className="text-xs font-black text-slate-800">{isThai ? 'Secure. Controlled. Auditable.' : 'Secure. Controlled. Auditable.'}</div>
                     <div className="mt-1 text-[10px] leading-4 text-slate-500">{copy.serverNote}</div>
-                  </div>
-                  <div className="ml-auto flex gap-1.5">
-                    <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[8px] font-black text-slate-400">SERVER</span>
-                    <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[8px] font-black text-slate-400">POS</span>
                   </div>
                 </div>
               </div>
