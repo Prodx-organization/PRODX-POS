@@ -77,6 +77,13 @@ export default defineConfig(() => {
         },
       }),
     ],
+    preview: {
+      host: '0.0.0.0',
+      allowedHosts: [
+        'healthcheck.railway.app',
+        'prodx-pos-test-production.up.railway.app',
+      ],
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
