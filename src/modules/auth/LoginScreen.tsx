@@ -5,11 +5,9 @@ import {
   Check,
   CheckCircle2,
   Clock3,
-  Delete,
   Eye,
   EyeOff,
   Globe2,
-  KeyRound,
   Loader2,
   Lock,
   Monitor,
@@ -22,8 +20,6 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
 
-type AuthMode = 'pin' | 'password';
-
 const STORAGE = {
   organization: 'prodx.terminal.organization',
   store: 'prodx.terminal.store',
@@ -32,7 +28,7 @@ const STORAGE = {
 
 const readTerminalValue = (key: string, env?: string) => {
   if (typeof window === 'undefined') return env?.trim() ?? '';
-  return window.localStorage.getItem(key)?.trim() || env?.trim() || '';
+  try { return window.localStorage.getItem(key)?.trim() || env?.trim() || ''; } catch { return env?.trim() ?? ''; }
 };
 
 export const LoginScreen: React.FC = () => {
@@ -41,7 +37,6 @@ export const LoginScreen: React.FC = () => {
   const { addToast } = useToast();
   const isThai = language === 'th';
 
-  const [mode, setMode] = useState<AuthMode>('pin');
   const [organizationSlug, setOrganizationSlug] = useState(() =>
     readTerminalValue(STORAGE.organization, import.meta.env.VITE_PRODX_ORGANIZATION_SLUG),
   );
@@ -66,58 +61,50 @@ export const LoginScreen: React.FC = () => {
             eyebrow: 'PRODX POS · OPERATOR CONSOLE',
             title: 'พร้อมเริ่มกะ',
             subtitle: 'เข้าสู่ระบบเพื่อเปิดเครื่องขายและเริ่มงานของคุณ',
-            pin: 'PIN พนักงาน',
             password: 'รหัสผ่าน',
             identity: 'รหัสพนักงานหรืออีเมล',
             identityPlaceholder: 'เช่น cashier@prodx.co',
-            secretPin: 'PIN 4 หลัก',
             secretPassword: 'รหัสผ่าน',
             signIn: 'เข้าสู่ระบบ',
             signingIn: 'กำลังตรวจสอบสิทธิ์…',
             terminal: 'เครื่องขาย',
-            ready: 'พร้อมใช้งาน',
+            ready: 'ข้อมูลครบถ้วน',
             setup: 'ต้องตั้งค่า',
             organization: 'องค์กร',
             store: 'สาขา',
             register: 'Register',
             edit: 'แก้ไข',
             done: 'เสร็จสิ้น',
-            security: 'สิทธิ์การใช้งานตรวจสอบโดยเซิร์ฟเวอร์',
-            verified: 'Server verified',
-            clear: 'ล้าง',
+            security: 'ต้องยืนยันสิทธิ์กับเซิร์ฟเวอร์',
+            verified: 'Secure sign-in',
             serverNote: 'บัญชี · สาขา · เครื่องขาย จะถูกตรวจสอบก่อนเปิดเซสชัน',
             failed: 'เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง',
             required: 'กรุณากรอกข้อมูลให้ครบ',
-            invalidPin: 'PIN ต้องเป็นตัวเลข 4 หลัก',
             language: 'English',
           }
         : {
             eyebrow: 'PRODX POS · OPERATOR CONSOLE',
             title: 'Ready for your shift',
             subtitle: 'Sign in to open this register and start operating.',
-            pin: 'Staff PIN',
             password: 'Password',
             identity: 'Employee ID or email',
             identityPlaceholder: 'e.g. cashier@prodx.co',
-            secretPin: '4-digit PIN',
             secretPassword: 'Password',
             signIn: 'Sign in',
             signingIn: 'Verifying access…',
             terminal: 'Terminal',
-            ready: 'Ready',
+            ready: 'Details complete',
             setup: 'Setup required',
             organization: 'Organization',
             store: 'Store',
             register: 'Register',
             edit: 'Edit',
             done: 'Done',
-            security: 'Access is verified by the server',
-            verified: 'Server verified',
-            clear: 'Clear',
+            security: 'Server verification required',
+            verified: 'Secure sign-in',
             serverNote: 'Account · store · terminal are checked before a session opens.',
             failed: 'Sign-in failed. Check your details and try again.',
             required: 'Complete the required fields.',
-            invalidPin: 'PIN must contain exactly 4 digits.',
             language: 'ไทย',
           },
     [isThai],
@@ -126,10 +113,7 @@ export const LoginScreen: React.FC = () => {
   const terminalReady = Boolean(
     organizationSlug.trim() && storeCode.trim() && registerId.trim(),
   );
-  const canSubmit =
-    terminalReady &&
-    Boolean(identity.trim()) &&
-    (mode === 'pin' ? /^\d{4}$/.test(secret) : Boolean(secret));
+  const canSubmit = terminalReady && Boolean(identity.trim()) && Boolean(secret);
 
   useEffect(() => {
     const update = () =>
@@ -145,9 +129,13 @@ export const LoginScreen: React.FC = () => {
   }, [isThai]);
 
   const persistTerminal = () => {
-    window.localStorage.setItem(STORAGE.organization, organizationSlug.trim());
-    window.localStorage.setItem(STORAGE.store, storeCode.trim());
-    window.localStorage.setItem(STORAGE.register, registerId.trim());
+    try {
+      window.localStorage.setItem(STORAGE.organization, organizationSlug.trim());
+      window.localStorage.setItem(STORAGE.store, storeCode.trim());
+      window.localStorage.setItem(STORAGE.register, registerId.trim());
+    } catch {
+      // Terminal identifiers are a convenience only; authentication must still work.
+    }
   };
 
   const submit = async (event?: React.FormEvent) => {
@@ -159,13 +147,7 @@ export const LoginScreen: React.FC = () => {
       addToast({ title: copy.setup, message: copy.required, type: 'error' });
       return;
     }
-    if (mode === 'pin' && !/^\d{4}$/.test(secret)) {
-      addToast({ title: copy.secretPin, message: copy.invalidPin, type: 'error' });
-      return;
-    }
-
     try {
-      persistTerminal();
       await login({
         organizationSlug: organizationSlug.trim(),
         storeCode: storeCode.trim(),
@@ -173,14 +155,11 @@ export const LoginScreen: React.FC = () => {
         emailOrPin: identity.trim(),
         passwordOrPin: secret,
       });
+      persistTerminal();
     } catch {
       setSecret('');
       addToast({ title: copy.title, message: copy.failed, type: 'error' });
     }
-  };
-
-  const addDigit = (digit: string) => {
-    if (secret.length < 4) setSecret((value) => value + digit);
   };
 
   return (
@@ -334,27 +313,6 @@ export const LoginScreen: React.FC = () => {
                 )}
 
                 <form onSubmit={submit} className="p-5 sm:p-7">
-                  <div className="grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
-                    {[
-                      { id: 'pin' as const, icon: KeyRound, label: copy.pin },
-                      { id: 'password' as const, icon: Lock, label: copy.password },
-                    ].map(({ id, icon: Icon, label }) => (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => {
-                          setMode(id);
-                          setSecret('');
-                          setShowSecret(false);
-                        }}
-                        className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-black transition ${mode === id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
                   <label className="mt-6 block">
                     <span className="mb-2 block text-sm font-black text-slate-800">{copy.identity}</span>
                     <span className="relative block">
@@ -372,81 +330,28 @@ export const LoginScreen: React.FC = () => {
                     </span>
                   </label>
 
-                  {mode === 'pin' ? (
-                    <div className="mt-6">
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="text-sm font-black text-slate-800">{copy.secretPin}</span>
-                        <span className="font-mono text-xs font-bold text-slate-400">{secret.length}/4</span>
-                      </div>
-                      <div className="mb-3 flex h-14 items-center justify-center rounded-2xl border border-slate-300 bg-slate-50">
-                        <span className="font-mono text-2xl font-black tracking-[0.65em] text-slate-900">
-                          {'•'.repeat(secret.length)}
-                          <span className="text-slate-300">{'•'.repeat(4 - secret.length)}</span>
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {['1','2','3','4','5','6','7','8','9'].map((digit) => (
-                          <button
-                            key={digit}
-                            type="button"
-                            onClick={() => addDigit(digit)}
-                            disabled={isLoading || secret.length >= 4}
-                            className="min-h-12 rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-900 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-40"
-                          >
-                            {digit}
-                          </button>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => setSecret('')}
-                          disabled={isLoading || !secret}
-                          className="min-h-12 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
-                        >
-                          {copy.clear}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addDigit('0')}
-                          disabled={isLoading || secret.length >= 4}
-                          className="min-h-12 rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-900 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-40"
-                        >
-                          0
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSecret((value) => value.slice(0, -1))}
-                          disabled={isLoading || !secret}
-                          aria-label={isThai ? 'ลบตัวเลขล่าสุด' : 'Delete last digit'}
-                          className="flex min-h-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
-                        >
-                          <Delete className="h-5 w-5" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <label className="mt-6 block">
-                      <span className="mb-2 block text-sm font-black text-slate-800">{copy.secretPassword}</span>
-                      <span className="relative block">
-                        <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                        <input
-                          value={secret}
-                          onChange={(event) => setSecret(event.target.value)}
-                          type={showSecret ? 'text' : 'password'}
-                          autoComplete="current-password"
-                          maxLength={256}
-                          className="h-14 w-full rounded-2xl border border-slate-300 bg-white pl-12 pr-12 text-base font-bold outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowSecret((value) => !value)}
-                          className="absolute right-1 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"
-                          aria-label={showSecret ? 'Hide password' : 'Show password'}
-                        >
-                          {showSecret ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                        </button>
-                      </span>
-                    </label>
-                  )}
+                  <label className="mt-6 block">
+                    <span className="mb-2 block text-sm font-black text-slate-800">{copy.secretPassword}</span>
+                    <span className="relative block">
+                      <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                      <input
+                        value={secret}
+                        onChange={(event) => setSecret(event.target.value)}
+                        type={showSecret ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        maxLength={256}
+                        className="h-14 w-full rounded-2xl border border-slate-300 bg-white pl-12 pr-12 text-base font-bold outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSecret((value) => !value)}
+                        className="absolute right-1 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"
+                        aria-label={showSecret ? 'Hide password' : 'Show password'}
+                      >
+                        {showSecret ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                    </span>
+                  </label>
 
                   <button
                     type="submit"
