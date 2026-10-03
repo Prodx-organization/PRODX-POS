@@ -6,8 +6,37 @@ import './index.css';
 import './premium-design-system.css';
 import { registerSW } from 'virtual:pwa-register';
 
-// Auto-register service worker for offline support
-registerSW({ immediate: true });
+const updateServiceWorker = registerSW({
+  immediate: true,
+  onRegisteredSW: (swUrl, registration) => {
+    if (!registration) return;
+
+    void registration.update();
+
+    const refresh = async () => {
+      if (!navigator.onLine || registration.installing) return;
+
+      try {
+        const response = await fetch(swUrl, {
+          cache: 'no-store',
+          headers: {
+            'cache-control': 'no-cache',
+          },
+        });
+
+        if (response.ok) {
+          await registration.update();
+        }
+      } catch {
+        // Offline or transient network failure: keep the current service worker.
+      }
+    };
+
+    void refresh();
+  },
+});
+
+void updateServiceWorker;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
