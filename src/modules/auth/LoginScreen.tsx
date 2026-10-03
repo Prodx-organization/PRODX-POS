@@ -141,331 +141,301 @@ export const LoginScreen: React.FC = () => {
       );
     update();
     const timer = window.setInterval(update, 30_000);
-    return () => window.clearInterval(timer);
-  }, [isThai]);
+    return (
+    <main className="relative min-h-[100svh] overflow-hidden bg-[#070b12] text-slate-950">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-24 -top-32 h-[34rem] w-[34rem] rounded-full bg-blue-600/20 blur-[120px]" />
+        <div className="absolute -bottom-40 -right-24 h-[30rem] w-[30rem] rounded-full bg-cyan-400/10 blur-[120px]" />
+        <div className="absolute left-1/2 top-1/3 h-80 w-80 -translate-x-1/2 rounded-full bg-indigo-500/10 blur-[110px]" />
+        <div
+          className="absolute inset-0 opacity-[0.035]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(255,255,255,.8) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.8) 1px,transparent 1px)',
+            backgroundSize: '48px 48px',
+          }}
+        />
+      </div>
 
-  const persistTerminal = () => {
-    window.localStorage.setItem(STORAGE.organization, organizationSlug.trim());
-    window.localStorage.setItem(STORAGE.store, storeCode.trim());
-    window.localStorage.setItem(STORAGE.register, registerId.trim());
-  };
-
-  const submit = async (event?: React.FormEvent) => {
-    event?.preventDefault();
-    if (isLoading) return;
-
-    if (!terminalReady || !identity.trim() || !secret) {
-      setTerminalOpen(true);
-      addToast({ title: copy.setup, message: copy.required, type: 'error' });
-      return;
-    }
-    if (mode === 'pin' && !/^\d{4}$/.test(secret)) {
-      addToast({ title: copy.secretPin, message: copy.invalidPin, type: 'error' });
-      return;
-    }
-
-    try {
-      persistTerminal();
-      await login({
-        organizationSlug: organizationSlug.trim(),
-        storeCode: storeCode.trim(),
-        registerId: registerId.trim(),
-        emailOrPin: identity.trim(),
-        passwordOrPin: secret,
-      });
-    } catch {
-      setSecret('');
-      addToast({ title: copy.title, message: copy.failed, type: 'error' });
-    }
-  };
-
-  const addDigit = (digit: string) => {
-    if (secret.length < 4) setSecret((value) => value + digit);
-  };
-
-  return (
-    <main className="min-h-[100svh] overflow-hidden bg-slate-950 text-slate-950">
-      <div className="min-h-[100svh] lg:grid lg:grid-cols-[0.72fr_1.28fr]">
-        <section className="relative hidden min-h-[100svh] overflow-hidden border-r border-white/10 lg:flex lg:flex-col">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(37,99,235,.42),transparent_34%),radial-gradient(circle_at_85%_80%,rgba(6,182,212,.18),transparent_30%),linear-gradient(145deg,#020617,#0f172a_55%,#111827)]" />
-          <div
-            className="absolute inset-0 opacity-[0.07]"
-            style={{
-              backgroundImage:
-                'linear-gradient(rgba(255,255,255,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.35) 1px,transparent 1px)',
-              backgroundSize: '44px 44px',
-            }}
-          />
-
-          <div className="relative z-10 flex h-full flex-col p-10 xl:p-14">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-xl font-black shadow-2xl shadow-blue-950/60">
-                P
-              </div>
-              <div>
-                <div className="text-lg font-black tracking-tight text-white">PRODX POS</div>
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Retail Operating System
+      <div className="relative mx-auto flex min-h-[100svh] w-full max-w-[1500px] items-center px-4 py-5 sm:px-6 lg:px-10 lg:py-8">
+        <div className="grid w-full overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.04] shadow-[0_40px_120px_rgba(0,0,0,.45)] backdrop-blur-xl lg:grid-cols-[minmax(0,1fr)_minmax(440px,520px)]">
+          <section className="relative hidden min-h-[760px] flex-col justify-between p-10 text-white lg:flex xl:p-14">
+            <div>
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xl font-black text-slate-950 shadow-xl shadow-black/20">
+                  P
+                </div>
+                <div>
+                  <div className="text-lg font-black tracking-tight">PRODX POS</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">
+                    Retail Operating System
+                  </div>
                 </div>
               </div>
+
+              <div className="mt-24 max-w-xl">
+                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-emerald-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,.9)]" />
+                  {copy.verified}
+                </div>
+                <h1 className="text-5xl font-black leading-[0.98] tracking-[-0.055em] xl:text-7xl">
+                  {isThai ? (
+                    <>
+                      เปิดกะให้ไว.
+                      <span className="mt-2 block text-slate-400">ขายได้ทันที.</span>
+                    </>
+                  ) : (
+                    <>
+                      Start the shift.
+                      <span className="mt-2 block text-slate-400">Run the store.</span>
+                    </>
+                  )}
+                </h1>
+                <p className="mt-7 max-w-md text-sm font-medium leading-6 text-slate-400">
+                  {isThai
+                    ? 'เข้าสู่ระบบจากเครื่องขายนี้ เพื่อเปิดเซสชันและเริ่มงานของสาขาอย่างปลอดภัย'
+                    : 'Sign in from this register to open a secure operator session for the store.'}
+                </p>
+              </div>
             </div>
 
-            <div className="my-auto max-w-xl py-12">
-              <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-300">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,.8)]" />
-                {copy.verified}
-              </div>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { icon: ShieldCheck, label: isThai ? 'Server authority' : 'Server authority' },
+                { icon: Monitor, label: isThai ? 'Touch ready' : 'Touch ready' },
+                { icon: Wifi, label: isThai ? 'Live connection' : 'Live connection' },
+              ].map(({ icon: Icon, label }) => (
+                <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                  <Icon className="h-4 w-4 text-blue-300" />
+                  <div className="mt-3 text-xs font-bold text-slate-300">{label}</div>
+                </div>
+              ))}
+            </div>
+          </section>
 
-              <h1 className="max-w-lg text-5xl font-black leading-[1.02] tracking-[-0.04em] text-white xl:text-6xl">
-                Run the store.
-                <span className="block text-blue-400">Keep control.</span>
-              </h1>
-
-              <p className="mt-6 max-w-lg text-base leading-7 text-slate-300">
-                {isThai
-                  ? 'พื้นที่ทำงานเดียวสำหรับการขาย สินค้าคงคลัง ลูกค้า และการปฏิบัติงานของสาขา'
-                  : 'One focused workspace for sales, inventory, customers, and daily store operations.'}
-              </p>
-
-              <div className="mt-10 grid max-w-lg gap-3 sm:grid-cols-3">
-                {[
-                  { icon: ShieldCheck, label: isThai ? 'ปลอดภัย' : 'Secure' },
-                  { icon: Monitor, label: isThai ? 'Touch-first' : 'Touch-first' },
-                  { icon: Wifi, label: isThai ? 'เชื่อมต่อจริง' : 'Connected' },
-                ].map(({ icon: Icon, label }) => (
-                  <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 backdrop-blur">
-                    <Icon className="h-5 w-5 text-blue-300" />
-                    <div className="mt-3 text-sm font-bold text-white">{label}</div>
+          <section className="bg-[#f6f8fb] p-3 sm:p-5 lg:p-3">
+            <div className="flex min-h-[calc(100svh-40px)] flex-col rounded-[25px] bg-white shadow-[0_24px_80px_rgba(15,23,42,.18)] lg:min-h-[736px]">
+              <header className="flex items-center justify-between px-5 py-5 sm:px-7">
+                <div className="flex items-center gap-3 lg:hidden">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-sm font-black text-white">
+                    P
                   </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-white/10 pt-5 text-xs font-semibold text-slate-500">
-              <span>PRODX · Production Terminal</span>
-              <span className="flex items-center gap-2 text-emerald-300">
-                <CheckCircle2 className="h-4 w-4" />
-                {copy.security}
-              </span>
-            </div>
-          </div>
-        </section>
-
-        <section className="relative min-h-[100svh] bg-slate-100">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_0%,rgba(59,130,246,.12),transparent_28%),linear-gradient(180deg,#f8fafc,#eef2f7)]" />
-
-          <header className="relative z-10 flex items-center justify-between px-5 py-5 sm:px-8 xl:px-12">
-            <div className="flex items-center gap-2 lg:hidden">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-sm font-black text-white">P</div>
-              <span className="font-black text-slate-950">PRODX POS</span>
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 shadow-sm sm:flex">
-                <Clock3 className="h-4 w-4 text-slate-400" />
-                {clock}
-              </div>
-              <button
-                type="button"
-                onClick={() => setLanguage(isThai ? 'en' : 'th')}
-                className="flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-              >
-                <Globe2 className="h-4 w-4 text-blue-600" />
-                {copy.language}
-              </button>
-            </div>
-          </header>
-
-          <div className="relative z-10 mx-auto flex min-h-[calc(100svh-80px)] w-full max-w-2xl items-center px-4 pb-8 sm:px-8 xl:px-12">
-            <div className="w-full">
-              <div className="mb-6">
-                <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-blue-600">
+                  <div>
+                    <div className="text-sm font-black text-slate-950">PRODX POS</div>
+                    <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">Operator</div>
+                  </div>
+                </div>
+                <div className="hidden text-[11px] font-black uppercase tracking-[0.16em] text-slate-400 lg:block">
                   {copy.eyebrow}
                 </div>
-                <h2 className="text-4xl font-black tracking-[-0.035em] text-slate-950 sm:text-5xl">
-                  {copy.title}
-                </h2>
-                <p className="mt-3 max-w-xl text-base leading-7 text-slate-600">{copy.subtitle}</p>
-              </div>
+                <div className="ml-auto flex items-center gap-2">
+                  <div className="hidden h-10 items-center gap-2 rounded-xl bg-slate-100 px-3 text-xs font-black text-slate-500 sm:flex">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    {clock}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLanguage(isThai ? 'en' : 'th')}
+                    className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-blue-300 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                  >
+                    <Globe2 className="h-3.5 w-3.5 text-blue-600" />
+                    {copy.language}
+                  </button>
+                </div>
+              </header>
 
-              <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,.10)]">
-                <button
-                  type="button"
-                  onClick={() => setTerminalOpen((value) => !value)}
-                  className="flex w-full items-center justify-between gap-4 border-b border-slate-200 bg-slate-50/80 px-5 py-4 text-left sm:px-6"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${terminalReady ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {terminalReady ? <Check className="h-5 w-5" /> : <Wifi className="h-5 w-5" />}
+              <div className="flex flex-1 items-center px-5 pb-7 sm:px-8 sm:pb-10">
+                <div className="mx-auto w-full max-w-[410px]">
+                  <div className="mb-7">
+                    <div className="mb-3 text-[11px] font-black uppercase tracking-[0.18em] text-blue-600">
+                      {isThai ? 'Operator sign in' : 'Operator sign in'}
                     </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-black text-slate-900">
-                        {copy.terminal} · {terminalReady ? copy.ready : copy.setup}
+                    <h2 className="text-3xl font-black tracking-[-0.045em] text-slate-950 sm:text-[2.6rem]">
+                      {copy.title}
+                    </h2>
+                    <p className="mt-2 text-sm font-medium leading-6 text-slate-500">{copy.subtitle}</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setTerminalOpen((value) => !value)}
+                    className="mb-5 flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-slate-300 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                  >
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${terminalReady ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {terminalReady ? <Check className="h-4 w-4" /> : <Wifi className="h-4 w-4" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 text-xs font-black text-slate-900">
+                        {copy.terminal}
+                        <span className={terminalReady ? 'text-emerald-600' : 'text-amber-600'}>
+                          · {terminalReady ? copy.ready : copy.setup}
+                        </span>
                       </div>
-                      <div className="truncate text-xs font-semibold text-slate-500">
+                      <div className="mt-0.5 truncate text-[11px] font-semibold text-slate-500">
                         {terminalReady ? `${storeCode} · ${registerId}` : copy.serverNote}
                       </div>
                     </div>
-                  </div>
-                  <span className="shrink-0 text-sm font-black text-blue-700">{terminalOpen ? copy.done : copy.edit}</span>
-                </button>
+                    <span className="text-[11px] font-black text-blue-700">{terminalOpen ? copy.done : copy.edit}</span>
+                  </button>
 
-                {terminalOpen && (
-                  <div className="grid gap-3 border-b border-slate-200 bg-white p-5 sm:grid-cols-3 sm:p-6">
-                    {[
-                      { icon: Building2, label: copy.organization, value: organizationSlug, set: setOrganizationSlug },
-                      { icon: Store, label: copy.store, value: storeCode, set: setStoreCode },
-                      { icon: Monitor, label: copy.register, value: registerId, set: setRegisterId },
-                    ].map(({ icon: Icon, label, value, set }) => (
-                      <label key={label} className="block">
-                        <span className="mb-2 flex items-center gap-1.5 text-xs font-black uppercase tracking-wide text-slate-600">
-                          <Icon className="h-4 w-4" />
-                          {label}
-                        </span>
-                        <input
-                          value={value}
-                          onChange={(event) => set(event.target.value)}
-                          autoComplete="off"
-                          maxLength={256}
-                          className="h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/10"
-                        />
-                      </label>
-                    ))}
-                  </div>
-                )}
-
-                <form onSubmit={submit} className="p-5 sm:p-7">
-                  <div className="grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
-                    {[
-                      { id: 'pin' as const, icon: KeyRound, label: copy.pin },
-                      { id: 'password' as const, icon: Lock, label: copy.password },
-                    ].map(({ id, icon: Icon, label }) => (
-                      <button
-                        key={id}
-                        type="button"
-                        onClick={() => {
-                          setMode(id);
-                          setSecret('');
-                          setShowSecret(false);
-                        }}
-                        className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-black transition ${mode === id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <label className="mt-6 block">
-                    <span className="mb-2 block text-sm font-black text-slate-800">{copy.identity}</span>
-                    <span className="relative block">
-                      <UserRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                      <input
-                        value={identity}
-                        onChange={(event) => setIdentity(event.target.value)}
-                        autoComplete="username"
-                        autoCapitalize="none"
-                        spellCheck={false}
-                        maxLength={256}
-                        placeholder={copy.identityPlaceholder}
-                        className="h-14 w-full rounded-2xl border border-slate-300 bg-white pl-12 pr-4 text-base font-bold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10"
-                      />
-                    </span>
-                  </label>
-
-                  {mode === 'pin' ? (
-                    <div className="mt-6">
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="text-sm font-black text-slate-800">{copy.secretPin}</span>
-                        <span className="font-mono text-xs font-bold text-slate-400">{secret.length}/4</span>
-                      </div>
-                      <div className="mb-3 flex h-14 items-center justify-center rounded-2xl border border-slate-300 bg-slate-50">
-                        <span className="font-mono text-2xl font-black tracking-[0.65em] text-slate-900">
-                          {'•'.repeat(secret.length)}
-                          <span className="text-slate-300">{'•'.repeat(4 - secret.length)}</span>
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {['1','2','3','4','5','6','7','8','9'].map((digit) => (
-                          <button
-                            key={digit}
-                            type="button"
-                            onClick={() => addDigit(digit)}
-                            disabled={isLoading || secret.length >= 4}
-                            className="min-h-12 rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-900 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-40"
-                          >
-                            {digit}
-                          </button>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => setSecret('')}
-                          disabled={isLoading || !secret}
-                          className="min-h-12 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
-                        >
-                          {copy.clear}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addDigit('0')}
-                          disabled={isLoading || secret.length >= 4}
-                          className="min-h-12 rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-900 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-40"
-                        >
-                          0
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSecret((value) => value.slice(0, -1))}
-                          disabled={isLoading || !secret}
-                          aria-label={isThai ? 'ลบตัวเลขล่าสุด' : 'Delete last digit'}
-                          className="flex min-h-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
-                        >
-                          <Delete className="h-5 w-5" />
-                        </button>
-                      </div>
+                  {terminalOpen && (
+                    <div className="mb-5 grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-3">
+                      {[
+                        { icon: Building2, label: copy.organization, value: organizationSlug, set: setOrganizationSlug },
+                        { icon: Store, label: copy.store, value: storeCode, set: setStoreCode },
+                        { icon: Monitor, label: copy.register, value: registerId, set: setRegisterId },
+                      ].map(({ icon: Icon, label, value, set }) => (
+                        <label key={label} className="block">
+                          <span className="mb-1.5 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                            <Icon className="h-3.5 w-3.5" />
+                            {label}
+                          </span>
+                          <input
+                            value={value}
+                            onChange={(event) => set(event.target.value)}
+                            autoComplete="off"
+                            maxLength={256}
+                            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-900 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10"
+                          />
+                        </label>
+                      ))}
                     </div>
-                  ) : (
-                    <label className="mt-6 block">
-                      <span className="mb-2 block text-sm font-black text-slate-800">{copy.secretPassword}</span>
-                      <span className="relative block">
-                        <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                        <input
-                          value={secret}
-                          onChange={(event) => setSecret(event.target.value)}
-                          type={showSecret ? 'text' : 'password'}
-                          autoComplete="current-password"
-                          maxLength={256}
-                          className="h-14 w-full rounded-2xl border border-slate-300 bg-white pl-12 pr-12 text-base font-bold outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowSecret((value) => !value)}
-                          className="absolute right-1 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"
-                          aria-label={showSecret ? 'Hide password' : 'Show password'}
-                        >
-                          {showSecret ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                        </button>
-                      </span>
-                    </label>
                   )}
 
-                  <button
-                    type="submit"
-                    disabled={!canSubmit || isLoading}
-                    className="mt-7 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-base font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-600/20 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
-                  >
-                    {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
-                    {isLoading ? copy.signingIn : copy.signIn}
-                  </button>
-                </form>
-              </div>
+                  <form onSubmit={submit}>
+                    <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+                      {[
+                        { id: 'pin' as const, icon: KeyRound, label: copy.pin },
+                        { id: 'password' as const, icon: Lock, label: copy.password },
+                      ].map(({ id, icon: Icon, label }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => {
+                            setMode(id);
+                            setSecret('');
+                            setShowSecret(false);
+                          }}
+                          className={`flex h-11 items-center justify-center gap-2 rounded-lg text-xs font-black transition ${mode === id ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
 
-              <div className="mt-4 flex items-start gap-2 rounded-2xl border border-slate-200 bg-white/70 p-4 text-xs font-semibold leading-5 text-slate-500">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                <span>{copy.serverNote}</span>
+                    <label className="mt-5 block">
+                      <span className="mb-2 block text-xs font-black text-slate-700">{copy.identity}</span>
+                      <span className="relative block">
+                        <UserRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                          value={identity}
+                          onChange={(event) => setIdentity(event.target.value)}
+                          autoComplete="username"
+                          autoCapitalize="none"
+                          spellCheck={false}
+                          maxLength={256}
+                          placeholder={copy.identityPlaceholder}
+                          className="h-13 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/10"
+                        />
+                      </span>
+                    </label>
+
+                    {mode === 'pin' ? (
+                      <div className="mt-5">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-xs font-black text-slate-700">{copy.secretPin}</span>
+                          <span className="font-mono text-[10px] font-bold text-slate-400">{secret.length}/4</span>
+                        </div>
+                        <div className="mb-3 flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50">
+                          <span className="font-mono text-xl font-black tracking-[0.55em] text-slate-950">
+                            {'•'.repeat(secret.length)}
+                            <span className="text-slate-300">{'•'.repeat(4 - secret.length)}</span>
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {['1','2','3','4','5','6','7','8','9'].map((digit) => (
+                            <button
+                              key={digit}
+                              type="button"
+                              onClick={() => addDigit(digit)}
+                              disabled={isLoading || secret.length >= 4}
+                              className="h-11 rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-900 shadow-sm transition hover:-translate-y-px hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-40"
+                            >
+                              {digit}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setSecret('')}
+                            disabled={isLoading || !secret}
+                            className="h-11 rounded-xl border border-slate-200 bg-slate-50 text-[10px] font-black text-slate-500 transition hover:bg-slate-100 disabled:opacity-40"
+                          >
+                            {copy.clear}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => addDigit('0')}
+                            disabled={isLoading || secret.length >= 4}
+                            className="h-11 rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-900 shadow-sm transition hover:-translate-y-px hover:border-blue-300 hover:bg-blue-50 disabled:opacity-40"
+                          >
+                            0
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSecret((value) => value.slice(0, -1))}
+                            disabled={isLoading || !secret}
+                            aria-label={isThai ? 'ลบตัวเลขล่าสุด' : 'Delete last digit'}
+                            className="flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 disabled:opacity-40"
+                          >
+                            <Delete className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label className="mt-5 block">
+                        <span className="mb-2 block text-xs font-black text-slate-700">{copy.secretPassword}</span>
+                        <span className="relative block">
+                          <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                          <input
+                            value={secret}
+                            onChange={(event) => setSecret(event.target.value)}
+                            type={showSecret ? 'text' : 'password'}
+                            autoComplete="current-password"
+                            maxLength={256}
+                            className="h-13 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-12 text-sm font-bold outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowSecret((value) => !value)}
+                            className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+                            aria-label={showSecret ? 'Hide password' : 'Show password'}
+                          >
+                            {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </span>
+                      </label>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={!canSubmit || isLoading}
+                      className="group mt-6 flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-black text-white shadow-[0_12px_30px_rgba(15,23,42,.20)] transition hover:-translate-y-px hover:bg-blue-700 hover:shadow-blue-700/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-600/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+                    >
+                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />}
+                      {isLoading ? copy.signingIn : copy.signIn}
+                    </button>
+                  </form>
+
+                  <div className="mt-5 flex items-center justify-center gap-2 text-[10px] font-bold text-slate-400">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                    <span>{copy.security}</span>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
     </main>
   );
