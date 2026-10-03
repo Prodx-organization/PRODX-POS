@@ -75,7 +75,7 @@ PY
           test -n "$asset"
           curl --fail --silent --show-error --location --max-time 30 "https://prodx-pos-test-production.up.railway.app$asset" -o "$bundle_file"
           grep -q "Server verified" "$bundle_file"
-          grep -q "Ready for your shift" "$bundle_file"
+          grep -q "Operator Access" "$bundle_file"
           rm -f "$html_file" "$bundle_file"
 
       - name: Record deployed source
