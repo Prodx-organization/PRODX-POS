@@ -336,7 +336,7 @@ export const LoginScreen: React.FC = () => {
                           spellCheck={false}
                           maxLength={256}
                           placeholder={copy.identityPlaceholder}
-                          className="h-13 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/10"
+                          className="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/10"
                         />
                       </span>
                     </label>
@@ -403,7 +403,7 @@ export const LoginScreen: React.FC = () => {
                             type={showSecret ? 'text' : 'password'}
                             autoComplete="current-password"
                             maxLength={256}
-                            className="h-13 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-12 text-sm font-bold outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/10"
+                            className="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-12 text-sm font-bold outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/10"
                           />
                           <button
                             type="button"
@@ -420,7 +420,7 @@ export const LoginScreen: React.FC = () => {
                     <button
                       type="submit"
                       disabled={!canSubmit || isLoading}
-                      className="group mt-6 flex h-13 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-black text-white shadow-[0_12px_30px_rgba(15,23,42,.20)] transition hover:-translate-y-px hover:bg-blue-700 hover:shadow-blue-700/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-600/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+                      className="group mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-black text-white shadow-[0_12px_30px_rgba(15,23,42,.20)] transition hover:-translate-y-px hover:bg-blue-700 hover:shadow-blue-700/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-600/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
                     >
                       {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />}
                       {isLoading ? copy.signingIn : copy.signIn}
