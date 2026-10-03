@@ -42,15 +42,14 @@ jobs:
       - name: Install Railway CLI
         run: npm install --global @railway/cli
 
-      - name: Connect frontend source to authoritative repository
-        run: |
-          set -euo pipefail
-          railway service source connect             --project "${RAILWAY_PROJECT_ID}"             --environment "${RAILWAY_ENVIRONMENT}"             --service "${RAILWAY_SERVICE}"             --repo "Prodx-organization/PRODX-POS"             --branch "main"             --json
-
       - name: Deploy exact checked-out main source
         run: |
           set -euo pipefail
-          railway up             --project "${RAILWAY_PROJECT_ID}"             --environment "${RAILWAY_ENVIRONMENT}"             --service "${RAILWAY_SERVICE}"             --ci
+          railway up \
+            --project "${RAILWAY_PROJECT_ID}" \
+            --environment "${RAILWAY_ENVIRONMENT}" \
+            --service "${RAILWAY_SERVICE}" \
+            --ci
 
       - name: Record deployed source
         run: |
