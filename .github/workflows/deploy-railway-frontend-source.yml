@@ -8,6 +8,7 @@ on:
       - ".github/workflows/deploy-railway-frontend-source.yml"
       - "public/healthz"
       - "vite.config.ts"
+      - "src/modules/auth/LoginScreen.tsx"
 
 permissions:
   contents: read
