@@ -38,7 +38,7 @@ const makeDb = async (pin = '1234'): Promise<TransactionalSqlExecutor> => {
       return { rows: [{ id }] };
     }
     if (sql.includes('FROM prodx_timeclock_operations')) {
-      const key = String(params[2]);
+      const key = String(params[4]);
       const op = operations.get(key);
       return { rows: op ? [op] : [] };
     }
