@@ -141,7 +141,49 @@ export const LoginScreen: React.FC = () => {
       );
     update();
     const timer = window.setInterval(update, 30_000);
-    return (
+    return () => window.clearInterval(timer);
+  }, [isThai]);
+
+  const persistTerminal = () => {
+    window.localStorage.setItem(STORAGE.organization, organizationSlug.trim());
+    window.localStorage.setItem(STORAGE.store, storeCode.trim());
+    window.localStorage.setItem(STORAGE.register, registerId.trim());
+  };
+
+  const submit = async (event?: React.FormEvent) => {
+    event?.preventDefault();
+    if (isLoading) return;
+
+    if (!terminalReady || !identity.trim() || !secret) {
+      setTerminalOpen(true);
+      addToast({ title: copy.setup, message: copy.required, type: 'error' });
+      return;
+    }
+    if (mode === 'pin' && !/^\d{4}$/.test(secret)) {
+      addToast({ title: copy.secretPin, message: copy.invalidPin, type: 'error' });
+      return;
+    }
+
+    try {
+      persistTerminal();
+      await login({
+        organizationSlug: organizationSlug.trim(),
+        storeCode: storeCode.trim(),
+        registerId: registerId.trim(),
+        emailOrPin: identity.trim(),
+        passwordOrPin: secret,
+      });
+    } catch {
+      setSecret('');
+      addToast({ title: copy.title, message: copy.failed, type: 'error' });
+    }
+  };
+
+  const addDigit = (digit: string) => {
+    if (secret.length < 4) setSecret((value) => value + digit);
+  };
+
+  return (
     <main className="relative min-h-[100svh] overflow-hidden bg-[#070b12] text-slate-950">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-24 -top-32 h-[34rem] w-[34rem] rounded-full bg-blue-600/20 blur-[120px]" />
