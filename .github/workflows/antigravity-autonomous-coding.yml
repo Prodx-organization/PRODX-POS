@@ -59,7 +59,7 @@ jobs:
           test "$head_repo" = "$REPO"
           head_ref="$(jq -r '.headRefName' <<<"$metadata")"
           case "$head_ref" in
-            antigravity/*|fix/p0-*|fix/ci-gemini-trust-p0-branches-current-main|codex/production-readiness-idempotency-race|chore/github-hosted-gemini-runtime|fix/production-shift-screen-boundary|feat/inventory-production-write-boundary) ;;
+            antigravity/*|fix/p0-*|fix/ci-gemini-trust-p0-branches-current-main|codex/production-readiness-idempotency-race|chore/github-hosted-gemini-runtime|fix/production-shift-screen-boundary|feat/inventory-production-write-boundary|fix/add-timeclock-to-trusted-branches|feat/timeclock-production-wiring-v2|fix/p0-login-security-ux) ;;
             *) echo "Refusing autonomous execution on untrusted branch: $head_ref" >&2; exit 1 ;;
           esac
           head_sha="$(jq -r '.headRefOid' <<<"$metadata")"
@@ -152,11 +152,27 @@ jobs:
           fi
           echo "AGY_START" >> gemini-auth-state.txt
           set +e
-          agy --model gemini-3.8-flash --effort medium -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
-          agy_rc=$?
+          AGY_AUTH_STATUS=failed
+          for model in gemini-3.8-flash gemini-3.7-flash-medium gemini-3.7-flash-low gemini-3.6-flash-low; do
+            echo "Trying Antigravity auth model: $model"
+            rm -f auth-check.json
+            agy --model "$model" --effort medium -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --output-format json --print-timeout 3m > auth-check.json
+            agy_rc=$?
+            if [ "$agy_rc" -eq 0 ] && jq -e '.status == "SUCCESS" and (.response | contains("PRODX_AUTONOMOUS_AUTH_OK"))' auth-check.json >/dev/null 2>&1; then
+              AGY_AUTH_STATUS=pass
+              echo "AGY_MODEL=$model" >> "$GITHUB_ENV"
+              echo "AGY_AUTH_STATUS=pass" >> "$GITHUB_ENV"
+              echo "AGY_PASS model=$model" >> gemini-auth-state.txt
+              break
+            fi
+            echo "AGY model $model unavailable (exit $agy_rc); trying fallback."
+          done
           set -e
-          if [ "$agy_rc" -ne 0 ]; then echo "AGY_FAIL" >> gemini-auth-state.txt; echo "Antigravity Gemini provider smoke: FAIL (exit $agy_rc)"; echo "AGY_AUTH_STATUS=failed" >> "$GITHUB_ENV"; exit "$agy_rc"; fi
-          if jq -e '.status == "SUCCESS" and (.response | contains("PRODX_AUTONOMOUS_AUTH_OK"))' auth-check.json >/dev/null; then echo "AGY_PASS" >> gemini-auth-state.txt; echo "Antigravity Gemini provider smoke: PASS"; echo "AGY_AUTH_STATUS=pass" >> "$GITHUB_ENV"; else echo "Antigravity Gemini provider smoke: FAIL (unexpected response)"; echo "AGY_AUTH_STATUS=bad_response" >> "$GITHUB_ENV"; exit 1; fi
+          if [ "$AGY_AUTH_STATUS" != "pass" ]; then
+            echo "AGY_FAIL" >> gemini-auth-state.txt
+            echo "AGY_AUTH_STATUS=failed" >> "$GITHUB_ENV"
+            exit 1
+          fi
           if [ "$gemini_api_status" != "direct_api_pass" ]; then echo "Direct Gemini API gate: FAIL; keeping executor blocked even though AGY smoke passed"; exit 1; fi
 
       - name: Prepare autonomous task contract
@@ -236,7 +252,7 @@ jobs:
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
 
           # GitHub-hosted runner is ephemeral; validation uses the API-key-compatible Gemini model. We deliberately do not use --dangerously-skip-permissions.
-          agy --model gemini-3.8-flash --effort medium -p "$(cat autonomous-task.md)"             --mode accept-edits             --sandbox             --output-format stream-json             --print-timeout 35m             > agy-run.ndjson
+          agy --model "${AGY_MODEL:-gemini-3.8-flash}" --effort medium -p "$(cat autonomous-task.md)"             --mode accept-edits             --sandbox             --output-format stream-json             --print-timeout 35m             > agy-run.ndjson
 
           jq -s 'map(select(.event=="result") | .result) | last' agy-run.ndjson > agy-result.json
           jq -e '.status == "SUCCESS"' agy-result.json >/dev/null
@@ -251,7 +267,7 @@ jobs:
           fi
 
       - name: Publish executor report
-        if: always()
+        if: always() && steps.pr.outputs.number != ''
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
