@@ -53,6 +53,19 @@ jobs:
             --service "${RAILWAY_SERVICE}" \
             --ci
 
+      - name: Smoke test public frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://prodx-pos-test-production.up.railway.app/"
+          html="$(curl --fail --silent --show-error --location --max-time 30 "$url")"
+          printf '%s' "$html" | grep -q "PRODX POS"
+          asset="$(printf '%s' "$html" | grep -oE 'src="/assets/[^"]+\.js"' | head -n 1 | cut -d'"' -f2)"
+          test -n "$asset"
+          bundle="$(curl --fail --silent --show-error --location --max-time 30 "https://prodx-pos-test-production.up.railway.app$asset")"
+          printf '%s' "$bundle" | grep -q "Server verified"
+          printf '%s' "$bundle" | grep -q "Ready for your shift"
+
       - name: Record deployed source
         run: |
           echo "GitHub source commit deployed:"
