@@ -44,9 +44,10 @@ export const AccountPasswordModal: React.FC<AccountPasswordModalProps> = ({
 }) => {
   const lang = rawLang === 'th' ? 'th' : 'en';
   const { addToast } = useToast();
-  const staffList = getStoredStaffDirectory();
-  const storedPins = getStoredStaffPins();
-  const storedPasswords = getStoredStaffPasswords();
+  const localManagementEnabled = import.meta.env.DEV;
+  const staffList = localManagementEnabled ? getStoredStaffDirectory() : [];
+  const storedPins = localManagementEnabled ? getStoredStaffPins() : {};
+  const storedPasswords = localManagementEnabled ? getStoredStaffPasswords() : {};
 
   const [selectedUserId, setSelectedUserId] = useState<string>(
     preselectedUserId || staffList[0]?.id || 'usr-admin-alex'
@@ -114,6 +115,14 @@ export const AccountPasswordModal: React.FC<AccountPasswordModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!localManagementEnabled) {
+      addToast({
+        title: lang === 'th' ? 'ต้องใช้ระบบจัดการบัญชีบนเซิร์ฟเวอร์' : 'Server account management required',
+        message: lang === 'th' ? 'การเปลี่ยนรหัสผ่านใน production ต้องดำเนินการผ่าน API ที่ตรวจสอบสิทธิ์' : 'Production password changes must use an authorized server API.',
+        type: 'error',
+      });
+      return;
+    }
     if (!selectedUser) return;
 
     // Verify the selected account's persisted credential only. Never accept a universal fallback or bypass.
