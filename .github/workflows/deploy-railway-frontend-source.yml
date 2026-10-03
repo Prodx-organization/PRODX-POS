@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - ".github/workflows/deploy-railway-frontend-source.yml"
+      - "public/healthz"
 
 permissions:
   contents: read
