@@ -1,0 +1,82 @@
+name: Deploy Railway Frontend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/modules/auth/LoginScreen.tsx"
+      - "public/healthz"
+      - "vite.config.ts"
+      - ".github/workflows/deploy-railway-frontend.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: railway-frontend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy authoritative frontend to Railway
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_PROJECT_ID: ccb77b99-9bca-4b59-bd16-debe0d8d3431
+      RAILWAY_ENVIRONMENT: production
+      RAILWAY_SERVICE: prodx-pos-test
+      PUBLIC_URL: https://prodx-pos-test-production.up.railway.app
+    steps:
+      - name: Checkout authoritative main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+
+      - name: Require Railway credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${RAILWAY_TOKEN:-}" || {
+            echo "RAILWAY_TOKEN GitHub Actions secret is required."
+            exit 1
+          }
+
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli
+
+      - name: Deploy exact checked-out source
+        run: |
+          set -euo pipefail
+          railway up \
+            --project "${RAILWAY_PROJECT_ID}" \
+            --environment "${RAILWAY_ENVIRONMENT}" \
+            --service "${RAILWAY_SERVICE}" \
+            --ci
+
+      - name: Smoke test public frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          html_file="$(mktemp)"
+          bundle_file="$(mktemp)"
+          curl --fail --silent --show-error --location --max-time 30 "${PUBLIC_URL}/" -o "${html_file}"
+          grep -q "PRODX POS" "${html_file}"
+          asset="$(python3 - "${html_file}" <<'PY'
+import re, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+match = re.search(r'src="(/assets/[^"]+\\.js)"', html)
+if not match:
+    raise SystemExit(1)
+print(match.group(1))
+PY
+          )"
+          test -n "${asset}"
+          curl --fail --silent --show-error --location --max-time 30 "${PUBLIC_URL}${asset}" -o "${bundle_file}"
+          grep -q "Operator Access" "${bundle_file}"
+          grep -q "Secure. Controlled. Auditable." "${bundle_file}"
+          rm -f "${html_file}" "${bundle_file}"
+
+      - name: Record deployed source
+        run: git rev-parse HEAD
