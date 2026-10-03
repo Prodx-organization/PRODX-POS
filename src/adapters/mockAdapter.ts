@@ -740,7 +740,7 @@ export class MockAuthApi implements IAuthApi {
     return session;
   }
 
-  async logout(): Promise<void> {
+  async logout(_token: string): Promise<void> {
     await delay(50);
     console.info(`${LOG_PREFIX} User logged out`);
   }
@@ -779,7 +779,7 @@ export class MockAuthApi implements IAuthApi {
     };
   }
 
-  async getStores(_orgSlug: string): Promise<readonly Store[]> {
+  async getStores(_orgSlug: string, _token: string): Promise<readonly Store[]> {
     await delay(40);
     return SEED_STORES;
   }
