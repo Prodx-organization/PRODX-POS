@@ -1,172 +1,124 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   Building2,
+  Check,
   CheckCircle2,
   Clock3,
   Delete,
   Eye,
   EyeOff,
-  Globe,
+  Globe2,
   KeyRound,
   Loader2,
   Lock,
+  Monitor,
   ShieldCheck,
   Store,
-  User,
+  UserRound,
   Wifi,
-} from "lucide-react";
-import { ProdxLogo } from "../../components/common/ProdxLogo";
-import { useAuth } from "../../context/AuthContext";
-import { useLanguage } from "../../context/LanguageContext";
-import { useToast } from "../../context/ToastContext";
-import { PosTerminalIllustration } from "./PosTerminalIllustration";
+} from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
+import { useToast } from '../../context/ToastContext';
 
-type AuthMode = "pin" | "password";
+type AuthMode = 'pin' | 'password';
 
-const TERMINAL_STORAGE_KEYS = {
-  organization: "prodx.terminal.organization",
-  store: "prodx.terminal.store",
-  register: "prodx.terminal.register",
+const STORAGE = {
+  organization: 'prodx.terminal.organization',
+  store: 'prodx.terminal.store',
+  register: 'prodx.terminal.register',
 } as const;
 
-const initialTerminalValue = (
-  storageKey: string,
-  environmentValue?: string,
-): string => {
-  if (typeof window === "undefined") return environmentValue?.trim() ?? "";
-  return (
-    window.localStorage.getItem(storageKey)?.trim() ||
-    environmentValue?.trim() ||
-    ""
-  );
+const readTerminalValue = (key: string, env?: string) => {
+  if (typeof window === 'undefined') return env?.trim() ?? '';
+  return window.localStorage.getItem(key)?.trim() || env?.trim() || '';
 };
 
 export const LoginScreen: React.FC = () => {
   const { login, isLoading } = useAuth();
   const { language, setLanguage } = useLanguage();
   const { addToast } = useToast();
-  const isThai = language === "th";
+  const isThai = language === 'th';
 
-  const [authMode, setAuthMode] = useState<AuthMode>("pin");
+  const [mode, setMode] = useState<AuthMode>('pin');
   const [organizationSlug, setOrganizationSlug] = useState(() =>
-    initialTerminalValue(
-      TERMINAL_STORAGE_KEYS.organization,
-      import.meta.env.VITE_PRODX_ORGANIZATION_SLUG,
-    ),
+    readTerminalValue(STORAGE.organization, import.meta.env.VITE_PRODX_ORGANIZATION_SLUG),
   );
   const [storeCode, setStoreCode] = useState(() =>
-    initialTerminalValue(
-      TERMINAL_STORAGE_KEYS.store,
-      import.meta.env.VITE_PRODX_STORE_CODE,
-    ),
+    readTerminalValue(STORAGE.store, import.meta.env.VITE_PRODX_STORE_CODE),
   );
   const [registerId, setRegisterId] = useState(() =>
-    initialTerminalValue(
-      TERMINAL_STORAGE_KEYS.register,
-      import.meta.env.VITE_PRODX_REGISTER_ID,
-    ),
+    readTerminalValue(STORAGE.register, import.meta.env.VITE_PRODX_REGISTER_ID),
   );
-  const [identity, setIdentity] = useState("");
-  const [secret, setSecret] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [terminalSettingsOpen, setTerminalSettingsOpen] = useState(
+  const [identity, setIdentity] = useState('');
+  const [secret, setSecret] = useState('');
+  const [showSecret, setShowSecret] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(
     !organizationSlug || !storeCode || !registerId,
   );
-  const [currentTime, setCurrentTime] = useState("");
-
-  useEffect(() => {
-    const updateClock = () => {
-      setCurrentTime(
-        new Intl.DateTimeFormat(isThai ? "th-TH" : "en-GB", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }).format(new Date()),
-      );
-    };
-    updateClock();
-    const timer = window.setInterval(updateClock, 30_000);
-    return () => window.clearInterval(timer);
-  }, [isThai]);
+  const [clock, setClock] = useState('');
 
   const copy = useMemo(
     () =>
       isThai
         ? {
-            title: "เข้าสู่ระบบ",
-            subtitle: "เริ่มกะการขายอย่างปลอดภัยด้วยบัญชีของคุณ",
-            pinTab: "PIN พนักงาน",
-            passwordTab: "รหัสผ่าน",
-            identity: "รหัสพนักงานหรืออีเมล",
-            identityPlaceholder: "เช่น cashier@prodx.co",
-            pin: "รหัส PIN 4 หลัก",
-            password: "รหัสผ่าน",
-            signIn: "เข้าสู่ระบบ",
-            signingIn: "กำลังตรวจสอบ...",
-            terminal: "ข้อมูลเครื่องขาย",
-            terminalReady: "เครื่องพร้อมใช้งาน",
-            terminalSetup: "ต้องตั้งค่าเครื่อง",
-            organization: "องค์กร",
-            store: "สาขา",
-            register: "เครื่องขาย",
-            missingTerminal: "กรุณากรอกข้อมูลองค์กร สาขา และเครื่องขายให้ครบ",
-            missingCredentials: "กรุณากรอกข้อมูลเข้าสู่ระบบให้ครบ",
-            invalidPin: "กรุณากรอก PIN 4 หลัก",
-            authFailed:
-              "เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง",
-            securityNote:
-              "ระบบจะตรวจสอบบัญชี สิทธิ์สาขา และสถานะเครื่องกับเซิร์ฟเวอร์",
-            heroTitle: "ขายได้เร็วขึ้น\nควบคุมได้มั่นใจขึ้น",
-            heroBody:
-              "PRODX POS เชื่อมการขาย สินค้าคงคลัง และการปฏิบัติงานไว้ในระบบเดียวที่ปลอดภัย",
-            serverVerified: "ตรวจสอบสิทธิ์กับเซิร์ฟเวอร์",
-            touchReady: "ออกแบบสำหรับจอสัมผัส",
-            sessionProtected: "เซสชันได้รับการปกป้อง",
-            languageLabel: "เปลี่ยนเป็นภาษาอังกฤษ",
-            openTerminal: "แก้ไขข้อมูลเครื่อง",
-            closeTerminal: "ซ่อนข้อมูลเครื่อง",
-            clearPin: "ล้าง PIN",
-            deleteDigit: "ลบตัวเลขล่าสุด",
-            showPassword: "แสดงรหัสผ่าน",
-            hidePassword: "ซ่อนรหัสผ่าน",
+            eyebrow: 'PRODX POS · OPERATOR CONSOLE',
+            title: 'พร้อมเริ่มกะ',
+            subtitle: 'เข้าสู่ระบบเพื่อเปิดเครื่องขายและเริ่มงานของคุณ',
+            pin: 'PIN พนักงาน',
+            password: 'รหัสผ่าน',
+            identity: 'รหัสพนักงานหรืออีเมล',
+            identityPlaceholder: 'เช่น cashier@prodx.co',
+            secretPin: 'PIN 4 หลัก',
+            secretPassword: 'รหัสผ่าน',
+            signIn: 'เข้าสู่ระบบ',
+            signingIn: 'กำลังตรวจสอบสิทธิ์…',
+            terminal: 'เครื่องขาย',
+            ready: 'พร้อมใช้งาน',
+            setup: 'ต้องตั้งค่า',
+            organization: 'องค์กร',
+            store: 'สาขา',
+            register: 'Register',
+            edit: 'แก้ไข',
+            done: 'เสร็จสิ้น',
+            security: 'สิทธิ์การใช้งานตรวจสอบโดยเซิร์ฟเวอร์',
+            verified: 'Server verified',
+            clear: 'ล้าง',
+            serverNote: 'บัญชี · สาขา · เครื่องขาย จะถูกตรวจสอบก่อนเปิดเซสชัน',
+            failed: 'เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง',
+            required: 'กรุณากรอกข้อมูลให้ครบ',
+            invalidPin: 'PIN ต้องเป็นตัวเลข 4 หลัก',
+            language: 'English',
           }
         : {
-            title: "Welcome back",
-            subtitle: "Start your shift securely with your account",
-            pinTab: "Staff PIN",
-            passwordTab: "Password",
-            identity: "Employee ID or email",
-            identityPlaceholder: "e.g. cashier@prodx.co",
-            pin: "4-digit PIN",
-            password: "Password",
-            signIn: "Sign in",
-            signingIn: "Verifying...",
-            terminal: "Terminal details",
-            terminalReady: "Terminal ready",
-            terminalSetup: "Terminal setup required",
-            organization: "Organization",
-            store: "Store",
-            register: "Register",
-            missingTerminal:
-              "Enter the organization, store, and register details.",
-            missingCredentials: "Enter your account details to continue.",
-            invalidPin: "Enter a 4-digit PIN.",
-            authFailed: "Sign-in failed. Check your details and try again.",
-            securityNote:
-              "The server verifies your account, store access, and terminal status.",
-            heroTitle: "Move faster.\nStay in control.",
-            heroBody:
-              "PRODX POS brings sales, inventory, and store operations together in one secure workspace.",
-            serverVerified: "Server-verified access",
-            touchReady: "Touch-first workflow",
-            sessionProtected: "Protected sessions",
-            languageLabel: "เปลี่ยนเป็นภาษาไทย",
-            openTerminal: "Edit terminal details",
-            closeTerminal: "Hide terminal details",
-            clearPin: "Clear PIN",
-            deleteDigit: "Delete last digit",
-            showPassword: "Show password",
-            hidePassword: "Hide password",
+            eyebrow: 'PRODX POS · OPERATOR CONSOLE',
+            title: 'Ready for your shift',
+            subtitle: 'Sign in to open this register and start operating.',
+            pin: 'Staff PIN',
+            password: 'Password',
+            identity: 'Employee ID or email',
+            identityPlaceholder: 'e.g. cashier@prodx.co',
+            secretPin: '4-digit PIN',
+            secretPassword: 'Password',
+            signIn: 'Sign in',
+            signingIn: 'Verifying access…',
+            terminal: 'Terminal',
+            ready: 'Ready',
+            setup: 'Setup required',
+            organization: 'Organization',
+            store: 'Store',
+            register: 'Register',
+            edit: 'Edit',
+            done: 'Done',
+            security: 'Access is verified by the server',
+            verified: 'Server verified',
+            clear: 'Clear',
+            serverNote: 'Account · store · terminal are checked before a session opens.',
+            failed: 'Sign-in failed. Check your details and try again.',
+            required: 'Complete the required fields.',
+            invalidPin: 'PIN must contain exactly 4 digits.',
+            language: 'ไทย',
           },
     [isThai],
   );
@@ -177,58 +129,43 @@ export const LoginScreen: React.FC = () => {
   const canSubmit =
     terminalReady &&
     Boolean(identity.trim()) &&
-    (authMode === "pin" ? /^\d{4}$/.test(secret) : Boolean(secret));
+    (mode === 'pin' ? /^\d{4}$/.test(secret) : Boolean(secret));
 
-  const changeMode = (mode: AuthMode) => {
-    setAuthMode(mode);
-    setSecret("");
-    setShowPassword(false);
+  useEffect(() => {
+    const update = () =>
+      setClock(
+        new Intl.DateTimeFormat(isThai ? 'th-TH' : 'en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(new Date()),
+      );
+    update();
+    const timer = window.setInterval(update, 30_000);
+    return () => window.clearInterval(timer);
+  }, [isThai]);
+
+  const persistTerminal = () => {
+    window.localStorage.setItem(STORAGE.organization, organizationSlug.trim());
+    window.localStorage.setItem(STORAGE.store, storeCode.trim());
+    window.localStorage.setItem(STORAGE.register, registerId.trim());
   };
 
-  const updatePin = (value: string) => {
-    setSecret(value.replace(/\D/g, "").slice(0, 4));
-  };
-
-  const persistTerminalIdentity = () => {
-    window.localStorage.setItem(
-      TERMINAL_STORAGE_KEYS.organization,
-      organizationSlug.trim(),
-    );
-    window.localStorage.setItem(TERMINAL_STORAGE_KEYS.store, storeCode.trim());
-    window.localStorage.setItem(
-      TERMINAL_STORAGE_KEYS.register,
-      registerId.trim(),
-    );
-  };
-
-  const submitLogin = async (event?: React.FormEvent) => {
+  const submit = async (event?: React.FormEvent) => {
     event?.preventDefault();
     if (isLoading) return;
 
-    if (!terminalReady) {
-      setTerminalSettingsOpen(true);
-      addToast({
-        title: copy.terminalSetup,
-        message: copy.missingTerminal,
-        type: "error",
-      });
+    if (!terminalReady || !identity.trim() || !secret) {
+      setTerminalOpen(true);
+      addToast({ title: copy.setup, message: copy.required, type: 'error' });
       return;
     }
-    if (!identity.trim() || !secret) {
-      addToast({
-        title: copy.title,
-        message: copy.missingCredentials,
-        type: "error",
-      });
-      return;
-    }
-    if (authMode === "pin" && !/^\d{4}$/.test(secret)) {
-      addToast({ title: copy.pin, message: copy.invalidPin, type: "error" });
+    if (mode === 'pin' && !/^\d{4}$/.test(secret)) {
+      addToast({ title: copy.secretPin, message: copy.invalidPin, type: 'error' });
       return;
     }
 
     try {
-      persistTerminalIdentity();
+      persistTerminal();
       await login({
         organizationSlug: organizationSlug.trim(),
         storeCode: storeCode.trim(),
@@ -237,241 +174,191 @@ export const LoginScreen: React.FC = () => {
         passwordOrPin: secret,
       });
     } catch {
-      setSecret("");
-      addToast({ title: copy.title, message: copy.authFailed, type: "error" });
+      setSecret('');
+      addToast({ title: copy.title, message: copy.failed, type: 'error' });
     }
   };
 
+  const addDigit = (digit: string) => {
+    if (secret.length < 4) setSecret((value) => value + digit);
+  };
+
   return (
-    <main
-      className="min-h-[100svh] bg-[#f8fafc] text-slate-950 selection:bg-blue-600 selection:text-white"
-      style={{ colorScheme: "light" }}
-    >
-      <div className="grid min-h-[100svh] lg:grid-cols-[minmax(360px,0.84fr)_minmax(560px,1.16fr)]">
-        <section className="relative hidden overflow-hidden border-r border-slate-800 bg-slate-950 px-10 py-10 text-white lg:flex lg:flex-col xl:px-14 xl:py-12">
+    <main className="min-h-[100svh] overflow-hidden bg-slate-950 text-slate-950">
+      <div className="min-h-[100svh] lg:grid lg:grid-cols-[0.72fr_1.28fr]">
+        <section className="relative hidden min-h-[100svh] overflow-hidden border-r border-white/10 lg:flex lg:flex-col">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(37,99,235,.42),transparent_34%),radial-gradient(circle_at_85%_80%,rgba(6,182,212,.18),transparent_30%),linear-gradient(145deg,#020617,#0f172a_55%,#111827)]" />
           <div
-            className="pointer-events-none absolute inset-0 opacity-[0.08]"
+            className="absolute inset-0 opacity-[0.07]"
             style={{
               backgroundImage:
-                "radial-gradient(circle at 1px 1px, rgba(148,163,184,.8) 1px, transparent 0)",
-              backgroundSize: "28px 28px",
+                'linear-gradient(rgba(255,255,255,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.35) 1px,transparent 1px)',
+              backgroundSize: '44px 44px',
             }}
           />
-          <div className="pointer-events-none absolute -left-24 top-1/3 h-72 w-72 rounded-full bg-blue-600/20 blur-3xl" />
-          <div className="pointer-events-none absolute -right-28 bottom-16 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
 
-          <header className="relative z-10 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-xl font-black shadow-lg shadow-blue-950/40">
-              P
-            </div>
-            <div>
-              <div className="text-lg font-black tracking-tight">PRODX POS</div>
-              <div className="text-sm font-medium text-slate-400">
-                Retail operating system
+          <div className="relative z-10 flex h-full flex-col p-10 xl:p-14">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 text-xl font-black shadow-2xl shadow-blue-950/60">
+                P
+              </div>
+              <div>
+                <div className="text-lg font-black tracking-tight text-white">PRODX POS</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Retail Operating System
+                </div>
               </div>
             </div>
-          </header>
 
-          <div className="relative z-10 my-auto py-10">
-            <div className="mx-auto max-w-lg">
-              <PosTerminalIllustration
-                className="mx-auto mb-3 max-w-[420px]"
-                size="lg"
-              />
-              <h1 className="whitespace-pre-line text-4xl font-black leading-[1.08] tracking-tight xl:text-5xl">
-                {copy.heroTitle}
+            <div className="my-auto max-w-xl py-12">
+              <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-300">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,.8)]" />
+                {copy.verified}
+              </div>
+
+              <h1 className="max-w-lg text-5xl font-black leading-[1.02] tracking-[-0.04em] text-white xl:text-6xl">
+                Run the store.
+                <span className="block text-blue-400">Keep control.</span>
               </h1>
-              <p className="mt-5 max-w-md text-base leading-7 text-slate-300">
-                {copy.heroBody}
+
+              <p className="mt-6 max-w-lg text-base leading-7 text-slate-300">
+                {isThai
+                  ? 'พื้นที่ทำงานเดียวสำหรับการขาย สินค้าคงคลัง ลูกค้า และการปฏิบัติงานของสาขา'
+                  : 'One focused workspace for sales, inventory, customers, and daily store operations.'}
               </p>
-              <ul className="mt-8 grid gap-3 text-sm font-semibold text-slate-200 xl:grid-cols-2">
+
+              <div className="mt-10 grid max-w-lg gap-3 sm:grid-cols-3">
                 {[
-                  copy.serverVerified,
-                  copy.touchReady,
-                  copy.sessionProtected,
-                ].map((label) => (
-                  <li key={label} className="flex min-h-11 items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 shrink-0 text-blue-400" />
-                    <span>{label}</span>
-                  </li>
+                  { icon: ShieldCheck, label: isThai ? 'ปลอดภัย' : 'Secure' },
+                  { icon: Monitor, label: isThai ? 'Touch-first' : 'Touch-first' },
+                  { icon: Wifi, label: isThai ? 'เชื่อมต่อจริง' : 'Connected' },
+                ].map(({ icon: Icon, label }) => (
+                  <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 backdrop-blur">
+                    <Icon className="h-5 w-5 text-blue-300" />
+                    <div className="mt-3 text-sm font-bold text-white">{label}</div>
+                  </div>
                 ))}
-              </ul>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-white/10 pt-5 text-xs font-semibold text-slate-500">
+              <span>PRODX · Production Terminal</span>
+              <span className="flex items-center gap-2 text-emerald-300">
+                <CheckCircle2 className="h-4 w-4" />
+                {copy.security}
+              </span>
             </div>
           </div>
-
-          <footer className="relative z-10 flex items-center justify-between border-t border-slate-800 pt-5 text-sm text-slate-400">
-            <span>PRODX POS</span>
-            <span className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-emerald-400" />
-              Secure authentication
-            </span>
-          </footer>
         </section>
 
-        <section className="relative flex min-h-[100svh] flex-col px-4 py-4 sm:px-8 sm:py-6 lg:px-12 xl:px-16">
-          <header className="mx-auto flex w-full max-w-xl items-center justify-between">
-            <ProdxLogo variant="horizontal" size="sm" className="lg:hidden" />
+        <section className="relative min-h-[100svh] bg-slate-100">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_0%,rgba(59,130,246,.12),transparent_28%),linear-gradient(180deg,#f8fafc,#eef2f7)]" />
+
+          <header className="relative z-10 flex items-center justify-between px-5 py-5 sm:px-8 xl:px-12">
+            <div className="flex items-center gap-2 lg:hidden">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-sm font-black text-white">P</div>
+              <span className="font-black text-slate-950">PRODX POS</span>
+            </div>
             <div className="ml-auto flex items-center gap-2">
-              <div className="hidden min-h-11 items-center gap-2 rounded-lg border border-[#e2e8f0] bg-[#ffffff] px-3 text-sm font-semibold text-slate-600 sm:flex">
-                <Clock3 className="h-4 w-4" />
-                <span>{currentTime}</span>
+              <div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 shadow-sm sm:flex">
+                <Clock3 className="h-4 w-4 text-slate-400" />
+                {clock}
               </div>
               <button
                 type="button"
-                onClick={() => setLanguage(isThai ? "en" : "th")}
-                aria-label={copy.languageLabel}
-                className="flex min-h-11 items-center gap-2 rounded-lg border border-[#e2e8f0] bg-[#ffffff] px-3 text-sm font-bold text-slate-700 transition-colors hover:bg-[#f1f5f9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 motion-reduce:transition-none"
+                onClick={() => setLanguage(isThai ? 'en' : 'th')}
+                className="flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-blue-300 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
               >
-                <Globe className="h-4 w-4 text-blue-600" />
-                {isThai ? "ไทย" : "EN"}
+                <Globe2 className="h-4 w-4 text-blue-600" />
+                {copy.language}
               </button>
             </div>
           </header>
 
-          <div className="mx-auto flex w-full max-w-xl flex-1 items-center py-8">
+          <div className="relative z-10 mx-auto flex min-h-[calc(100svh-80px)] w-full max-w-2xl items-center px-4 pb-8 sm:px-8 xl:px-12">
             <div className="w-full">
-              <div className="mb-7">
-                <div className="mb-3 inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-bold text-blue-700">
-                  <ShieldCheck className="h-4 w-4" />
-                  {copy.sessionProtected}
+              <div className="mb-6">
+                <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-blue-600">
+                  {copy.eyebrow}
                 </div>
-                <h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                <h2 className="text-4xl font-black tracking-[-0.035em] text-slate-950 sm:text-5xl">
                   {copy.title}
                 </h2>
-                <p className="mt-2 text-base leading-7 text-slate-600">
-                  {copy.subtitle}
-                </p>
+                <p className="mt-3 max-w-xl text-base leading-7 text-slate-600">{copy.subtitle}</p>
               </div>
 
-              <div className="overflow-hidden rounded-xl border border-[#e2e8f0] bg-[#ffffff] shadow-[0_1px_2px_rgba(15,23,42,.05),0_12px_32px_rgba(15,23,42,.06)]">
-                <div className="border-b border-[#e2e8f0] bg-[#f8fafc]/80 px-5 py-4 sm:px-6">
-                  <button
-                    type="button"
-                    onClick={() => setTerminalSettingsOpen((open) => !open)}
-                    aria-expanded={terminalSettingsOpen}
-                    className="flex min-h-11 w-full items-center justify-between gap-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
-                  >
-                    <span className="flex min-w-0 items-center gap-3">
-                      <span
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                          terminalReady
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}
-                      >
-                        <Wifi className="h-5 w-5" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-sm font-bold text-slate-900">
-                          {terminalReady
-                            ? copy.terminalReady
-                            : copy.terminalSetup}
-                        </span>
-                        <span className="block truncate text-sm text-slate-500">
-                          {terminalReady
-                            ? `${organizationSlug} · ${storeCode} · ${registerId}`
-                            : copy.terminal}
-                        </span>
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-sm font-bold text-blue-700">
-                      {terminalSettingsOpen
-                        ? copy.closeTerminal
-                        : copy.openTerminal}
-                    </span>
-                  </button>
-
-                  {terminalSettingsOpen && (
-                    <div className="mt-4 grid gap-3 border-t border-[#e2e8f0] pt-4 sm:grid-cols-3">
-                      <label className="block">
-                        <span className="mb-1.5 flex items-center gap-1.5 text-sm font-bold text-slate-700">
-                          <Building2 className="h-4 w-4" />
-                          {copy.organization}
-                        </span>
-                        <input
-                          value={organizationSlug}
-                          onChange={(event) =>
-                            setOrganizationSlug(event.target.value)
-                          }
-                          autoComplete="off"
-                          maxLength={256}
-                          className="h-12 w-full rounded-lg border border-[#cbd5e1] bg-[#ffffff] px-3 text-base font-semibold outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1.5 flex items-center gap-1.5 text-sm font-bold text-slate-700">
-                          <Store className="h-4 w-4" />
-                          {copy.store}
-                        </span>
-                        <input
-                          value={storeCode}
-                          onChange={(event) => setStoreCode(event.target.value)}
-                          autoComplete="off"
-                          maxLength={256}
-                          className="h-12 w-full rounded-lg border border-[#cbd5e1] bg-[#ffffff] px-3 text-base font-semibold outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1.5 flex items-center gap-1.5 text-sm font-bold text-slate-700">
-                          <KeyRound className="h-4 w-4" />
-                          {copy.register}
-                        </span>
-                        <input
-                          value={registerId}
-                          onChange={(event) =>
-                            setRegisterId(event.target.value)
-                          }
-                          autoComplete="off"
-                          maxLength={256}
-                          className="h-12 w-full rounded-lg border border-[#cbd5e1] bg-[#ffffff] px-3 text-base font-semibold outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
-                        />
-                      </label>
+              <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,.10)]">
+                <button
+                  type="button"
+                  onClick={() => setTerminalOpen((value) => !value)}
+                  className="flex w-full items-center justify-between gap-4 border-b border-slate-200 bg-slate-50/80 px-5 py-4 text-left sm:px-6"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${terminalReady ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {terminalReady ? <Check className="h-5 w-5" /> : <Wifi className="h-5 w-5" />}
                     </div>
-                  )}
-                </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-black text-slate-900">
+                        {copy.terminal} · {terminalReady ? copy.ready : copy.setup}
+                      </div>
+                      <div className="truncate text-xs font-semibold text-slate-500">
+                        {terminalReady ? `${storeCode} · ${registerId}` : copy.serverNote}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-sm font-black text-blue-700">{terminalOpen ? copy.done : copy.edit}</span>
+                </button>
 
-                <form onSubmit={submitLogin} className="p-5 sm:p-6">
-                  <div
-                    className="grid grid-cols-2 gap-1 rounded-lg bg-[#f1f5f9] p-1"
-                    role="tablist"
-                    aria-label={copy.title}
-                  >
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={authMode === "pin"}
-                      onClick={() => changeMode("pin")}
-                      className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
-                        authMode === "pin"
-                          ? "bg-[#ffffff] text-blue-700 shadow-sm"
-                          : "text-slate-600 hover:text-slate-950"
-                      }`}
-                    >
-                      <KeyRound className="h-4 w-4" />
-                      {copy.pinTab}
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={authMode === "password"}
-                      onClick={() => changeMode("password")}
-                      className={`flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${
-                        authMode === "password"
-                          ? "bg-[#ffffff] text-blue-700 shadow-sm"
-                          : "text-slate-600 hover:text-slate-950"
-                      }`}
-                    >
-                      <Lock className="h-4 w-4" />
-                      {copy.passwordTab}
-                    </button>
+                {terminalOpen && (
+                  <div className="grid gap-3 border-b border-slate-200 bg-white p-5 sm:grid-cols-3 sm:p-6">
+                    {[
+                      { icon: Building2, label: copy.organization, value: organizationSlug, set: setOrganizationSlug },
+                      { icon: Store, label: copy.store, value: storeCode, set: setStoreCode },
+                      { icon: Monitor, label: copy.register, value: registerId, set: setRegisterId },
+                    ].map(({ icon: Icon, label, value, set }) => (
+                      <label key={label} className="block">
+                        <span className="mb-2 flex items-center gap-1.5 text-xs font-black uppercase tracking-wide text-slate-600">
+                          <Icon className="h-4 w-4" />
+                          {label}
+                        </span>
+                        <input
+                          value={value}
+                          onChange={(event) => set(event.target.value)}
+                          autoComplete="off"
+                          maxLength={256}
+                          className="h-12 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-600/10"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                <form onSubmit={submit} className="p-5 sm:p-7">
+                  <div className="grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1">
+                    {[
+                      { id: 'pin' as const, icon: KeyRound, label: copy.pin },
+                      { id: 'password' as const, icon: Lock, label: copy.password },
+                    ].map(({ id, icon: Icon, label }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => {
+                          setMode(id);
+                          setSecret('');
+                          setShowSecret(false);
+                        }}
+                        className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-black transition ${mode === id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {label}
+                      </button>
+                    ))}
                   </div>
 
-                  <label className="mt-5 block">
-                    <span className="mb-2 block text-sm font-bold text-slate-800">
-                      {copy.identity}
-                    </span>
+                  <label className="mt-6 block">
+                    <span className="mb-2 block text-sm font-black text-slate-800">{copy.identity}</span>
                     <span className="relative block">
-                      <User className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                      <UserRound className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                       <input
                         value={identity}
                         onChange={(event) => setIdentity(event.target.value)}
@@ -480,105 +367,82 @@ export const LoginScreen: React.FC = () => {
                         spellCheck={false}
                         maxLength={256}
                         placeholder={copy.identityPlaceholder}
-                        className="h-12 w-full rounded-lg border border-[#cbd5e1] bg-[#ffffff] pl-11 pr-3 text-base font-semibold outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                        className="h-14 w-full rounded-2xl border border-slate-300 bg-white pl-12 pr-4 text-base font-bold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10"
                       />
                     </span>
                   </label>
 
-                  {authMode === "pin" ? (
-                    <div className="mt-5">
-                      <div className="mb-3 flex items-center justify-between">
-                        <span className="text-sm font-bold text-slate-800">
-                          {copy.pin}
-                        </span>
-                        <span
-                          className="text-sm font-semibold text-slate-500"
-                          aria-live="polite"
-                        >
-                          {secret.length}/4
+                  {mode === 'pin' ? (
+                    <div className="mt-6">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-sm font-black text-slate-800">{copy.secretPin}</span>
+                        <span className="font-mono text-xs font-bold text-slate-400">{secret.length}/4</span>
+                      </div>
+                      <div className="mb-3 flex h-14 items-center justify-center rounded-2xl border border-slate-300 bg-slate-50">
+                        <span className="font-mono text-2xl font-black tracking-[0.65em] text-slate-900">
+                          {'•'.repeat(secret.length)}
+                          <span className="text-slate-300">{'•'.repeat(4 - secret.length)}</span>
                         </span>
                       </div>
-                      <input
-                        value={secret}
-                        onChange={(event) => updatePin(event.target.value)}
-                        type="password"
-                        inputMode="numeric"
-                        autoComplete="current-password"
-                        aria-label={copy.pin}
-                        className="mb-4 h-12 w-full rounded-lg border border-[#cbd5e1] bg-[#f8fafc] px-4 text-center text-2xl font-black tracking-[0.5em] outline-none transition focus:border-blue-600 focus:bg-[#ffffff] focus:ring-2 focus:ring-blue-600/20"
-                      />
                       <div className="grid grid-cols-3 gap-2">
-                        {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map(
-                          (digit) => (
-                            <button
-                              key={digit}
-                              type="button"
-                              onClick={() => updatePin(secret + digit)}
-                              disabled={isLoading || secret.length >= 4}
-                              className="min-h-12 rounded-lg border border-[#e2e8f0] bg-[#ffffff] text-xl font-black text-slate-900 transition hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-45 motion-reduce:transition-none"
-                            >
-                              {digit}
-                            </button>
-                          ),
-                        )}
+                        {['1','2','3','4','5','6','7','8','9'].map((digit) => (
+                          <button
+                            key={digit}
+                            type="button"
+                            onClick={() => addDigit(digit)}
+                            disabled={isLoading || secret.length >= 4}
+                            className="min-h-12 rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-900 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-40"
+                          >
+                            {digit}
+                          </button>
+                        ))}
                         <button
                           type="button"
-                          onClick={() => setSecret("")}
+                          onClick={() => setSecret('')}
                           disabled={isLoading || !secret}
-                          aria-label={copy.clearPin}
-                          className="min-h-12 rounded-lg border border-[#e2e8f0] bg-[#f8fafc] text-sm font-bold text-slate-600 transition hover:bg-[#f1f5f9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-45"
+                          className="min-h-12 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
                         >
-                          {isThai ? "ล้าง" : "Clear"}
+                          {copy.clear}
                         </button>
                         <button
                           type="button"
-                          onClick={() => updatePin(secret + "0")}
+                          onClick={() => addDigit('0')}
                           disabled={isLoading || secret.length >= 4}
-                          className="min-h-12 rounded-lg border border-[#e2e8f0] bg-[#ffffff] text-xl font-black text-slate-900 transition hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-45"
+                          className="min-h-12 rounded-xl border border-slate-200 bg-white text-lg font-black text-slate-900 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-40"
                         >
                           0
                         </button>
                         <button
                           type="button"
-                          onClick={() =>
-                            setSecret((value) => value.slice(0, -1))
-                          }
+                          onClick={() => setSecret((value) => value.slice(0, -1))}
                           disabled={isLoading || !secret}
-                          aria-label={copy.deleteDigit}
-                          className="flex min-h-12 items-center justify-center rounded-lg border border-[#e2e8f0] bg-[#f8fafc] text-slate-600 transition hover:bg-[#f1f5f9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-45"
+                          aria-label={isThai ? 'ลบตัวเลขล่าสุด' : 'Delete last digit'}
+                          className="flex min-h-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100 disabled:opacity-40"
                         >
                           <Delete className="h-5 w-5" />
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <label className="mt-5 block">
-                      <span className="mb-2 block text-sm font-bold text-slate-800">
-                        {copy.password}
-                      </span>
+                    <label className="mt-6 block">
+                      <span className="mb-2 block text-sm font-black text-slate-800">{copy.secretPassword}</span>
                       <span className="relative block">
-                        <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                        <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                         <input
                           value={secret}
                           onChange={(event) => setSecret(event.target.value)}
-                          type={showPassword ? "text" : "password"}
+                          type={showSecret ? 'text' : 'password'}
                           autoComplete="current-password"
                           maxLength={256}
-                          className="h-12 w-full rounded-lg border border-[#cbd5e1] bg-[#ffffff] pl-11 pr-12 text-base font-semibold outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20"
+                          className="h-14 w-full rounded-2xl border border-slate-300 bg-white pl-12 pr-12 text-base font-bold outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10"
                         />
                         <button
                           type="button"
-                          onClick={() => setShowPassword((visible) => !visible)}
-                          aria-label={
-                            showPassword ? copy.hidePassword : copy.showPassword
-                          }
-                          className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:bg-[#f1f5f9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                          onClick={() => setShowSecret((value) => !value)}
+                          className="absolute right-1 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"
+                          aria-label={showSecret ? 'Hide password' : 'Show password'}
                         >
-                          {showPassword ? (
-                            <EyeOff className="h-5 w-5" />
-                          ) : (
-                            <Eye className="h-5 w-5" />
-                          )}
+                          {showSecret ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                         </button>
                       </span>
                     </label>
@@ -587,37 +451,20 @@ export const LoginScreen: React.FC = () => {
                   <button
                     type="submit"
                     disabled={!canSubmit || isLoading}
-                    className="mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 text-base font-black text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 motion-reduce:transition-none"
+                    className="mt-7 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-base font-black text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-600/20 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
                   >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin motion-reduce:animate-none" />
-                        {copy.signingIn}
-                      </>
-                    ) : (
-                      <>
-                        {copy.signIn}
-                        <ArrowRight className="h-5 w-5" />
-                      </>
-                    )}
+                    {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
+                    {isLoading ? copy.signingIn : copy.signIn}
                   </button>
                 </form>
               </div>
 
-              <p className="mt-5 flex items-start gap-2 text-sm leading-6 text-slate-500">
+              <div className="mt-4 flex items-start gap-2 rounded-2xl border border-slate-200 bg-white/70 p-4 text-xs font-semibold leading-5 text-slate-500">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                {copy.securityNote}
-              </p>
+                <span>{copy.serverNote}</span>
+              </div>
             </div>
           </div>
-
-          <footer className="mx-auto flex w-full max-w-xl items-center justify-between border-t border-[#e2e8f0] py-4 text-sm text-slate-500">
-            <span>© {new Date().getFullYear()} PRODX</span>
-            <span className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              {copy.serverVerified}
-            </span>
-          </footer>
         </section>
       </div>
     </main>
