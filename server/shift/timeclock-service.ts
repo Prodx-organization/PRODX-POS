@@ -172,10 +172,23 @@ const operation = async (
   return { id: row.id, replay: true, resultId: row.result_id };
 };
 
+const authenticatePin = async (db: TransactionalSqlExecutor, context: Context, pin: string): Promise<CredentialRow> => {
+  const outcome = await db.transaction(async (tx) => {
+    try {
+      return { user: await resolvePinUser(tx, context, pin) };
+    } catch (error) {
+      if (error instanceof TimeclockAuthenticationError || error instanceof TimeclockLockedError) return { error };
+      throw error;
+    }
+  });
+  if ('error' in outcome) throw outcome.error;
+  return outcome.user;
+};
+
 export const createTimeclockService = (db: TransactionalSqlExecutor) => ({
   async clockIn(context: Context, pin: string, idempotencyKey: string) {
+    const user = await authenticatePin(db, context, pin);
     return db.transaction(async (tx) => {
-      const user = await resolvePinUser(tx, context, pin);
       const op = await operation(tx, context, 'clock_in', idempotencyKey, { userId: user.user_id });
       if (op.replay && op.resultId) return loadRecord(tx, op.resultId, context.storeId);
       const existing = await tx.query<{ id: string }>(
@@ -202,8 +215,8 @@ export const createTimeclockService = (db: TransactionalSqlExecutor) => ({
   },
 
   async clockOut(context: Context, pin: string, idempotencyKey: string) {
+    const user = await authenticatePin(db, context, pin);
     return db.transaction(async (tx) => {
-      const user = await resolvePinUser(tx, context, pin);
       const op = await operation(tx, context, 'clock_out', idempotencyKey, { userId: user.user_id });
       if (op.replay && op.resultId) return loadRecord(tx, op.resultId, context.storeId);
       const current = await tx.query<{ id: string }>(
