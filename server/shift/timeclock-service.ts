@@ -156,14 +156,14 @@ const operation = async (
     `INSERT INTO prodx_timeclock_operations
        (id,organization_id,store_id,user_id,operation_type,idempotency_key,payload_hash)
      VALUES($1,$2,$3,$4,$5,$6,$7)
-     ON CONFLICT(store_id,operation_type,idempotency_key) DO NOTHING RETURNING id`,
+     ON CONFLICT(organization_id,store_id,user_id,operation_type,idempotency_key) DO NOTHING RETURNING id`,
     [crypto.randomUUID(), context.organizationId, context.storeId, context.userId, type, key.trim(), payloadHash],
   );
   if (inserted.rows[0]) return { id: inserted.rows[0].id, replay: false, resultId: null as string | null };
   const existing = await tx.query<{ id: string; payload_hash: string; result_id: string | null }>(
     `SELECT id,payload_hash,result_id FROM prodx_timeclock_operations
-      WHERE store_id=$1 AND operation_type=$2 AND idempotency_key=$3 FOR UPDATE`,
-    [context.storeId, type, key.trim()],
+      WHERE organization_id=$1 AND store_id=$2 AND user_id=$3 AND operation_type=$4 AND idempotency_key=$5 FOR UPDATE`,
+    [context.organizationId, context.storeId, context.userId, type, key.trim()],
   );
   const row = existing.rows[0];
   if (!row || row.payload_hash !== payloadHash) {
