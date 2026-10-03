@@ -45,8 +45,7 @@ export default defineConfig(() => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           runtimeCaching: [
             {
-              urlPattern: ({ request, url }) =>
-                request.mode === 'navigate',
+              urlPattern: ({ request }) => request.mode === 'navigate',
               handler: 'NetworkFirst',
               options: {
                 cacheName: 'prodx-navigation-cache',
@@ -56,7 +55,6 @@ export default defineConfig(() => {
                 },
               },
             },
-          runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
               handler: 'CacheFirst',
