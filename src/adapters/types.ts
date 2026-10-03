@@ -52,9 +52,9 @@ export interface CheckoutResponse {
 
 export interface IAuthApi {
   login(req: LoginRequest): Promise<SessionContext>;
-  logout(): Promise<void>;
+  logout(token: string): Promise<void>;
   verifySession(token: string): Promise<SessionContext | null>;
-  getStores(orgSlug: string): Promise<readonly Store[]>;
+  getStores(orgSlug: string, token: string): Promise<readonly Store[]>;
 }
 
 export interface ICatalogApi {
