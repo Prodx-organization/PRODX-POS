@@ -129,6 +129,30 @@ test('timeclock PostgreSQL integration proves idempotency, lockout persistence, 
 
     await resetFixture();
     await service.provisionPin(context, ids.employee, '1234');
+    const concurrentFailures = await Promise.allSettled(
+      Array.from({ length: 5 }, (_, index) =>
+        service.clockIn(context, '9999', 'pg-concurrent-bad-pin-' + index),
+      ),
+    );
+    assert.equal(
+      concurrentFailures.filter(
+        (result) => result.status === 'rejected' && result.reason instanceof TimeclockAuthenticationError,
+      ).length,
+      4,
+    );
+    assert.equal(
+      concurrentFailures.filter(
+        (result) => result.status === 'rejected' && result.reason instanceof TimeclockLockedError,
+      ).length,
+      1,
+    );
+    await assert.rejects(
+      service.clockIn(context, '1234', 'pg-after-concurrent-lock'),
+      TimeclockLockedError,
+    );
+
+    await resetFixture();
+    await service.provisionPin(context, ids.employee, '1234');
     await assert.rejects(
       service.clockIn({ ...context, storeId: ids.storeB }, '1234', 'pg-cross-store'),
       TimeclockAuthenticationError,

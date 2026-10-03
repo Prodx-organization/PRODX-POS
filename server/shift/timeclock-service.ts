@@ -59,27 +59,25 @@ const loadRecord = async (db: SqlQueryExecutor, id: string, storeId: string) => 
 };
 
 const recordFailedActorAttempt = async (tx: SqlQueryExecutor, context: Context) => {
-  const current = await tx.query<{ failed_attempts: number; locked_until: string | Date | null }>(
-    `SELECT failed_attempts,locked_until
-       FROM prodx_timeclock_auth_attempts
-      WHERE organization_id=$1 AND store_id=$2 AND actor_user_id=$3
-      FOR UPDATE`,
-    [context.organizationId, context.storeId, context.userId],
-  );
-  const next = (current.rows[0]?.failed_attempts ?? 0) + 1;
-  await tx.query(
+  const result = await tx.query<{ failed_attempts: number }>(
     `INSERT INTO prodx_timeclock_auth_attempts
        (organization_id,store_id,actor_user_id,failed_attempts,locked_until,updated_at)
-     VALUES($1,$2,$3,$4,
-       CASE WHEN $4::integer >= $5::integer THEN CURRENT_TIMESTAMP + ($6::integer || ' minutes')::interval ELSE NULL END,
-       CURRENT_TIMESTAMP)
+     VALUES($1,$2,$3,1,NULL,CURRENT_TIMESTAMP)
      ON CONFLICT(organization_id,store_id,actor_user_id)
-     DO UPDATE SET failed_attempts=EXCLUDED.failed_attempts,
-                   locked_until=EXCLUDED.locked_until,
-                   updated_at=CURRENT_TIMESTAMP`,
-    [context.organizationId, context.storeId, context.userId, next, MAX_ATTEMPTS, LOCK_MINUTES],
+     DO UPDATE SET failed_attempts=prodx_timeclock_auth_attempts.failed_attempts + 1,
+                   locked_until=CASE
+                     WHEN prodx_timeclock_auth_attempts.failed_attempts + 1 >= $4::integer
+                     THEN CURRENT_TIMESTAMP + ($5::integer || ' minutes')::interval
+                     ELSE prodx_timeclock_auth_attempts.locked_until
+                   END,
+                   updated_at=CURRENT_TIMESTAMP
+     RETURNING failed_attempts`,
+    [context.organizationId, context.storeId, context.userId, MAX_ATTEMPTS, LOCK_MINUTES],
   );
-  if (next >= MAX_ATTEMPTS) throw new TimeclockLockedError('Timeclock PIN attempts are temporarily locked.');
+  const failedAttempts = Number(result.rows[0]?.failed_attempts ?? 0);
+  if (failedAttempts >= MAX_ATTEMPTS) {
+    throw new TimeclockLockedError('Timeclock PIN attempts are temporarily locked.');
+  }
 };
 
 const assertActorNotLocked = async (tx: SqlQueryExecutor, context: Context) => {
