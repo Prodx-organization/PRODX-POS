@@ -114,7 +114,7 @@ export const PosAiAssistantModal: React.FC<PosAiAssistantModalProps> = ({
     >
       <div className="space-y-4">
         {/* Cart Summary Banner */}
-        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div className="p-3.5 rounded-xl bg-background border border-border border-crisp flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-indigo-600/10 text-indigo-600 dark:text-indigo-400">
               <ShoppingBag className="h-5 w-5" />
@@ -123,7 +123,7 @@ export const PosAiAssistantModal: React.FC<PosAiAssistantModalProps> = ({
               <div className="text-xs font-semibold text-slate-500">
                 {isThai ? 'สถานะตะกร้าปัจจุบัน' : 'Current Active Cart'}
               </div>
-              <div className="text-sm font-bold text-slate-900 dark:text-white">
+              <div className="text-sm font-bold text-text">
                 {items.length} {isThai ? 'รายการ' : 'items'} · {formatMoney(totals.grandTotal)}
               </div>
             </div>
@@ -145,11 +145,11 @@ export const PosAiAssistantModal: React.FC<PosAiAssistantModalProps> = ({
         </div>
 
         {/* Chat / Recommendation Stream */}
-        <div className="h-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 p-4 space-y-3 font-sans">
+        <div className="h-72 overflow-y-auto rounded-xl border border-border border-crisp bg-slate-50/50 dark:bg-slate-950/40 p-4 space-y-3 font-sans">
           {chatHistory.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
               <Bot className="h-10 w-10 text-indigo-400 mb-2 opacity-80 animate-bounce" />
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              <p className="text-sm font-medium text-text/80">
                 {isThai ? 'สวัสดีครับ! ผมคือผู้ช่วย AI ประจำเครื่องคิดเงิน' : 'Hello! I am your POS AI Assistant'}
               </p>
               <p className="text-xs text-slate-500 mt-1 max-w-sm">
@@ -173,7 +173,7 @@ export const PosAiAssistantModal: React.FC<PosAiAssistantModalProps> = ({
                   className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap ${
                     msg.role === 'user'
                       ? 'bg-indigo-600 text-white rounded-tr-none'
-                      : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-tl-none shadow-xs'
+                      : 'bg-card border border-border border-crisp text-text rounded-tl-none shadow-xs'
                   }`}
                 >
                   {msg.text}
@@ -196,7 +196,7 @@ export const PosAiAssistantModal: React.FC<PosAiAssistantModalProps> = ({
             value={userQuery}
             onChange={(e) => setUserQuery(e.target.value)}
             placeholder={isThai ? 'พิมพ์คำถามหรือขอคำแนะนำจาก AI เช่น "แนะนำเครื่องดื่มคู่กับครัวซองต์"...' : 'Ask AI anything about menu, upsell, promotions...'}
-            className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            className="flex-1 px-3.5 py-2.5 rounded-xl border border-border border-crisp bg-card text-text text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
           />
           <Button
             type="submit"

@@ -89,14 +89,14 @@ export const AiDashboardInsightsWidget: React.FC<AiDashboardInsightsWidgetProps>
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+              <h3 className="text-base font-bold text-text">
                 {isThai ? 'KKU AI สรุปวิเคราะห์ยอดขายและกลยุทธ์' : 'KKU AI Executive Sales Insights'}
               </h3>
               <Badge variant="primary" className="bg-indigo-600 text-white text-[10px] uppercase font-bold tracking-wider">
                 Gemini AI
               </Badge>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-text/60">
               {isThai
                 ? 'วิเคราะห์อัตโนมัติจากข้อมูลยอดขาย สถิติออเดอร์ และสินค้าขายดีประจำช่วงเวลา'
                 : 'Intelligent synthesis based on real-time sales telemetry & velocity.'}
@@ -143,13 +143,13 @@ export const AiDashboardInsightsWidget: React.FC<AiDashboardInsightsWidgetProps>
 
       {/* Insight Content Box */}
       {hasGenerated && insightText ? (
-        <div className="rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-white/90 dark:bg-slate-900/90 p-4.5 text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap font-sans shadow-inner">
+        <div className="rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-white/90 dark:bg-slate-900/90 p-4.5 text-sm text-text leading-relaxed whitespace-pre-wrap font-sans shadow-inner">
           {insightText}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-6 px-4 text-center rounded-xl border border-dashed border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/30 dark:bg-indigo-950/10">
           <Lightbulb className="h-8 w-8 text-indigo-400 mb-2 opacity-80" />
-          <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+          <p className="text-xs font-medium text-text/80">
             {isThai
               ? 'กดปุ่ม "สร้างบทวิเคราะห์ AI ตอนนี้" เพื่อให้ KKU AI สรุปภาพรวมยอดขายและแนะนำกลยุทธ์เพิ่มกำไร'
               : 'Click "Analyze with AI" to generate business insights and actionable upselling strategies.'}

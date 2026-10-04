@@ -925,7 +925,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         );
       default:
         return (
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-text/70 border border-border">
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-background text-text/70 border border-border">
             {status}
           </span>
         );

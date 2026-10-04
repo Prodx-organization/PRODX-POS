@@ -1,0 +1,97 @@
+name: PostgreSQL Backup & Restore Drill
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restore-drill:
+    name: Dump production PostgreSQL and restore into an ephemeral database
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: drill
+          POSTGRES_PASSWORD: drill
+          POSTGRES_DB: restore_target
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U drill -d restore_target"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      SOURCE_DATABASE_URL: ${{ secrets.PRODX_PRODUCTION_DATABASE_URL }}
+      TARGET_DATABASE_URL: postgresql://drill:drill@127.0.0.1:5432/restore_target
+    steps:
+      - name: Require production database credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SOURCE_DATABASE_URL:-}" || {
+            echo "PRODX_PRODUCTION_DATABASE_URL GitHub Actions secret is required."
+            exit 1
+          }
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Wait for restore target
+        shell: bash
+        run: |
+          set -euo pipefail
+          until pg_isready -d "${TARGET_DATABASE_URL}"; do
+            sleep 2
+          done
+
+      - name: Dump source database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          pg_dump "${SOURCE_DATABASE_URL}" \
+            --format=custom \
+            --no-owner \
+            --no-acl \
+            --file artifacts/prodx-production.dump
+          test -s artifacts/prodx-production.dump
+
+      - name: Restore into ephemeral PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg_restore "${TARGET_DATABASE_URL}" \
+            --clean \
+            --if-exists \
+            --no-owner \
+            --no-acl \
+            --exit-on-error \
+            artifacts/prodx-production.dump
+
+      - name: Verify restored schema and migration state
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "${TARGET_DATABASE_URL}" \
+            --set ON_ERROR_STOP=1 \
+            --command "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';"
+          psql "${TARGET_DATABASE_URL}" \
+            --set ON_ERROR_STOP=1 \
+            --command "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'schema_migrations';"
+          psql "${TARGET_DATABASE_URL}" \
+            --set ON_ERROR_STOP=1 \
+            --command "SELECT count(*) FROM schema_migrations;"
+
+      - name: Upload restore artifact metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: prodx-postgres-restore-drill
+          path: artifacts/prodx-production.dump
+          retention-days: 7
