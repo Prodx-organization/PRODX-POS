@@ -41,10 +41,7 @@ jobs:
           head_repo="$(jq -r '.headRepositoryOwner.login + "/" + .headRepository.name' <<<"$metadata")"
           test "$head_repo" = "$REPO"
           head_ref="$(jq -r '.headRefName' <<<"$metadata")"
-          case "$head_ref" in
-            antigravity/*) ;;
-            *) echo "Refusing validation for non-Antigravity branch: $head_ref" >&2; exit 1 ;;
-          esac
+          test -n "$head_ref"
           head_sha="$(jq -r '.headRefOid' <<<"$metadata")"
           test "${#head_sha}" -eq 40
           echo "number=$EVENT_PR" >> "$GITHUB_OUTPUT"
