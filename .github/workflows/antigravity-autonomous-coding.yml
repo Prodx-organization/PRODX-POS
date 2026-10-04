@@ -61,21 +61,3 @@ jobs:
           jq '{number,title,state,headRefName,headRefOid,baseRefName,files,commits,statusCheckRollup}' pr.json > executor-report.json
           echo "Validated PR metadata and checks only."
           echo "No PR-controlled source was checked out or executed."
-
-      - name: Publish validation report
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ steps.pr.outputs.number }}
-        run: |
-          set -euo pipefail
-          {
-            echo "## Antigravity Production Validator"
-            echo
-            echo "**PR:** #$PR"
-            echo
-            echo "This workflow validates PR metadata and checks only."
-            echo "PR-controlled source is not checked out or executed."
-          } > executor-report.md
-          gh pr comment "$PR" --repo "$REPO" --body-file executor-report.md
