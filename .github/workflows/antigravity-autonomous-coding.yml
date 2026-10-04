@@ -21,8 +21,8 @@ concurrency:
 jobs:
   validate:
     name: Antigravity Pro autonomous production loop
-    runs-on: [self-hosted, linux, prodx-antigravity]
-    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Resolve target PR
@@ -49,20 +49,6 @@ jobs:
           test "${#head_sha}" -eq 40
           echo "number=$EVENT_PR" >> "$GITHUB_OUTPUT"
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
-
-      - name: Verify Antigravity Pro account
-        run: |
-          set -euo pipefail
-          command -v agy >/dev/null
-          command -v gh >/dev/null
-          command -v jq >/dev/null
-          test -z "${GEMINI_API_KEY:-}" || {
-            echo "GEMINI_API_KEY must not be used by the Pro-account validator." >&2
-            exit 1
-          }
-          agy models
-          agy -p "Reply with exactly PRODX_AUTONOMOUS_AUTH_OK" --model gemini-3.5-flash --output-format json --print-timeout 3m > auth-check.json
-          jq -e '.status == "SUCCESS" and (.response | contains("PRODX_AUTONOMOUS_AUTH_OK"))' auth-check.json >/dev/null
 
       - name: Inspect PR without executing PR code
         env:
@@ -93,6 +79,6 @@ jobs:
             echo "**PR:** #$PR"
             echo
             echo "This workflow validates PR metadata and checks only."
-            echo "PR-controlled source is not checked out or executed in this privileged workflow."
+            echo "PR-controlled source is not checked out or executed."
           } > executor-report.md
           gh pr comment "$PR" --repo "$REPO" --body-file executor-report.md
