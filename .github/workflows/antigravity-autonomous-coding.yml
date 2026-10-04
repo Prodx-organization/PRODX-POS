@@ -1,6 +1,8 @@
 name: Antigravity Autonomous Production Executor
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -13,12 +15,12 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: antigravity-autonomous-${{ inputs.pr_number || github.run_id }}
+  group: antigravity-autonomous-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   validate:
-    name: Validate Antigravity production PR
+    name: Antigravity Pro autonomous production loop
     runs-on: [self-hosted, linux, prodx-antigravity]
     timeout-minutes: 15
 
@@ -28,12 +30,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR: ${{ inputs.pr_number }}
+          EVENT_PR: ${{ github.event.pull_request.number || inputs.pr_number || '' }}
         run: |
           set -euo pipefail
-          test -n "${PR:-}"
-          metadata="$(gh pr view "$PR" --repo "$REPO" --json number,state,headRepositoryOwner,headRepository,headRefName,headRefOid,baseRefName)"
-          test "$(jq -r '.number' <<<"$metadata")" = "$PR"
+          test -n "${EVENT_PR:-}"
+          metadata="$(gh pr view "$EVENT_PR" --repo "$REPO" --json number,state,headRepositoryOwner,headRepository,headRefName,headRefOid,baseRefName)"
+          test "$(jq -r '.number' <<<"$metadata")" = "$EVENT_PR"
           test "$(jq -r '.state' <<<"$metadata")" = "OPEN"
           test "$(jq -r '.baseRefName' <<<"$metadata")" = "main"
           head_repo="$(jq -r '.headRepositoryOwner.login + "/" + .headRepository.name' <<<"$metadata")"
@@ -45,7 +47,7 @@ jobs:
           esac
           head_sha="$(jq -r '.headRefOid' <<<"$metadata")"
           test "${#head_sha}" -eq 40
-          echo "number=$PR" >> "$GITHUB_OUTPUT"
+          echo "number=$EVENT_PR" >> "$GITHUB_OUTPUT"
           echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
 
       - name: Verify Antigravity Pro account
