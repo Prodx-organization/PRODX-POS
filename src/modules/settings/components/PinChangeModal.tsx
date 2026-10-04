@@ -27,6 +27,15 @@ export const PinChangeModal: React.FC<PinChangeModalProps> = ({ isOpen, onClose 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!import.meta.env.DEV) {
+      addToast({
+        title: language === 'th' ? 'ต้องใช้ระบบจัดการ PIN บนเซิร์ฟเวอร์' : 'Server PIN management required',
+        message: language === 'th' ? 'ไม่อนุญาตให้บันทึก PIN ใน browser สำหรับ production' : 'Production PINs cannot be stored in the browser.',
+        type: 'error',
+      });
+      return;
+    }
+
     if (newPin.length < 4) {
       addToast({
         title: language === 'th' ? 'PIN สั้นเกินไป' : 'Invalid PIN',
@@ -50,8 +59,6 @@ export const PinChangeModal: React.FC<PinChangeModalProps> = ({ isOpen, onClose 
       try {
         if (session) {
           setStaffPin(session.currentUser.id, newPin);
-          localStorage.setItem(`prodx_pos_pin_${session.currentUser.id}`, newPin);
-          localStorage.setItem('prodx_pos_current_pin', newPin);
         }
         addToast({
           title: language === 'th' ? 'เปลี่ยนรหัส PIN สำเร็จ' : 'PIN Updated',

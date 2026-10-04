@@ -1,0 +1,63 @@
+name: Antigravity Autonomous Production Executor
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to validate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: antigravity-autonomous-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Antigravity Pro autonomous production loop
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Resolve target PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_PR: ${{ github.event.pull_request.number || inputs.pr_number || '' }}
+        run: |
+          set -euo pipefail
+          test -n "${EVENT_PR:-}"
+          metadata="$(gh pr view "$EVENT_PR" --repo "$REPO" --json number,state,headRepositoryOwner,headRepository,headRefName,headRefOid,baseRefName)"
+          test "$(jq -r '.number' <<<"$metadata")" = "$EVENT_PR"
+          test "$(jq -r '.state' <<<"$metadata")" = "OPEN"
+          test "$(jq -r '.baseRefName' <<<"$metadata")" = "main"
+          head_repo="$(jq -r '.headRepositoryOwner.login + "/" + .headRepository.name' <<<"$metadata")"
+          test "$head_repo" = "$REPO"
+          head_ref="$(jq -r '.headRefName' <<<"$metadata")"
+          test -n "$head_ref"
+          head_sha="$(jq -r '.headRefOid' <<<"$metadata")"
+          test "${#head_sha}" -eq 40
+          echo "number=$EVENT_PR" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Inspect PR without executing PR code
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.pr.outputs.number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          gh pr view "$PR" --repo "$REPO" --json number,title,state,body,headRefName,headRefOid,baseRefName,files,commits,reviews,statusCheckRollup > pr.json
+          test "$(jq -r '.headRefOid' pr.json)" = "$HEAD_SHA"
+          test "$(jq -r '.baseRefName' pr.json)" = "main"
+          jq '{number,title,state,headRefName,headRefOid,baseRefName,files,commits,statusCheckRollup}' pr.json > executor-report.json
+          echo "Validated PR metadata and checks only."
+          echo "No PR-controlled source was checked out or executed."
