@@ -54,9 +54,8 @@ export const createSessionIssuer = (
     const current = now();
     if (credential.lockedUntil && credential.lockedUntil > current) return null;
     if (!(await verifySecret(password, credential.secretHash))) {
-      const nextFailedAttempts = credential.failedAttempts + 1;
-      const lockedUntil = nextFailedAttempts >= MAX_FAILED_ATTEMPTS ? new Date(current.getTime() + LOCKOUT_DURATION_MS) : undefined;
-      await repository.recordFailedAttempt(credential.userId, lockedUntil);
+      // The repository owns the atomic threshold decision. Never derive the lockout timestamp from a credential snapshot: concurrent failures may observe the same failedAttempts value.
+      await repository.recordFailedAttempt(credential.userId);
       return null;
     }
     await repository.resetFailedAttempts(credential.userId);

@@ -19,10 +19,12 @@ const repositoryFixture = () => {
     findCredentialByUsername: async (username, organizationId) =>
       username === currentCredential.username && (organizationId === undefined || organizationId === currentCredential.organizationId)
         ? currentCredential : null,
-    recordFailedAttempt: async (_userId, lockedUntil) => {
+    recordFailedAttempt: async (_userId) => {
       calls.failed += 1;
-      currentCredential = { ...currentCredential, failedAttempts: currentCredential.failedAttempts + 1, lockedUntil: lockedUntil ?? currentCredential.lockedUntil };
-      calls.lastLockedUntil = lockedUntil ?? null;
+      const next = currentCredential.failedAttempts + 1;
+      const lockedUntil = next >= 5 ? new Date(clock.getTime() + 15 * 60 * 1000) : currentCredential.lockedUntil;
+      currentCredential = { ...currentCredential, failedAttempts: next, lockedUntil };
+      calls.lastLockedUntil = lockedUntil;
     },
     resetFailedAttempts: async () => { calls.reset += 1; currentCredential = { ...currentCredential, failedAttempts: 0, lockedUntil: null }; },
     createSession: async (input) => { session = { ...input, revokedAt: null, userStatus: 'active' }; },

@@ -21,12 +21,12 @@ export const createPostgresAuthenticationRepository = (db: SqlExecutor): Authent
     return { userId: row.userId, organizationId: row.organizationId, username: row.username, status: row.status,
       credentialType: row.credential_type, secretHash: row.secret_hash, failedAttempts: row.failed_attempts, lockedUntil: row.locked_until };
   },
-  async recordFailedAttempt(userId, lockedUntil) {
+  async recordFailedAttempt(userId) {
     await db.query(
       `WITH updated AS (
          UPDATE prodx_user_credentials
-            SET failed_attempts = failed_attempts + 1,
-                locked_until = CASE WHEN $2::timestamptz IS NULL THEN locked_until ELSE $2::timestamptz END,
+            SET failed_attempts = LEAST(failed_attempts + 1, 5),
+                locked_until = CASE WHEN failed_attempts + 1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes' ELSE locked_until END,
                 updated_at = CURRENT_TIMESTAMP
           WHERE user_id = $1
             AND (locked_until IS NULL OR locked_until <= CURRENT_TIMESTAMP)
@@ -34,12 +34,12 @@ export const createPostgresAuthenticationRepository = (db: SqlExecutor): Authent
        )
        INSERT INTO prodx_security_audit_events
          (id, organization_id, user_id, event_type, metadata)
-       SELECT $3::uuid, u.organization_id, updated.user_id, 'AUTH_LOCKOUT',
+       SELECT $2::uuid, u.organization_id, updated.user_id, 'AUTH_LOCKOUT',
               jsonb_build_object('failed_attempts', updated.failed_attempts, 'locked_until', updated.locked_until)
          FROM updated
          JOIN prodx_users u ON u.id = updated.user_id
         WHERE updated.failed_attempts = 5 AND updated.locked_until IS NOT NULL`,
-      [userId, lockedUntil ?? null, crypto.randomUUID()],
+      [userId, crypto.randomUUID()],
     );
   },
   async resetFailedAttempts(userId) {

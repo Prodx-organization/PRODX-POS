@@ -1,6 +1,8 @@
 import type { Express, NextFunction, Request, Response } from 'express';
+type Permission = 'pos:checkout' | 'pos:void' | 'pos:refund' | 'inventory:read' | 'inventory:adjust' | 'shift:open' | 'shift:close' | 'shift:pay_movement' | 'customers:read' | 'customers:write' | 'reports:read' | 'audit:read' | 'settings:manage';
 import type { AuthenticatedSession, SessionIssuer } from '../auth/session';
 import type { SqlExecutor } from '../auth/postgres-repository';
+import { checkLoginThrottle, recordLoginFailure } from '../auth/login-rate-limit';
 
 type LoginBody = {
   organizationSlug: string;
@@ -19,6 +21,22 @@ const DEFAULT_STORE_TAX_RATE_BPS = 700;
 const MAX_FIELD_LENGTH = 256;
 
 const AUTH_FAILED_MESSAGE = 'Invalid credentials or store scope.';
+const BACKEND_TO_UI_PERMISSION: Record<string, Permission> = {
+  'pos.sell': 'pos:checkout',
+  'pos.void': 'pos:void',
+  'pos.refund': 'pos:refund',
+  'inventory.read': 'inventory:read',
+  'inventory.adjust': 'inventory:adjust',
+  'cash.shift.open': 'shift:open',
+  'cash.shift.close': 'shift:close',
+  'cash.shift.movement': 'shift:pay_movement',
+  'customer.read': 'customers:read',
+  'customer.write': 'customers:write',
+  'report.read': 'reports:read',
+  'audit.read': 'audit:read',
+  'settings.manage': 'settings:manage',
+};
+const toUiPermission = (permission: string): Permission | null => BACKEND_TO_UI_PERMISSION[permission] ?? null;
 
 const errorBody = (request: Request, code: string, message: string) => ({
   error: { code, message, requestId: request.id },
@@ -128,7 +146,7 @@ const loadSessionContext = async (
       email: row.username,
       role: toRole(row.role_key),
       employeeCode: row.username,
-      permissions: permissions.map((permission) => permission.permission_key),
+      permissions: permissions.map((permission) => toUiPermission(permission.permission_key)).filter((permission): permission is Permission => permission !== null),
     },
     token,
     expiresAt: expiresAt.toISOString(),
@@ -153,6 +171,13 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
       return;
     }
 
+    const throttle = await checkLoginThrottle(db, request.ip || 'unknown');
+    if (!throttle.allowed) {
+      if (throttle.retryAfterSeconds) response.setHeader('retry-after', String(throttle.retryAfterSeconds));
+      response.status(429).json(errorBody(request, 'AUTH_RATE_LIMITED', 'Too many failed authentication attempts. Please try again later.'));
+      return;
+    }
+
     const devices = await db.query<{ id: string; store_id: string }>(
       `SELECT d.id, d.store_id
          FROM prodx_organizations o
@@ -163,14 +188,14 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
       [body.organizationSlug, body.storeCode, body.registerId],
     );
     const device = devices[0];
-    if (!device) { sendAuthFailed(request, response); return; }
+    if (!device) { await recordLoginFailure(db, request.ip || 'unknown'); sendAuthFailed(request, response); return; }
 
     const issued = await sessions.authenticateCredentials({
       username: body.emailOrPin,
       password: body.passwordOrPin,
       deviceId: device.id,
     });
-    if (!issued) { sendAuthFailed(request, response); return; }
+    if (!issued) { await recordLoginFailure(db, request.ip || 'unknown'); sendAuthFailed(request, response); return; }
 
     const principal = await sessions.authenticateBearer(issued.token);
     if (!principal || principal.storeId !== device.store_id) {
