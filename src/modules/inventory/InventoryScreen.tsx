@@ -760,7 +760,7 @@ export const InventoryScreen: React.FC = () => {
             leftIcon={<Sparkles className="h-4 w-4 text-yellow-300 animate-pulse" />}
             className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
           >
-            {language === 'th' ? 'KKU AI วางแผนสต็อก' : 'AI Stock Optimizer'}
+            {language === 'th' ? 'PRODX AI วางแผนสต็อก' : 'PRODX AI Stock Optimizer'}
           </Button>
 
           <Button

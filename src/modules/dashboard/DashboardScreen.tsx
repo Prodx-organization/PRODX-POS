@@ -41,7 +41,7 @@ export interface DashboardScreenProps {
 const DEFAULT_WIDGET_ORDER = ['ai_insights', 'low_stock', 'kpis', 'hourly_chart', 'quick_actions', 'recent_orders'];
 
 const WIDGET_TITLES: Record<string, { th: string; en: string }> = {
-  ai_insights: { th: 'KKU AI สรุปวิเคราะห์ยอดขายและกลยุทธ์', en: 'KKU AI Executive Sales Insights' },
+  ai_insights: { th: 'PRODX AI สรุปวิเคราะห์ยอดขายและกลยุทธ์', en: 'PRODX AI Executive Sales Insights' },
   low_stock: { th: 'แจ้งเตือนสินค้าคงคลังต่ำ', en: 'Low-Stock Alerts & Inventory Status' },
   kpis: { th: 'ตัวชี้วัดทางการเงินและรอบการขาย (KPIs)', en: 'Sales & Financial KPIs' },
   hourly_chart: { th: 'กราฟแนวโน้มยอดขายรายชั่วโมง', en: 'Hourly Velocity & Sales Trend' },
