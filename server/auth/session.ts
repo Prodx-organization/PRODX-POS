@@ -68,7 +68,30 @@ export const createSessionIssuer = (
     await repository.createSession({ id: sessionId, organizationId: credential.organizationId, userId: credential.userId, deviceId: device.id, tokenHash: hashSessionToken(token), expiresAt });
     return { token, sessionId, expiresAt };
   },
-  authenticateSupabaseToken: async ({ token: supabaseToken, deviceId }) => {\n    const verified = await verifySupabaseToken(supabaseToken);\n    if (!verified) return null;\n    const device = await repository.findDevice(deviceId);\n    if (!device || device.status !== 'active') return null;\n    const credential = await repository.findCredentialByUsername(verified.email, device.organizationId);\n    if (!credential || credential.status !== 'active') return null;\n    const nowValue = now();\n    if (verified.expiresAt <= nowValue) return null;\n    const localToken = newBearerToken();\n    const sessionId = crypto.randomUUID();\n    const expiresAt = verified.expiresAt < new Date(nowValue.getTime() + SESSION_TTL_MS) ? verified.expiresAt : new Date(nowValue.getTime() + SESSION_TTL_MS);\n    await repository.createSession({ id: sessionId, organizationId: credential.organizationId, userId: credential.userId, deviceId: device.id, tokenHash: hashSessionToken(localToken), expiresAt });\n    return { token: localToken, sessionId, expiresAt };\n  },\n  authenticateBearer: async (token) => {
+  authenticateSupabaseToken: async ({ token: supabaseToken, deviceId }) => {
+    const verified = await verifySupabaseToken(supabaseToken);
+    if (!verified) return null;
+    const device = await repository.findDevice(deviceId);
+    if (!device || device.status !== 'active') return null;
+    const credential = await repository.findCredentialByUsername(verified.email, device.organizationId);
+    if (!credential || credential.status !== 'active') return null;
+    const nowValue = now();
+    if (verified.expiresAt <= nowValue) return null;
+    const localToken = newBearerToken();
+    const sessionId = crypto.randomUUID();
+    const maxExpiry = new Date(nowValue.getTime() + SESSION_TTL_MS);
+    const expiresAt = verified.expiresAt < maxExpiry ? verified.expiresAt : maxExpiry;
+    await repository.createSession({
+      id: sessionId,
+      organizationId: credential.organizationId,
+      userId: credential.userId,
+      deviceId: device.id,
+      tokenHash: hashSessionToken(localToken),
+      expiresAt,
+    });
+    return { token: localToken, sessionId, expiresAt };
+  },
+  authenticateBearer: async (token) => {
     if (!token) return null;
     const session = await repository.findSessionByTokenHash(hashSessionToken(token));
     if (!session || session.revokedAt || session.expiresAt <= now() || session.userStatus !== 'active') return null;
