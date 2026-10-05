@@ -89,6 +89,7 @@ jobs:
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0002_m1_organization_store_foundation';
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0003_m1_1_auth_identity';
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0004_m1_2_rbac';
+          SELECT 1 FROM prodx_schema_migrations WHERE version = '0025_m4_ai_rbac_provisioning';
           SELECT 1 FROM prodx_migration_lock WHERE lock_id = 1;
           SELECT current_setting('TimeZone') AS session_timezone;
           SELECT (TIMESTAMPTZ '2026-01-01 00:00:00+00' AT TIME ZONE 'UTC') = TIMESTAMP '2026-01-01 00:00:00';
@@ -100,7 +101,8 @@ jobs:
           SELECT conname FROM pg_constraint WHERE conname = 'prodx_roles_id_organization_unique';
           SELECT conname FROM pg_constraint WHERE conname = 'prodx_store_memberships_store_org_fk';
           SELECT conname FROM pg_constraint WHERE conname = 'prodx_user_roles_store_membership_fk';
-          SELECT count(*) = 19 FROM prodx_permissions;
+          SELECT count(*) = 20 FROM prodx_permissions;
+          SELECT 1 FROM prodx_permissions WHERE permission_key = 'ai:use';
           SELECT 1 FROM prodx_permissions WHERE permission_key = 'cash.shift.movement';
           SELECT 1 FROM prodx_permissions WHERE permission_key = 'audit.read';
           SQL
@@ -133,6 +135,7 @@ jobs:
           VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000031', '10000000-0000-4000-8000-000000000006');
           SQL
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0021_m4_sensitive_role_permissions.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0025_m4_ai_rbac_provisioning.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           SELECT (
             SELECT count(*)
@@ -151,6 +154,24 @@ jobs:
             WHERE r.organization_id = '00000000-0000-0000-0000-000000000001'
               AND r.role_key = 'cashier'
               AND p.permission_key IN ('cash.shift.movement', 'audit.read')
+          ) = 0;
+          SELECT (
+            SELECT count(*)
+            FROM prodx_role_permissions rp
+            JOIN prodx_roles r ON r.id = rp.role_id AND r.organization_id = rp.organization_id
+            JOIN prodx_permissions p ON p.id = rp.permission_id
+            WHERE r.organization_id = '00000000-0000-0000-0000-000000000001'
+              AND r.role_key IN ('admin', 'manager')
+              AND p.permission_key = 'ai:use'
+          ) = 2;
+          SELECT (
+            SELECT count(*)
+            FROM prodx_role_permissions rp
+            JOIN prodx_roles r ON r.id = rp.role_id AND r.organization_id = rp.organization_id
+            JOIN prodx_permissions p ON p.id = rp.permission_id
+            WHERE r.organization_id = '00000000-0000-0000-0000-000000000001'
+              AND r.role_key = 'cashier'
+              AND p.permission_key = 'ai:use'
           ) = 0;
           SQL
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
@@ -189,13 +210,13 @@ jobs:
             END;
           END $$;
           SQL
-          before=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac');")
+          before=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning');")
           for migration in "${migrations[@]}"; do
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration" >/dev/null
           done
-          after=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac');")
+          after=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning');")
           test "$before" = "$after"
-          test "$after" = "4"
+          test "$after" = "5"
 
       - name: Theme validation
         run: bun run theme:validate
