@@ -21,16 +21,24 @@ const start = async (app: ReturnType<typeof createApp>) => {
 
 test('supervisor authorization route issues a server-scoped token from authenticated session context', async () => {
   const secretHash = await hashPassword('correct horse battery staple');
+  let transactionCalls = 0;
   const db: TransactionalSqlExecutor = {
-    query: async <T extends Record<string, unknown>>(sql: string) => {
-      if (sql.includes('SELECT u.id AS "userId"')) return { rows: [{ userId: 'supervisor-1', organizationId: principal.organizationId, status: 'active', secretHash, failedAttempts: 0, lockedUntil: null }] as T[] };
-      if (sql.includes('SELECT m.user_id AS "userId"')) return { rows: [{ userId: 'supervisor-1' }] as T[] };
-      if (sql.includes('UPDATE prodx_user_credentials')) return { rows: [] as T[] };
-      if (sql.includes('INSERT INTO prodx_supervisor_authorizations')) return { rows: [] as T[] };
-      if (sql.includes('INSERT INTO prodx_security_audit_events')) return { rows: [] as T[] };
-      throw new Error(`Unexpected SQL in supervisor authorization route test: ${sql}`);
+    query: async () => {
+      throw new Error('direct db.query must not be used for authorization issuance');
     },
-    transaction: async (work) => work({ query: async <T extends Record<string, unknown>>(sql: string, parameters: readonly unknown[] = []) => db.query<T>(sql, parameters) }),
+    transaction: async (work) => {
+      transactionCalls += 1;
+      return work({
+        query: async <T extends Record<string, unknown>>(sql: string) => {
+          if (sql.includes('SELECT u.id AS "userId"')) return { rows: [{ userId: 'supervisor-1', organizationId: principal.organizationId, status: 'active', secretHash, failedAttempts: 0, lockedUntil: null }] as T[] };
+          if (sql.includes('SELECT m.user_id AS "userId"')) return { rows: [{ userId: 'supervisor-1' }] as T[] };
+          if (sql.includes('UPDATE prodx_user_credentials')) return { rows: [] as T[] };
+          if (sql.includes('INSERT INTO prodx_supervisor_authorizations')) return { rows: [] as T[] };
+          if (sql.includes('INSERT INTO prodx_security_audit_events')) return { rows: [] as T[] };
+          throw new Error(`Unexpected SQL in supervisor authorization transaction: ${sql}`);
+        },
+      });
+    },
   };
   const app = createApp({
     authenticateRequest: () => principal,
@@ -46,11 +54,42 @@ test('supervisor authorization route issues a server-scoped token from authentic
       body: JSON.stringify({ action: 'refund', orderId: 'order-1', supervisorUsername: 'supervisor', supervisorSecret: 'correct horse battery staple' }),
     });
     assert.equal(response.status, 201);
+    assert.equal(transactionCalls, 1);
     const body = await response.json() as { authorizationToken: string; supervisorUserId: string; expiresAt: string };
     assert.equal(body.supervisorUserId, 'supervisor-1');
     assert.ok(body.authorizationToken.length >= 40);
     const expires = Date.parse(body.expiresAt);
     assert.ok(expires >= before + 119_000 && expires <= Date.now() + 121_000);
+  } finally { await server.close(); }
+});
+
+test('supervisor authorization route requires void permission instead of refund permission', async () => {
+  const db: TransactionalSqlExecutor = {
+    query: async () => {
+      throw new Error('database must not be reached when void permission is denied');
+    },
+    transaction: async () => {
+      throw new Error('transaction must not be reached when void permission is denied');
+    },
+  };
+  const app = createApp({
+    authenticateRequest: () => principal,
+    authorizeRequest: (_context, permission) => permission === 'pos.refund',
+    configureRoutes: (configuredApp) => registerSupervisorAuthorizationRoute(configuredApp, db),
+  });
+  const server = await start(app);
+  try {
+    const response = await fetch(`${server.baseUrl}/api/v1/authorizations/supervisor`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: 'void',
+        orderId: 'order-1',
+        supervisorUsername: 'supervisor',
+        supervisorSecret: 'secret',
+      }),
+    });
+    assert.equal(response.status, 403);
   } finally { await server.close(); }
 });
 
