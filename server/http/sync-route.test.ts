@@ -101,11 +101,28 @@ test('production sync HTTP path commits once and returns cached result on replay
   if (!pool || !db) { t.skip('DATABASE_URL not configured'); return; }
   const ids = { org: '00000000-0000-4000-8000-000000003001', store: '00000000-0000-4000-8000-000000003002', user: '00000000-0000-4000-8000-000000003003', register: '00000000-0000-4000-8000-000000003004', shift: '00000000-0000-4000-8000-000000003005', category: '00000000-0000-4000-8000-000000003006', product: '00000000-0000-4000-8000-000000003007', payment: '00000000-0000-4000-8000-000000003008' };
   const clean = async () => {
-    for (const [sql, params] of [
-      ['DELETE FROM prodx_cash_movements WHERE shift_id=$1', [ids.shift]], ['DELETE FROM prodx_audit_log WHERE store_id=$1', [ids.store]], ['DELETE FROM prodx_payments WHERE store_id=$1', [ids.store]], ['DELETE FROM prodx_order_items WHERE store_id=$1', [ids.store]], ['DELETE FROM prodx_inventory_ledger WHERE store_id=$1', [ids.store]], ['DELETE FROM prodx_orders WHERE store_id=$1', [ids.store]], ['DELETE FROM prodx_shifts WHERE id=$1', [ids.shift]], ['DELETE FROM prodx_products WHERE id=$1', [ids.product]], ['DELETE FROM prodx_categories WHERE id=$1', [ids.category]], ['DELETE FROM prodx_registers WHERE id=$1', [ids.register]], ['DELETE FROM prodx_store_memberships WHERE store_id=$1', [ids.store]], ['DELETE FROM prodx_users WHERE id=$1', [ids.user]], ['DELETE FROM prodx_stores WHERE id=$1', [ids.store]], ['DELETE FROM prodx_organizations WHERE id=$1', [ids.org]],
-    ] as const) await pool.query(sql as string, [...params]);
-  };
-  await clean();
+    await pool.query('ALTER TABLE prodx_audit_log DISABLE TRIGGER prodx_audit_log_immutable_guard');
+    try {
+      for (const [sql, params] of [
+        ['DELETE FROM prodx_cash_movements WHERE shift_id=$1', [ids.shift]],
+        ['DELETE FROM prodx_audit_log WHERE store_id=$1', [ids.store]],
+        ['DELETE FROM prodx_payments WHERE store_id=$1', [ids.store]],
+        ['DELETE FROM prodx_order_items WHERE store_id=$1', [ids.store]],
+        ['DELETE FROM prodx_inventory_ledger WHERE store_id=$1', [ids.store]],
+        ['DELETE FROM prodx_orders WHERE store_id=$1', [ids.store]],
+        ['DELETE FROM prodx_shifts WHERE id=$1', [ids.shift]],
+        ['DELETE FROM prodx_products WHERE id=$1', [ids.product]],
+        ['DELETE FROM prodx_categories WHERE id=$1', [ids.category]],
+        ['DELETE FROM prodx_registers WHERE id=$1', [ids.register]],
+        ['DELETE FROM prodx_store_memberships WHERE store_id=$1', [ids.store]],
+        ['DELETE FROM prodx_users WHERE id=$1', [ids.user]],
+        ['DELETE FROM prodx_stores WHERE id=$1', [ids.store]],
+        ['DELETE FROM prodx_organizations WHERE id=$1', [ids.org]],
+      ] as const) await pool.query(sql as string, [...params]);
+    } finally {
+      await pool.query('ALTER TABLE prodx_audit_log ENABLE TRIGGER prodx_audit_log_immutable_guard');
+    }
+  };  await clean();
   try {
     await pool.query('INSERT INTO prodx_organizations(id,code,name) VALUES($1,$2,$3)', [ids.org, 'sync-http', 'Sync HTTP']);
     await pool.query('INSERT INTO prodx_stores(id,organization_id,code,name,business_timezone) VALUES($1,$2,$3,$4,$5)', [ids.store, ids.org, 'sync-store', 'Sync Store', 'Asia/Bangkok']);

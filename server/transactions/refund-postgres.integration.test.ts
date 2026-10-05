@@ -53,29 +53,31 @@ const request = (key: string): CheckoutRequest => ({
 
 async function clean() {
   if (!pool) return;
+  await pool.query('ALTER TABLE prodx_audit_log DISABLE TRIGGER prodx_audit_log_immutable_guard');
   await pool.query('ALTER TABLE prodx_refunds DISABLE TRIGGER prodx_refund_immutable_guard');
   await pool.query('ALTER TABLE prodx_refund_items DISABLE TRIGGER prodx_refund_item_immutable_guard');
   try {
     for (const [sql, params] of [
-    ['DELETE FROM prodx_refund_items WHERE store_id=$1', [id.store]],
-    ['DELETE FROM prodx_cash_movements WHERE refund_id IN (SELECT id FROM prodx_refunds WHERE store_id=$1)', [id.store]],
-    ['DELETE FROM prodx_refunds WHERE store_id=$1', [id.store]],
-    ['DELETE FROM prodx_cash_movements WHERE shift_id=$1', [id.shift]],
-    ['DELETE FROM prodx_audit_log WHERE store_id=$1', [id.store]],
-    ['DELETE FROM prodx_payments WHERE store_id=$1', [id.store]],
-    ['DELETE FROM prodx_order_items WHERE store_id=$1', [id.store]],
-    ['DELETE FROM prodx_inventory_ledger WHERE store_id=$1', [id.store]],
-    ['DELETE FROM prodx_orders WHERE store_id=$1', [id.store]],
-    ['DELETE FROM prodx_shifts WHERE id=$1', [id.shift]],
-    ['DELETE FROM prodx_products WHERE id=$1', [id.product]],
-    ['DELETE FROM prodx_categories WHERE id=$1', [id.cat]],
-    ['DELETE FROM prodx_registers WHERE id=$1', [id.reg]],
-    ['DELETE FROM prodx_store_memberships WHERE store_id=$1', [id.store]],
-    ['DELETE FROM prodx_users WHERE id=$1', [id.user]],
-    ['DELETE FROM prodx_stores WHERE id=$1', [id.store]],
-    ['DELETE FROM prodx_organizations WHERE id=$1', [id.org]],
+      ['DELETE FROM prodx_refund_items WHERE store_id=$1', [id.store]],
+      ['DELETE FROM prodx_cash_movements WHERE refund_id IN (SELECT id FROM prodx_refunds WHERE store_id=$1)', [id.store]],
+      ['DELETE FROM prodx_refunds WHERE store_id=$1', [id.store]],
+      ['DELETE FROM prodx_cash_movements WHERE shift_id=$1', [id.shift]],
+      ['DELETE FROM prodx_audit_log WHERE store_id=$1', [id.store]],
+      ['DELETE FROM prodx_payments WHERE store_id=$1', [id.store]],
+      ['DELETE FROM prodx_order_items WHERE store_id=$1', [id.store]],
+      ['DELETE FROM prodx_inventory_ledger WHERE store_id=$1', [id.store]],
+      ['DELETE FROM prodx_orders WHERE store_id=$1', [id.store]],
+      ['DELETE FROM prodx_shifts WHERE id=$1', [id.shift]],
+      ['DELETE FROM prodx_products WHERE id=$1', [id.product]],
+      ['DELETE FROM prodx_categories WHERE id=$1', [id.cat]],
+      ['DELETE FROM prodx_registers WHERE id=$1', [id.reg]],
+      ['DELETE FROM prodx_store_memberships WHERE store_id=$1', [id.store]],
+      ['DELETE FROM prodx_users WHERE id=$1', [id.user]],
+      ['DELETE FROM prodx_stores WHERE id=$1', [id.store]],
+      ['DELETE FROM prodx_organizations WHERE id=$1', [id.org]],
     ] as const) await pool.query(sql, [...params]);
   } finally {
+    await pool.query('ALTER TABLE prodx_audit_log ENABLE TRIGGER prodx_audit_log_immutable_guard');
     await pool.query('ALTER TABLE prodx_refunds ENABLE TRIGGER prodx_refund_immutable_guard');
     await pool.query('ALTER TABLE prodx_refund_items ENABLE TRIGGER prodx_refund_item_immutable_guard');
   }
