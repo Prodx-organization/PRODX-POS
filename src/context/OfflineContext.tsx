@@ -10,6 +10,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { OutboxItem } from '../domain/sync';
 import { normalizeOutboxForRecovery } from '../domain/sync-recovery';
 import { createSyncApi } from '../adapters/syncApiFactory';
+import { clearOutboxItems, loadOutboxItems, putOutboxItem, replaceOutboxItems } from '../adapters/offlineOutboxStore';
 import { Order } from '../domain/order';
 import { useToast } from './ToastContext';
 import { useLanguage } from './LanguageContext';
@@ -44,7 +45,7 @@ interface OfflineContextType {
   isMeasuringLatency: boolean;
   measureSyncLatency: () => Promise<number | null>;
   toggleSimulatedOffline: () => void;
-  queueOutboxItem: <T>(type: 'order_transaction' | 'shift_movement' | 'stock_adjustment', idempotencyKey: string, payload: T) => OutboxItem<T>;
+  queueOutboxItem: <T>(type: 'order_transaction' | 'shift_movement' | 'stock_adjustment', idempotencyKey: string, payload: T) => Promise<OutboxItem<T>>;
   triggerSync: () => Promise<void>;
   clearSyncedItems: () => void;
   clearOutbox: () => void;
@@ -82,14 +83,43 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return null;
     }
   });
-  const [outbox, setOutbox] = useState<OutboxItem[]>(() => {
-    try {
-      const raw = localStorage.getItem(OUTBOX_STORAGE_KEY);
-      return raw ? normalizeOutboxForRecovery(JSON.parse(raw)) : [];
-    } catch {
-      return [];
+  const [outbox, setOutbox] = useState<OutboxItem[]>([]);
+  const outboxReadyRef = useRef<Promise<void> | null>(null);
+  const ensureOutboxReady = useCallback((): Promise<void> => {
+    if (!outboxReadyRef.current) {
+      outboxReadyRef.current = (async () => {
+        const stored = normalizeOutboxForRecovery(await loadOutboxItems());
+        if (stored.length > 0) {
+          setOutbox(stored.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+          return;
+        }
+
+        // One-time migration from the legacy localStorage snapshot.
+        let legacy: OutboxItem[] = [];
+        try {
+          const raw = localStorage.getItem(OUTBOX_STORAGE_KEY);
+          legacy = raw ? normalizeOutboxForRecovery(JSON.parse(raw)) : [];
+        } catch {
+          legacy = [];
+        }
+
+        if (legacy.length > 0) {
+          await replaceOutboxItems(legacy);
+          setOutbox(legacy.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+          localStorage.removeItem(OUTBOX_STORAGE_KEY);
+        } else {
+          setOutbox([]);
+        }
+      })();
     }
-  });
+    return outboxReadyRef.current;
+  }, []);
+
+  useEffect(() => {
+    ensureOutboxReady().catch((err) => {
+      console.error('[OfflineContext] Durable outbox initialization failed:', err);
+    });
+  }, [ensureOutboxReady]);
 
   // Real-time Sync Latency state
   const [syncLatencyMs, setSyncLatencyMs] = useState<number | null>(() => {
@@ -205,10 +235,10 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, []);
 
-  const persistOutbox = (items: OutboxItem[]) => {
+  const persistOutbox = useCallback(async (items: OutboxItem[]) => {
+    await replaceOutboxItems(items);
     setOutbox(items);
-    localStorage.setItem(OUTBOX_STORAGE_KEY, JSON.stringify(items));
-  };
+  }, []);
 
   const updateLastSynced = (timestamp: string) => {
     setLastSyncedAt(timestamp);
@@ -248,13 +278,14 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   };
 
-  const queueOutboxItem = <T,>(
+  const queueOutboxItem = async <T,>(
     type: 'order_transaction' | 'shift_movement' | 'stock_adjustment',
     idempotencyKey: string,
     payload: T
-  ): OutboxItem<T> => {
+  ): Promise<OutboxItem<T>> => {
+    await ensureOutboxReady();
     const item: OutboxItem<T> = {
-      id: `outbox-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `outbox-${typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`}`,
       type,
       idempotencyKey,
       payload,
@@ -263,13 +294,14 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
       syncState: 'queued',
     };
 
-    const updated = [item, ...outbox];
-    persistOutbox(updated);
+    await putOutboxItem(item);
+    setOutbox((current) => [item, ...current]);
     return item;
   };
 
   const triggerSync = useCallback(async () => {
     if (!isEffectiveOnline || isSyncing) return;
+    await ensureOutboxReady();
     const queuedItems = outbox.filter((item) => item.syncState === 'queued' || item.syncState === 'failed');
     if (queuedItems.length === 0) return;
 
@@ -283,7 +315,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
         currentOutbox = currentOutbox.map((i) =>
           i.id === item.id ? { ...i, syncState: 'syncing', attempts: i.attempts + 1 } : i
         );
-        persistOutbox(currentOutbox);
+        await persistOutbox(currentOutbox);
 
         const syncStartTime = performance.now();
         const result = await syncApi.syncOutboxItem(item);
@@ -302,7 +334,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
               }
             : i
         );
-        persistOutbox(currentOutbox);
+        await persistOutbox(currentOutbox);
       } catch (err: any) {
         console.error('[OfflineContext] Sync failure for item:', item.id, err);
         recordLatency(0, 'outbox_sync', 'failed');
@@ -323,22 +355,22 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (lastSuccessfulSyncAt) {
       updateLastSynced(lastSuccessfulSyncAt);
     }
-  }, [isEffectiveOnline, isSyncing, outbox, recordLatency]);
+  }, [ensureOutboxReady, isEffectiveOnline, isSyncing, outbox, persistOutbox, recordLatency]);
 
   // Auto-trigger sync when transitioning to online
   useEffect(() => {
     if (isEffectiveOnline && outbox.some((i) => i.syncState === 'queued')) {
-      triggerSync();
+      void triggerSync();
     }
   }, [isEffectiveOnline, outbox, triggerSync]);
 
   const clearSyncedItems = () => {
     const remaining = outbox.filter((i) => i.syncState !== 'synced');
-    persistOutbox(remaining);
+    void persistOutbox(remaining);
   };
 
   const clearOutbox = () => {
-    persistOutbox([]);
+    void clearOutboxItems().then(() => setOutbox([]));
   };
 
   const pendingCount = outbox.filter((i) => i.syncState === 'queued' || i.syncState === 'failed').length;
