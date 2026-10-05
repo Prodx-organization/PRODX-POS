@@ -39,6 +39,25 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 export const hashSessionToken = (token: string): string => crypto.createHash('sha256').update(token, 'utf8').digest('hex');
 const newBearerToken = (): string => crypto.randomBytes(32).toString('base64url');
 
+const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
+const supabaseJwks = supabaseUrl
+  ? createRemoteJWKSet(new URL(supabaseUrl + '/auth/v1/.well-known/jwks.json'))
+  : null;
+
+const verifySupabaseToken = async (token: string) => {
+  if (!supabaseJwks || !token) return null;
+  try {
+    const { payload } = await jwtVerify(token, supabaseJwks, {
+      issuer: supabaseUrl + '/auth/v1',
+      audience: 'authenticated',
+    });
+    if (typeof payload.sub !== 'string' || typeof payload.email !== 'string' || typeof payload.exp !== 'number') return null;
+    return { userId: payload.sub, email: payload.email, expiresAt: new Date(payload.exp * 1000) };
+  } catch {
+    return null;
+  }
+};
+
 export const createSessionIssuer = (
   repository: AuthenticationRepository,
   verifySecret: (secret: string, encodedHash: string) => Promise<boolean>,
