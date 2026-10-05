@@ -1,5 +1,5 @@
 import type { Express, NextFunction, Request, Response } from 'express';
-import type { Permission } from '../../src/domain/auth';
+type Permission = 'pos:checkout' | 'pos:void' | 'pos:refund' | 'inventory:read' | 'inventory:adjust' | 'shift:open' | 'shift:close' | 'shift:pay_movement' | 'customers:read' | 'customers:write' | 'reports:read' | 'audit:read' | 'settings:manage';
 import type { AuthenticatedSession, SessionIssuer } from '../auth/session';
 import type { SqlExecutor } from '../auth/postgres-repository';
 import { checkLoginThrottle, recordLoginFailure } from '../auth/login-rate-limit';
