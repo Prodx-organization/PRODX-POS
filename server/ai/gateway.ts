@@ -125,7 +125,21 @@ export class AIGatewayService {
       max_tokens: maxTokens,
     };
 
-    const response = await provider.chat(providerRequest);
+    let response: AIChatResponse;
+    try {
+      response = await provider.chat(providerRequest);
+    } catch (error) {
+      await this.audit({
+        request,
+        provider: provider.name,
+        model: request.model,
+        inputChars,
+        estimatedInputTokens,
+        allowed: true,
+        reason: 'provider_error',
+      });
+      throw error;
+    }
     await this.audit({
       request,
       provider: provider.name,

@@ -3,6 +3,8 @@ import type { AIChatRequest, AIChatResponse, AIProvider } from './types';
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const DEFAULT_MODEL = 'gemini-3.8-flash';
 const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_RETRY_DELAY_MS = 250;
 const MAX_MESSAGES = 50;
 const MAX_MESSAGE_CHARS = 20_000;
 
@@ -12,6 +14,8 @@ export interface GeminiProviderConfig {
   defaultModel?: string;
   allowedModels?: readonly string[];
   timeoutMs?: number;
+  maxRetries?: number;
+  retryDelayMs?: number;
 }
 
 function normalizeBaseUrl(value: string): string {
@@ -23,6 +27,22 @@ function normalizeBaseUrl(value: string): string {
 function allowedModelSet(config: GeminiProviderConfig): ReadonlySet<string> {
   const configured = config.allowedModels ?? (process.env.GEMINI_ALLOWED_MODELS ?? '').split(',').map((value) => value.trim()).filter(Boolean);
   return new Set(configured.length > 0 ? configured : [config.defaultModel ?? process.env.GEMINI_DEFAULT_MODEL ?? DEFAULT_MODEL]);
+}
+
+function resolveRetries(value: number | string | undefined): number {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_MAX_RETRIES;
+  return Math.min(3, Math.max(0, Math.trunc(parsed)));
+}
+
+function resolveRetryDelay(value: number | string | undefined): number {
+  const parsed = typeof value === 'number' ? value : Number.parseInt(value ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_RETRY_DELAY_MS;
+  return Math.min(5_000, Math.max(0, Math.trunc(parsed)));
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
 }
 
 function resolveTimeout(value: number | string | undefined): number {
@@ -39,6 +59,8 @@ export class GeminiProvider implements AIProvider {
   private readonly defaultModel: string;
   private readonly allowedModels: ReadonlySet<string>;
   private readonly timeoutMs: number;
+  private readonly maxRetries: number;
+  private readonly retryDelayMs: number;
 
   constructor(config: GeminiProviderConfig = {}) {
     this.apiKey = config.apiKey ?? process.env.GEMINI_API_KEY ?? '';
@@ -46,6 +68,8 @@ export class GeminiProvider implements AIProvider {
     this.defaultModel = config.defaultModel ?? process.env.GEMINI_DEFAULT_MODEL ?? DEFAULT_MODEL;
     this.allowedModels = allowedModelSet({ ...config, defaultModel: this.defaultModel });
     this.timeoutMs = resolveTimeout(config.timeoutMs ?? process.env.GEMINI_TIMEOUT_MS);
+    this.maxRetries = resolveRetries(config.maxRetries ?? process.env.GEMINI_MAX_RETRIES);
+    this.retryDelayMs = resolveRetryDelay(config.retryDelayMs ?? process.env.GEMINI_RETRY_DELAY_MS);
   }
 
   async chat(request: AIChatRequest): Promise<AIChatResponse> {
@@ -75,9 +99,10 @@ export class GeminiProvider implements AIProvider {
       },
     };
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-    try {
+    for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+      try {
       const response = await fetch(`${this.baseUrl}/models/${encodeURIComponent(model)}:generateContent`, {
         method: 'POST',
         headers: {
@@ -89,7 +114,13 @@ export class GeminiProvider implements AIProvider {
         signal: controller.signal,
       });
 
-      if (!response.ok) throw new Error(`Gemini AI request failed (${response.status}).`);
+        if (!response.ok) {
+          if (isRetryableStatus(response.status) && attempt < this.maxRetries) {
+            if (this.retryDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, this.retryDelayMs * 2 ** attempt));
+            continue;
+          }
+          throw new Error(`Gemini AI request failed (${response.status}).`);
+        }
 
       const raw = (await response.json()) as Record<string, unknown>;
       const candidates = Array.isArray(raw.candidates) ? raw.candidates : [];
@@ -126,9 +157,12 @@ export class GeminiProvider implements AIProvider {
         throw new Error(`Gemini AI request timed out after ${this.timeoutMs}ms.`);
       }
       throw error;
-    } finally {
-      clearTimeout(timeout);
+        } finally {
+          clearTimeout(timeout);
+        }
     }
+
+    throw new Error('Gemini AI request exhausted retry budget.');
   }
 
   private validateRequest(request: AIChatRequest): void {

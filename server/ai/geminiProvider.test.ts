@@ -61,3 +61,38 @@ test('GeminiProvider falls back to the default timeout for invalid configuration
     globalThis.fetch = originalFetch;
   }
 });
+
+test('GeminiProvider retries transient provider responses with a bounded budget', async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    if (calls < 3) return new Response('{}', { status: 503 });
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok after retry' }] } }] }), { status: 200 });
+  };
+  try {
+    const provider = new GeminiProvider({ apiKey: 'k', defaultModel: 'gemini-3.8-flash', maxRetries: 2, retryDelayMs: 0 });
+    const result = await provider.chat({ model: 'gemini-3.8-flash', messages: [{ role: 'user', content: 'Hi' }] });
+    const message = (result.choices?.[0] as { message?: { content?: string } } | undefined)?.message?.content;
+    assert.equal(message, 'ok after retry');
+    assert.equal(calls, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('GeminiProvider does not retry non-transient client errors', async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return new Response('{}', { status: 400 });
+  };
+  try {
+    const provider = new GeminiProvider({ apiKey: 'k', defaultModel: 'gemini-3.8-flash', maxRetries: 3, retryDelayMs: 0 });
+    await assert.rejects(provider.chat({ model: 'gemini-3.8-flash', messages: [{ role: 'user', content: 'Hi' }] }), /failed \(400\)/);
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

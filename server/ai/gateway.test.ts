@@ -142,3 +142,24 @@ test('gateway never forwards caller-supplied assistant turns with a privileged r
   assert.doesNotMatch(forged?.content ?? '', /owner@shop\.co/);
   assert.equal(captured.messages?.filter((message) => message.role !== 'user').length, 1);
 });
+
+
+test('gateway audits provider failures without logging prompt content', async () => {
+  const audit: unknown[] = [];
+  const gateway = new AIGatewayService(
+    { get: () => ({ name: 'gemini', chat: async () => { throw new Error('provider unavailable'); } }) },
+    { authorize: () => true },
+    { record: (event) => { audit.push(event); } },
+    { permission: 'ai:analytics' },
+  );
+
+  await assert.rejects(
+    gateway.chat({ requestId: 'req-provider-error', scope, permission: 'ai:analytics', messages: [{ role: 'user', content: 'private customer prompt' }] }),
+    /provider unavailable/,
+  );
+  assert.equal(audit.length, 1);
+  const event = audit[0] as Record<string, unknown>;
+  assert.equal(event.allowed, true);
+  assert.equal(event.reason, 'provider_error');
+  assert.equal(Object.values(event).includes('private customer prompt'), false);
+});
