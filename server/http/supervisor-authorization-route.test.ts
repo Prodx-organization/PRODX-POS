@@ -30,8 +30,8 @@ test('supervisor authorization route issues a server-scoped token from authentic
       transactionCalls += 1;
       return work({
         query: async <T extends Record<string, unknown>>(sql: string) => {
-          if (sql.includes('SELECT u.id AS "userId"')) return { rows: [{ userId: 'supervisor-1', organizationId: principal.organizationId, status: 'active', secretHash, failedAttempts: 0, lockedUntil: null }] as T[] };
-          if (sql.includes('SELECT m.user_id AS "userId"')) return { rows: [{ userId: 'supervisor-1' }] as T[] };
+          if (sql.includes('SELECT u.id AS "userId"')) return { rows: [{ userId: 'supervisor-1', organizationId: principal.organizationId, status: 'active', secretHash, failedAttempts: 0, lockedUntil: null }] as unknown as T[] };
+          if (sql.includes('SELECT m.user_id AS "userId"')) return { rows: [{ userId: 'supervisor-1' }] as unknown as T[] };
           if (sql.includes('UPDATE prodx_user_credentials')) return { rows: [] as T[] };
           if (sql.includes('INSERT INTO prodx_supervisor_authorizations')) return { rows: [] as T[] };
           if (sql.includes('INSERT INTO prodx_security_audit_events')) return { rows: [] as T[] };
