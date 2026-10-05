@@ -212,13 +212,6 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const handleOnline = () => setBrowserOnline(true);
     const handleOffline = () => setBrowserOnline(false);
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === OUTBOX_STORAGE_KEY && e.newValue) {
-        try {
-          setOutbox(JSON.parse(e.newValue));
-        } catch {
-          // ignore
-        }
-      }
       if (e.key === LAST_SYNCED_STORAGE_KEY) {
         setLastSyncedAt(e.newValue);
       }
