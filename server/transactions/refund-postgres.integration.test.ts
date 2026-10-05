@@ -53,6 +53,8 @@ const request = (key: string): CheckoutRequest => ({
 
 async function clean() {
   if (!pool) return;
+  await pool.query('ALTER TABLE prodx_audit_log DISABLE TRIGGER prodx_audit_log_immutable_guard');
+  try {
   await pool.query('ALTER TABLE prodx_refunds DISABLE TRIGGER prodx_refund_immutable_guard');
   await pool.query('ALTER TABLE prodx_refund_items DISABLE TRIGGER prodx_refund_item_immutable_guard');
   try {
@@ -76,6 +78,7 @@ async function clean() {
     ['DELETE FROM prodx_organizations WHERE id=$1', [id.org]],
     ] as const) await pool.query(sql, [...params]);
   } finally {
+    await pool.query('ALTER TABLE prodx_audit_log ENABLE TRIGGER prodx_audit_log_immutable_guard');
     await pool.query('ALTER TABLE prodx_refunds ENABLE TRIGGER prodx_refund_immutable_guard');
     await pool.query('ALTER TABLE prodx_refund_items ENABLE TRIGGER prodx_refund_item_immutable_guard');
   }
