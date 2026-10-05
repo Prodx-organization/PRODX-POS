@@ -202,8 +202,8 @@ const TAB_ITEMS: SettingsTabItem[] = [
   },
   {
     id: 'ai_assistant',
-    label: { th: 'ผู้ช่วย AI อัจฉริยะ (KKU AI)', en: 'AI Assistant & Gemini' },
-    sublabel: { th: 'ตั้งค่า API Key, โมเดล Gemini, ทดสอบ AI', en: 'KKU AI / Gemini Endpoint & API Key' },
+    label: { th: 'ผู้ช่วย PRODX AI', en: 'PRODX AI Assistant' },
+    sublabel: { th: 'ตั้งค่า Gemini provider และทดสอบ PRODX AI', en: 'PRODX AI / Gemini Provider & Connection' },
     iconName: 'Sparkles',
     graphicColor: 'indigo',
     badge: 'AI',
