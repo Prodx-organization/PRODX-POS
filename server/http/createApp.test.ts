@@ -20,6 +20,38 @@ const start = async (app: ReturnType<typeof createApp>) => {
   };
 };
 
+test('does not trust forwarded client IP headers unless TRUST_PROXY is explicitly configured', async () => {
+  const previous = process.env.TRUST_PROXY;
+  delete process.env.TRUST_PROXY;
+  const app = createApp({ authenticateRequest: () => null });
+  assert.equal(app.get('trust proxy'), false);
+  if (previous === undefined) delete process.env.TRUST_PROXY;
+  else process.env.TRUST_PROXY = previous;
+});
+
+test('accepts an explicit trusted proxy hop count', async () => {
+  const previous = process.env.TRUST_PROXY;
+  process.env.TRUST_PROXY = '1';
+  try {
+    const app = createApp({ authenticateRequest: () => null });
+    assert.equal(app.get('trust proxy'), 1);
+  } finally {
+    if (previous === undefined) delete process.env.TRUST_PROXY;
+    else process.env.TRUST_PROXY = previous;
+  }
+});
+
+test('rejects malformed trusted proxy configuration', () => {
+  const previous = process.env.TRUST_PROXY;
+  process.env.TRUST_PROXY = 'all';
+  try {
+    assert.throws(() => createApp({ authenticateRequest: () => null }), /TRUST_PROXY/);
+  } finally {
+    if (previous === undefined) delete process.env.TRUST_PROXY;
+    else process.env.TRUST_PROXY = previous;
+  }
+});
+
 test('rejects requests when backend authentication does not produce a verified principal', async () => {
   const app = createApp({ authenticateRequest: () => null });
   const server = await start(app);
