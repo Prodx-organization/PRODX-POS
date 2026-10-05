@@ -170,6 +170,31 @@ test('M2 PostgreSQL authentication enforces credential, tenant, session, token-h
   assert.equal(resetAudit.rows[1].event_type, 'AUTH_LOCKOUT_RESET');
   assert.equal(resetAudit.rows[1].metadata.previous_failed_attempts, 5);
 
+  // Adversarial concurrency check: all callers start from the same unlocked state.
+  // PostgreSQL must still cap the credential at the configured five failures.
+  const concurrentFailures = await Promise.all(
+    Array.from({ length: 12 }, () => authentication.authenticateCredentials({
+      username: 'm2-user-a',
+      password: 'wrong-password',
+      deviceId: ids.deviceA,
+    })),
+  );
+  assert.equal(concurrentFailures.filter((result) => result === null).length, 12);
+  const concurrentState = await pool.query<{ failed_attempts: number; locked_until: Date | null }>(
+    'SELECT failed_attempts, locked_until FROM prodx_user_credentials WHERE user_id = $1',
+    [ids.userA],
+  );
+  assert.equal(concurrentState.rows[0].failed_attempts, 5);
+  assert.ok(concurrentState.rows[0].locked_until);
+
+  await pool.query('UPDATE prodx_user_credentials SET locked_until = CURRENT_TIMESTAMP - INTERVAL \'1 second\' WHERE user_id = $1', [ids.userA]);
+  const postConcurrencyReset = await authentication.authenticateCredentials({
+    username: 'm2-user-a',
+    password: 'correct-password',
+    deviceId: ids.deviceA,
+  });
+  assert.ok(postConcurrencyReset);
+
   const crossTenantDevice = await authentication.authenticateCredentials({
     username: 'm2-user-a',
     password: 'correct-password',
