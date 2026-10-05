@@ -20,7 +20,7 @@ test('login throttle blocks after twenty failures without blocking the first nin
         state.failedAttempts = state.windowStartedAt.getTime() + 10 * 60 * 1000 <= now.getTime() ? 1 : state.failedAttempts + 1;
         state.windowStartedAt = state.failedAttempts === 1 ? now : state.windowStartedAt;
         state.lockedUntil = state.failedAttempts >= 20 ? new Date(now.getTime() + 60_000) : null;
-        return [{ failed_attempts: state.failedAttempts, locked_until: state.lockedUntil }] as T[];
+        return [{ failed_attempts: state.failedAttempts, locked_until: state.lockedUntil }] as unknown as T[];
       }
       if (sql.includes('UPDATE prodx_auth_login_throttles')) {
         state.failedAttempts = 0;
