@@ -20,6 +20,28 @@ const start = async (app: ReturnType<typeof createApp>) => {
   };
 };
 
+test('enforces explicit trusted proxy configuration', () => {
+  const previous = process.env.TRUST_PROXY;
+  try {
+    delete process.env.TRUST_PROXY;
+    const defaultApp = createApp({ authenticateRequest: () => null });
+    assert.equal(defaultApp.get('trust proxy'), false);
+
+    process.env.TRUST_PROXY = '1';
+    const hopCountApp = createApp({ authenticateRequest: () => null });
+    assert.equal(hopCountApp.get('trust proxy'), 1);
+
+    process.env.TRUST_PROXY = 'all';
+    assert.throws(
+      () => createApp({ authenticateRequest: () => null }),
+      /TRUST_PROXY/,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.TRUST_PROXY;
+    else process.env.TRUST_PROXY = previous;
+  }
+});
+
 test('rejects requests when backend authentication does not produce a verified principal', async () => {
   const app = createApp({ authenticateRequest: () => null });
   const server = await start(app);

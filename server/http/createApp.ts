@@ -97,6 +97,23 @@ const authenticate = (authenticator: AuthenticateRequest) => {
 export const createApp = (options: BackendBoundaryOptions) => {
   const app = express();
   app.disable('x-powered-by');
+
+  // Client IPs are security-sensitive input for login throttling. Only trust
+  // forwarded headers when the deployment explicitly configures a trusted
+  // proxy hop count; otherwise Express uses the direct socket address.
+  const trustedProxy = process.env.TRUST_PROXY?.trim();
+  if (trustedProxy) {
+    if (/^\d+$/.test(trustedProxy)) {
+      app.set('trust proxy', Number.parseInt(trustedProxy, 10));
+    } else if (trustedProxy === 'true') {
+      app.set('trust proxy', true);
+    } else if (trustedProxy === 'false') {
+      app.set('trust proxy', false);
+    } else {
+      throw new Error('TRUST_PROXY must be a non-negative hop count or true/false.');
+    }
+  }
+
   app.use(express.json({ limit: '1mb' }));
   app.use(attachRequestId);
   app.locals.prodxAuthorize = options.authorizeRequest;
