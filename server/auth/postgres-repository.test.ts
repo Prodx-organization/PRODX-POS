@@ -65,15 +65,14 @@ test('credential and session writes remain parameterized and persist auth securi
     calls.push({ sql, parameters }); return [];
   }};
   const repository = createPostgresAuthenticationRepository(db);
-  const lockout = new Date('2030-01-01T00:15:00Z');
   await repository.createSession({ id: 'session-1', organizationId: 'org-1', userId: 'user-1', deviceId: 'device-1', tokenHash: 'token-hash', expiresAt: new Date('2030-01-01T00:00:00Z') });
-  await repository.recordFailedAttempt('user-1', lockout);
+  await repository.recordFailedAttempt('user-1');
   await repository.resetFailedAttempts('user-1');
   await repository.touchSession('session-1', new Date('2030-01-01T00:00:00Z'));
   assert.equal(calls.length, 4);
   assert.ok(calls.every(({ sql }) => !sql.includes('token-hash')));
-  assert.deepEqual(calls[1].parameters.slice(0, 2), ['user-1', lockout]);
-  assert.equal(calls[1].parameters.length, 3);
+  assert.deepEqual(calls[1].parameters, ['user-1', calls[1].parameters[1]]);
+  assert.equal(calls[1].parameters.length, 2);
   assert.match(calls[1].sql, /AUTH_LOCKOUT/);
   assert.match(calls[2].sql, /AUTH_LOCKOUT_RESET/);
   assert.equal(calls[2].parameters.length, 2);
