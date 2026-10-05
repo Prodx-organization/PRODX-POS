@@ -2,8 +2,6 @@ import crypto from 'node:crypto';
 import type { SqlExecutor } from './postgres-repository';
 
 const WINDOW_MS = 10 * 60 * 1000;
-const MAX_FAILURES = 20;
-const BLOCK_MS = 60 * 1000;
 
 export const fingerprintClient = (clientAddress: string): string =>
   crypto.createHash('sha256').update(clientAddress, 'utf8').digest('hex');
