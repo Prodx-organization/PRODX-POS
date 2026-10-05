@@ -20,32 +20,22 @@ const start = async (app: ReturnType<typeof createApp>) => {
   };
 };
 
-test('does not trust forwarded client IP headers unless TRUST_PROXY is explicitly configured', async () => {
+test('enforces explicit trusted proxy configuration', () => {
   const previous = process.env.TRUST_PROXY;
-  delete process.env.TRUST_PROXY;
-  const app = createApp({ authenticateRequest: () => null });
-  assert.equal(app.get('trust proxy'), false);
-  if (previous === undefined) delete process.env.TRUST_PROXY;
-  else process.env.TRUST_PROXY = previous;
-});
-
-test('accepts an explicit trusted proxy hop count', async () => {
-  const previous = process.env.TRUST_PROXY;
-  process.env.TRUST_PROXY = '1';
   try {
-    const app = createApp({ authenticateRequest: () => null });
-    assert.equal(app.get('trust proxy'), 1);
-  } finally {
-    if (previous === undefined) delete process.env.TRUST_PROXY;
-    else process.env.TRUST_PROXY = previous;
-  }
-});
+    delete process.env.TRUST_PROXY;
+    const defaultApp = createApp({ authenticateRequest: () => null });
+    assert.equal(defaultApp.get('trust proxy'), false);
 
-test('rejects malformed trusted proxy configuration', () => {
-  const previous = process.env.TRUST_PROXY;
-  process.env.TRUST_PROXY = 'all';
-  try {
-    assert.throws(() => createApp({ authenticateRequest: () => null }), /TRUST_PROXY/);
+    process.env.TRUST_PROXY = '1';
+    const hopCountApp = createApp({ authenticateRequest: () => null });
+    assert.equal(hopCountApp.get('trust proxy'), 1);
+
+    process.env.TRUST_PROXY = 'all';
+    assert.throws(
+      () => createApp({ authenticateRequest: () => null }),
+      /TRUST_PROXY/,
+    );
   } finally {
     if (previous === undefined) delete process.env.TRUST_PROXY;
     else process.env.TRUST_PROXY = previous;
