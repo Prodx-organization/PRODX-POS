@@ -228,11 +228,6 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, []);
 
-  const persistOutbox = useCallback(async (items: OutboxItem[]) => {
-    await replaceOutboxItems(items);
-    setOutbox(items);
-  }, []);
-
   const updateLastSynced = (timestamp: string) => {
     setLastSyncedAt(timestamp);
     localStorage.setItem(LAST_SYNCED_STORAGE_KEY, timestamp);
@@ -359,7 +354,7 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (lastSuccessfulSyncAt) {
       updateLastSynced(lastSuccessfulSyncAt);
     }
-  }, [ensureOutboxReady, isEffectiveOnline, isSyncing, outbox, persistOutbox, recordLatency]);
+  }, [ensureOutboxReady, isEffectiveOnline, isSyncing, outbox, recordLatency]);
 
   // Auto-trigger sync when transitioning to online
   useEffect(() => {
