@@ -1,23 +1,24 @@
 import type { ISyncApi } from './types';
 import type { OutboxItem } from '../domain/sync';
 
-const API_BASE_URL = import.meta.env.VITE_AUTH_API_BASE_URL;
+const configuredBaseUrl = () => import.meta.env?.VITE_AUTH_API_BASE_URL as string | undefined;
 
-function requireBaseUrl(): string {
-  if (!API_BASE_URL) {
+function requireBaseUrl(baseUrl?: string): string {
+  const resolved = baseUrl ?? configuredBaseUrl();
+  if (!resolved) {
     throw new Error('Production sync API is not configured: VITE_AUTH_API_BASE_URL is missing.');
   }
-  return API_BASE_URL.replace(/\/$/, '');
+  return resolved.replace(/\/$/, '');
 }
 
-export function createProductionSyncApi(token: string): ISyncApi {
+export function createProductionSyncApi(token: string, baseUrl?: string): ISyncApi {
   const requireToken = () => {
     if (!token.trim()) throw new Error('Authenticated session token is required for synchronization.');
     return token.trim();
   };
 
   const request = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
-    const response = await fetch(`${requireBaseUrl()}${path}`, {
+    const response = await fetch(`${requireBaseUrl(baseUrl)}${path}`, {
       ...init,
       credentials: 'include',
       headers: {
@@ -40,7 +41,7 @@ export function createProductionSyncApi(token: string): ISyncApi {
 
   return {
     async syncOutboxItem(item: OutboxItem) {
-      return request<{ confirmedOrder: any; syncedAt: string }>('/api/v1/sync/commands', {
+      return request<{ confirmedOrder: unknown; syncedAt: string }>('/api/v1/sync/commands', {
         method: 'POST',
         body: JSON.stringify({ item }),
       });
