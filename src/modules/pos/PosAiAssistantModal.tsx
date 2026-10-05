@@ -109,7 +109,7 @@ export const PosAiAssistantModal: React.FC<PosAiAssistantModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isThai ? 'KKU AI ผู้ช่วยแคชเชียร์อัจฉริยะ (POS Smart Assistant)' : 'KKU AI Smart Cashier Assistant'}
+      title={isThai ? 'PRODX AI ผู้ช่วยแคชเชียร์อัจฉริยะ (POS Smart Assistant)' : 'PRODX AI Smart Cashier Assistant'}
       maxWidth="lg"
     >
       <div className="space-y-4">
