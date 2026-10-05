@@ -67,20 +67,13 @@ export const createSupabaseAuthApi = (): IAuthApi => ({
 
   async verifySession(token) {
     if (!token) return null;
-    const { data } = await supabase.auth.getSession();
-    const accessToken = data.session?.access_token;
-    if (!accessToken) return null;
-    try {
-      return await exchangeToken(accessToken, {
-        organizationSlug: '',
-        storeCode: '',
-        registerId: '',
-        emailOrPin: '',
-        passwordOrPin: '',
-      });
-    } catch {
-      return null;
-    }
+    const response = await fetch(`${baseUrl()}/auth/session`, {
+      credentials: 'include',
+      headers: { Accept: 'application/json', Authorization: `Bearer ${requireToken(token)}` },
+    });
+    if (response.status === 401) return null;
+    if (!response.ok) throw new Error(`Authentication API request failed (${response.status}).`);
+    return response.json() as Promise<SessionContext>;
   },
 
   async getStores(orgSlug, token) {
