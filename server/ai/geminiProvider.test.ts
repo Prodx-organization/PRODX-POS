@@ -74,7 +74,8 @@ test('GeminiProvider retries transient provider responses with a bounded budget'
   try {
     const provider = new GeminiProvider({ apiKey: 'k', defaultModel: 'gemini-3.8-flash', maxRetries: 2, retryDelayMs: 0 });
     const result = await provider.chat({ model: 'gemini-3.8-flash', messages: [{ role: 'user', content: 'Hi' }] });
-    assert.equal(result.choices?.[0]?.message.content, 'ok after retry');
+    const message = (result.choices?.[0] as { message?: { content?: string } } | undefined)?.message?.content;
+    assert.equal(message, 'ok after retry');
     assert.equal(calls, 3);
   } finally {
     globalThis.fetch = originalFetch;
