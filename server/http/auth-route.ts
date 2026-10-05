@@ -1,6 +1,7 @@
 import type { Express, NextFunction, Request, Response } from 'express';
 import type { AuthenticatedSession, SessionIssuer } from '../auth/session';
 import type { SqlExecutor } from '../auth/postgres-repository';
+import { checkLoginThrottle, recordLoginFailure } from '../auth/login-rate-limit';
 
 type LoginBody = {
   organizationSlug: string;
@@ -153,6 +154,13 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
       return;
     }
 
+    const throttle = await checkLoginThrottle(db, request.ip || 'unknown');
+    if (!throttle.allowed) {
+      if (throttle.retryAfterSeconds) response.setHeader('retry-after', String(throttle.retryAfterSeconds));
+      response.status(429).json(errorBody(request, 'AUTH_RATE_LIMITED', 'Too many failed authentication attempts. Please try again later.'));
+      return;
+    }
+
     const devices = await db.query<{ id: string; store_id: string }>(
       `SELECT d.id, d.store_id
          FROM prodx_organizations o
@@ -163,14 +171,14 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
       [body.organizationSlug, body.storeCode, body.registerId],
     );
     const device = devices[0];
-    if (!device) { sendAuthFailed(request, response); return; }
+    if (!device) { await recordLoginFailure(db, request.ip || 'unknown'); sendAuthFailed(request, response); return; }
 
     const issued = await sessions.authenticateCredentials({
       username: body.emailOrPin,
       password: body.passwordOrPin,
       deviceId: device.id,
     });
-    if (!issued) { sendAuthFailed(request, response); return; }
+    if (!issued) { await recordLoginFailure(db, request.ip || 'unknown'); sendAuthFailed(request, response); return; }
 
     const principal = await sessions.authenticateBearer(issued.token);
     if (!principal || principal.storeId !== device.store_id) {
