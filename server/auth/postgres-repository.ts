@@ -34,7 +34,7 @@ export const createPostgresAuthenticationRepository = (db: SqlExecutor): Authent
        )
        INSERT INTO prodx_security_audit_events
          (id, organization_id, user_id, event_type, metadata)
-       SELECT $3::uuid, u.organization_id, updated.user_id, 'AUTH_LOCKOUT',
+       SELECT $2::uuid, u.organization_id, updated.user_id, 'AUTH_LOCKOUT',
               jsonb_build_object('failed_attempts', updated.failed_attempts, 'locked_until', updated.locked_until)
          FROM updated
          JOIN prodx_users u ON u.id = updated.user_id
