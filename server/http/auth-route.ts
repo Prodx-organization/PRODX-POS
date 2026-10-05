@@ -1,4 +1,5 @@
 import type { Express, NextFunction, Request, Response } from 'express';
+import type { Permission } from '../../src/domain/auth';
 import type { AuthenticatedSession, SessionIssuer } from '../auth/session';
 import type { SqlExecutor } from '../auth/postgres-repository';
 import { checkLoginThrottle, recordLoginFailure } from '../auth/login-rate-limit';
@@ -20,6 +21,22 @@ const DEFAULT_STORE_TAX_RATE_BPS = 700;
 const MAX_FIELD_LENGTH = 256;
 
 const AUTH_FAILED_MESSAGE = 'Invalid credentials or store scope.';
+const BACKEND_TO_UI_PERMISSION: Record<string, Permission> = {
+  'pos.sell': 'pos:checkout',
+  'pos.void': 'pos:void',
+  'pos.refund': 'pos:refund',
+  'inventory.read': 'inventory:read',
+  'inventory.adjust': 'inventory:adjust',
+  'cash.shift.open': 'shift:open',
+  'cash.shift.close': 'shift:close',
+  'cash.shift.movement': 'shift:pay_movement',
+  'customer.read': 'customers:read',
+  'customer.write': 'customers:write',
+  'report.read': 'reports:read',
+  'audit.read': 'audit:read',
+  'settings.manage': 'settings:manage',
+};
+const toUiPermission = (permission: string): Permission | null => BACKEND_TO_UI_PERMISSION[permission] ?? null;
 
 const errorBody = (request: Request, code: string, message: string) => ({
   error: { code, message, requestId: request.id },
@@ -129,7 +146,7 @@ const loadSessionContext = async (
       email: row.username,
       role: toRole(row.role_key),
       employeeCode: row.username,
-      permissions: permissions.map((permission) => permission.permission_key),
+      permissions: permissions.map((permission) => toUiPermission(permission.permission_key)).filter((permission): permission is Permission => permission !== null),
     },
     token,
     expiresAt: expiresAt.toISOString(),
