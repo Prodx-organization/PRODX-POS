@@ -13,7 +13,7 @@ test('login throttle blocks after twenty failures without blocking the first nin
   const db: SqlExecutor = {
     async query<T extends Record<string, unknown>>(sql: string, parameters: readonly unknown[] = []): Promise<readonly T[]> {
       if (sql.includes('SELECT locked_until')) {
-        return (state.failedAttempts === 0 ? [] : [{ failed_attempts: state.failedAttempts, window_started_at: state.windowStartedAt, locked_until: state.lockedUntil }] as T[]);
+        return (state.failedAttempts === 0 ? [] : [{ failed_attempts: state.failedAttempts, window_started_at: state.windowStartedAt, locked_until: state.lockedUntil }] as unknown as T[]);
       }
       if (sql.includes('INSERT INTO prodx_auth_login_throttles')) {
         const now = parameters[1] as Date;
