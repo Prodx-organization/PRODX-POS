@@ -90,6 +90,8 @@ jobs:
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0003_m1_1_auth_identity';
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0004_m1_2_rbac';
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0025_m4_ai_rbac_provisioning';
+          SELECT 1 FROM prodx_schema_migrations WHERE version = '0030_m5_audit_log_immutability';
+          SELECT tgname FROM pg_trigger WHERE tgname = 'prodx_audit_log_immutable_guard' AND NOT tgisinternal;
           SELECT 1 FROM prodx_migration_lock WHERE lock_id = 1;
           SELECT current_setting('TimeZone') AS session_timezone;
           SELECT (TIMESTAMPTZ '2026-01-01 00:00:00+00' AT TIME ZONE 'UTC') = TIMESTAMP '2026-01-01 00:00:00';
@@ -210,13 +212,13 @@ jobs:
             END;
           END $$;
           SQL
-          before=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning');")
+          before=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning', '0030_m5_audit_log_immutability');")
           for migration in "${migrations[@]}"; do
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration" >/dev/null
           done
-          after=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning');")
+          after=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning', '0030_m5_audit_log_immutability');")
           test "$before" = "$after"
-          test "$after" = "5"
+          test "$after" = "6"
 
       - name: Theme validation
         run: bun run theme:validate
