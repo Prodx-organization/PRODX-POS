@@ -67,7 +67,7 @@ export const InventoryAiOptimizationModal: React.FC<InventoryAiOptimizationModal
     } catch (err: any) {
       addToast({
         title: isThai ? 'ไม่สามารถวิเคราะห์สต็อกได้' : 'Stock Analysis Failed',
-        message: err.message || 'Error occurred while contacting KKU AI service',
+        message: err.message || 'Error occurred while contacting PRODX AI service',
         type: 'error',
       });
     } finally {
@@ -91,7 +91,7 @@ export const InventoryAiOptimizationModal: React.FC<InventoryAiOptimizationModal
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isThai ? 'KKU AI วางแผนเติมสต็อกอัจฉริยะ (Smart Stock Replenishment)' : 'KKU AI Smart Replenishment Planner'}
+      title={isThai ? 'PRODX AI วางแผนเติมสต็อกอัจฉริยะ (Smart Stock Replenishment)' : 'PRODX AI Smart Replenishment Planner'}
       maxWidth="lg"
     >
       <div className="space-y-4 font-sans">
