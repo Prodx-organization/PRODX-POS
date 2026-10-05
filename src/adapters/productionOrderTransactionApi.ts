@@ -1,15 +1,16 @@
 import type { CheckoutRequest, CheckoutResponse } from './types';
 
-const API_BASE_URL = import.meta.env.VITE_AUTH_API_BASE_URL;
+const configuredBaseUrl = () => import.meta.env?.VITE_AUTH_API_BASE_URL as string | undefined;
 
-function requireBaseUrl(): string {
-  if (!API_BASE_URL) {
+function requireBaseUrl(baseUrl?: string): string {
+  const resolved = baseUrl ?? configuredBaseUrl();
+  if (!resolved) {
     throw new Error('Production transaction API is not configured: VITE_AUTH_API_BASE_URL is missing.');
   }
-  return API_BASE_URL.replace(/\/$/, '');
+  return resolved.replace(/\/$/, '');
 }
 
-export function createProductionOrderTransactionApi(token: string) {
+export function createProductionOrderTransactionApi(token: string, baseUrl?: string) {
   const requireToken = () => {
     if (!token.trim()) throw new Error('Authenticated session token is required for checkout.');
     return token.trim();
@@ -17,7 +18,7 @@ export function createProductionOrderTransactionApi(token: string) {
 
   return {
     async createOrder(request: CheckoutRequest): Promise<CheckoutResponse> {
-      const response = await fetch(`${requireBaseUrl()}/api/v1/orders/checkout`, {
+      const response = await fetch(`${requireBaseUrl(baseUrl)}/api/v1/orders/checkout`, {
         method: 'POST',
         credentials: 'include',
         headers: {
