@@ -438,7 +438,7 @@ export const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> =
     try {
       if (!isOnline) {
         // Queue in offline outbox
-        queueOutboxItem('order_transaction', idempotencyKey, checkoutPayload);
+        await queueOutboxItem('order_transaction', idempotencyKey, checkoutPayload);
 
         const localOfflineOrder: Order = {
           id: `ord-offline-${Date.now()}`,

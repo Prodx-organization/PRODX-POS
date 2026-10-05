@@ -267,7 +267,7 @@ export const QuickPayDrawer: React.FC<QuickPayDrawerProps> = ({
 
       if (!isOnline) {
         // Queue in offline outbox
-        queueOutboxItem('order_transaction', idempotencyKey, checkoutPayload);
+        await queueOutboxItem('order_transaction', idempotencyKey, checkoutPayload);
 
         finalOrder = {
           id: `ord-offline-${Date.now()}`,
