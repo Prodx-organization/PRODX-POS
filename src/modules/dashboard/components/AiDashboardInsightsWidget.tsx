@@ -60,7 +60,7 @@ export const AiDashboardInsightsWidget: React.FC<AiDashboardInsightsWidgetProps>
     } catch (err: any) {
       addToast({
         title: isThai ? 'ไม่สามารถวิเคราะห์ด้วย AI ได้' : 'AI Analysis Failed',
-        message: err.message || 'Error occurred while contacting KKU AI service',
+        message: err.message || 'Error occurred while contacting PRODX AI service',
         type: 'error',
       });
     } finally {
@@ -90,10 +90,10 @@ export const AiDashboardInsightsWidget: React.FC<AiDashboardInsightsWidgetProps>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-base font-bold text-text">
-                {isThai ? 'KKU AI สรุปวิเคราะห์ยอดขายและกลยุทธ์' : 'KKU AI Executive Sales Insights'}
+                {isThai ? 'PRODX AI สรุปวิเคราะห์ยอดขายและกลยุทธ์' : 'PRODX AI Executive Sales Insights'}
               </h3>
               <Badge variant="primary" className="bg-indigo-600 text-white text-[10px] uppercase font-bold tracking-wider">
-                Gemini AI
+                Powered by Gemini
               </Badge>
             </div>
             <p className="text-xs text-text/60">
@@ -151,7 +151,7 @@ export const AiDashboardInsightsWidget: React.FC<AiDashboardInsightsWidgetProps>
           <Lightbulb className="h-8 w-8 text-indigo-400 mb-2 opacity-80" />
           <p className="text-xs font-medium text-text/80">
             {isThai
-              ? 'กดปุ่ม "สร้างบทวิเคราะห์ AI ตอนนี้" เพื่อให้ KKU AI สรุปภาพรวมยอดขายและแนะนำกลยุทธ์เพิ่มกำไร'
+              ? 'กดปุ่ม "สร้างบทวิเคราะห์ AI ตอนนี้" เพื่อให้ PRODX AI สรุปภาพรวมยอดขายและแนะนำกลยุทธ์เพิ่มกำไร'
               : 'Click "Analyze with AI" to generate business insights and actionable upselling strategies.'}
           </p>
           <span className="text-[11px] text-slate-400 mt-1">
