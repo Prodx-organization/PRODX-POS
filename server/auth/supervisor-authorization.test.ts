@@ -89,3 +89,27 @@ test('supervisor authorization token is one-time and distinguishes replay from e
   assert.deepEqual(await service.consume(consumeInput), { supervisorUserId: ids.supervisor });
   await assert.rejects(service.consume(consumeInput), (error: unknown) => error instanceof SupervisorAuthorizationError && error.code === 'AUTHORIZATION_REPLAYED');
 });
+
+
+test('supervisor authorization token is isolated by store and expires when no matching live authorization exists', async () => {
+  const db: SqlExecutor = {
+    async query<T extends Record<string, unknown>>(sql: string): Promise<readonly T[]> {
+      if (sql.includes('UPDATE prodx_supervisor_authorizations')) return [] as unknown as T[];
+      if (sql.includes('SELECT consumed_at')) return [] as unknown as T[];
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  };
+  const service = createSupervisorAuthorizationService(db);
+  await assert.rejects(
+    service.consume({
+      token: 'token',
+      organizationId: ids.org,
+      storeId: 'different-store',
+      requesterUserId: ids.requester,
+      requesterSessionId: ids.session,
+      action: 'refund',
+      orderId: ids.order,
+    }),
+    (error: unknown) => error instanceof SupervisorAuthorizationError && error.code === 'AUTHORIZATION_EXPIRED',
+  );
+});
