@@ -25,7 +25,7 @@ export const createPostgresAuthenticationRepository = (db: SqlExecutor): Authent
     await db.query(
       `WITH updated AS (
          UPDATE prodx_user_credentials
-            SET failed_attempts = failed_attempts + 1,
+            SET failed_attempts = LEAST(failed_attempts + 1, 5),
                 locked_until = CASE WHEN failed_attempts + 1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes' ELSE locked_until END,
                 updated_at = CURRENT_TIMESTAMP
           WHERE user_id = $1
