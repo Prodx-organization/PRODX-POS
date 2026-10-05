@@ -50,6 +50,35 @@ export async function putOutboxItem(item: OutboxItem): Promise<void> {
   }
 }
 
+export async function updateOutboxItem(
+  id: string,
+  patch: Partial<OutboxItem>,
+): Promise<OutboxItem> {
+  const db = await openDatabase();
+  try {
+    return await new Promise<OutboxItem>((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(id);
+      request.onerror = () => reject(request.error ?? new Error('Failed to read offline outbox item.'));
+      request.onsuccess = () => {
+        const current = request.result as OutboxItem | undefined;
+        if (!current) {
+          reject(new Error(`Offline outbox item not found: ${id}`));
+          return;
+        }
+        const updated = { ...current, ...patch } as OutboxItem;
+        const putRequest = store.put(updated);
+        putRequest.onerror = () => reject(putRequest.error ?? new Error('Failed to update offline outbox item.'));
+        putRequest.onsuccess = () => resolve(updated);
+      };
+      transaction.onerror = () => reject(transaction.error ?? new Error('Failed to update offline outbox item.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
 export async function replaceOutboxItems(items: OutboxItem[]): Promise<void> {
   const db = await openDatabase();
   try {
