@@ -210,13 +210,13 @@ jobs:
             END;
           END $$;
           SQL
-          before=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac');")
+          before=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning');")
           for migration in "${migrations[@]}"; do
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration" >/dev/null
           done
-          after=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac');")
+          after=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning');")
           test "$before" = "$after"
-          test "$after" = "4"
+          test "$after" = "5"
 
       - name: Theme validation
         run: bun run theme:validate
