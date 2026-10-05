@@ -34,7 +34,7 @@ export function createProductionSyncApi(token: string, baseUrl?: string): ISyncA
     },
     async ping(clientTimestamp = Date.now()) {
       const started = performance.now();
-      const body = await request<{ status: 'ok' }>('/api/v1/health');
+      const body = await request<{ status: 'ok' }>('/api/v1/healthz');
       return { serverTimestamp: new Date().toISOString(), roundTripLatencyMs: Math.max(1, Math.round(performance.now() - started)), status: body.status === 'ok' ? 'ok' : 'degraded', clientTimestamp } as { serverTimestamp: string; roundTripLatencyMs: number; status: 'ok' | 'degraded' };
     },
   };
