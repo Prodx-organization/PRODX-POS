@@ -120,7 +120,7 @@ const colorClassMap: Record<TypographyColor, string> = {
 };
 
 /**
- * Standardized polymorphic Typography component respecting the central K2D typography scale
+ * Standardized polymorphic Typography component respecting the central PRODX typography scale
  */
 export const Typography = React.forwardRef<HTMLElement, TypographyProps>(
   (

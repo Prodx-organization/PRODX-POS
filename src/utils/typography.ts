@@ -1,5 +1,5 @@
 /**
- * Centralized K2D Typography Utility for Prodx POS
+ * Centralized PRODX Typography Utility for Prodx POS
  * Enforces enterprise typography scales across all modules.
  */
 

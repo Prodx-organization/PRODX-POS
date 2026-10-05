@@ -46,17 +46,17 @@ export const THEME_PRESETS: ThemePreset[] = [
       en: 'Obsidian deep slate canvas with electric sapphire blue accents, engineered for high-volume retail & modern stores.',
     },
     isDark: true,
-    primary: '#3B82F6',
-    primaryDark: '#1D4ED8',
-    primaryLight: 'rgba(59, 130, 246, 0.12)',
-    primaryGlow: 'rgba(59, 130, 246, 0.25)',
-    background: '#090D16',
-    card: '#0F172A',
-    cardHover: '#1E293B',
-    text: '#F8FAFC',
-    textMuted: '#94A3B8',
-    border: '#1E293B',
-    borderHover: '#334155',
+    primary: '#FF8A00',
+    primaryDark: '#E67A00',
+    primaryLight: 'rgba(255, 138, 0, 0.12)',
+    primaryGlow: 'rgba(255, 138, 0, 0.25)',
+    background: '#1F1F1F',
+    card: '#111113',
+    cardHover: '#202023',
+    text: '#FAFAFA',
+    textMuted: '#A1A1AA',
+    border: '#2A2A2A',
+    borderHover: '#3A3A3A',
     buttonRadius: '12px',
     cardRadius: '16px',
     buttonStyle: 'modern',
@@ -75,17 +75,17 @@ export const THEME_PRESETS: ThemePreset[] = [
       en: 'Clean Scandinavian aesthetic with high-contrast typography and royal ocean blue accents, optimal for day-long operations.',
     },
     isDark: false,
-    primary: '#2563EB',
-    primaryDark: '#1D4ED8',
-    primaryLight: 'rgba(37, 99, 235, 0.08)',
-    primaryGlow: 'rgba(37, 99, 235, 0.18)',
-    background: '#F8FAFC',
+    primary: '#FF8A00',
+    primaryDark: '#E67A00',
+    primaryLight: 'rgba(255, 138, 0, 0.08)',
+    primaryGlow: 'rgba(255, 138, 0, 0.18)',
+    background: '#F7EDE2',
     card: '#FFFFFF',
-    cardHover: '#F1F5F9',
-    text: '#0F172A',
-    textMuted: '#64748B',
-    border: '#E2E8F0',
-    borderHover: '#CBD5E1',
+    cardHover: '#F2E4D5',
+    text: '#1F1F1F',
+    textMuted: '#6B625A',
+    border: '#E7D7C6',
+    borderHover: '#D7C0A8',
     buttonRadius: '12px',
     cardRadius: '16px',
     buttonStyle: 'minimal',
@@ -198,7 +198,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     background: '#0A0A14',
     card: '#13132B',
     cardHover: '#1E1E3F',
-    text: '#F8FAFC',
+    text: '#FAFAFA',
     textMuted: '#A5B4FC',
     border: '#23234A',
     borderHover: '#3B3B6D',
@@ -340,17 +340,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         primaryGlow = currentPreset.primaryGlow;
       } else {
         // Light preset forced to dark mode
-        bgColor = '#090D16';
-        cardColor = '#0F172A';
-        cardHoverColor = '#1E293B';
-        textColor = '#F8FAFC';
-        textMutedColor = '#94A3B8';
-        borderColor = '#1E293B';
-        borderHoverColor = '#334155';
+        bgColor = '#1F1F1F';
+        cardColor = '#111113';
+        cardHoverColor = '#202023';
+        textColor = '#FAFAFA';
+        textMutedColor = '#A1A1AA';
+        borderColor = '#2A2A2A';
+        borderHoverColor = '#3A3A3A';
         primaryColor = activeAccentColor;
-        primaryDarkColor = '#1D4ED8';
-        primaryLightColor = 'rgba(59, 130, 246, 0.12)';
-        primaryGlow = 'rgba(59, 130, 246, 0.25)';
+        primaryDarkColor = '#E67A00';
+        primaryLightColor = 'rgba(255, 138, 0, 0.12)';
+        primaryGlow = 'rgba(255, 138, 0, 0.25)';
       }
     } else {
       if (!currentPreset.isDark) {
@@ -367,17 +367,17 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         primaryGlow = currentPreset.primaryGlow;
       } else {
         // Dark preset forced to light mode
-        bgColor = '#F8FAFC';
+        bgColor = '#F7EDE2';
         cardColor = '#FFFFFF';
-        cardHoverColor = '#F1F5F9';
-        textColor = '#0F172A';
-        textMutedColor = '#64748B';
-        borderColor = '#E2E8F0';
-        borderHoverColor = '#CBD5E1';
+        cardHoverColor = '#F2E4D5';
+        textColor = '#1F1F1F';
+        textMutedColor = '#6B625A';
+        borderColor = '#E7D7C6';
+        borderHoverColor = '#D7C0A8';
         primaryColor = activeAccentColor;
-        primaryDarkColor = '#1D4ED8';
-        primaryLightColor = 'rgba(37, 99, 235, 0.08)';
-        primaryGlow = 'rgba(37, 99, 235, 0.18)';
+        primaryDarkColor = '#E67A00';
+        primaryLightColor = 'rgba(255, 138, 0, 0.08)';
+        primaryGlow = 'rgba(255, 138, 0, 0.18)';
       }
     }
 
