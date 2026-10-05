@@ -23,7 +23,7 @@ test('production sync ping uses the server healthz endpoint and bearer auth', as
     assert.equal(requestedUrl, 'https://api.example.test/api/v1/healthz');
     assert.equal(requestedAuthorization, 'Bearer token-123');
     assert.equal(result.status, 'ok');
-    assert.match(result.serverTimestamp, /^\\d{4}-\\d{2}-\\d{2}T/);
+    assert.match(result.serverTimestamp, /^\d{4}-\d{2}-\d{2}T/);
   } finally {
     globalThis.fetch = originalFetch;
   }
