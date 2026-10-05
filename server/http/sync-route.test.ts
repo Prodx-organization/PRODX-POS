@@ -103,7 +103,7 @@ test('production sync HTTP path commits once and returns cached result on replay
   const clean = async () => {
     for (const [sql, params] of [
       ['DELETE FROM prodx_cash_movements WHERE shift_id=$1', [ids.shift]], ['DELETE FROM prodx_audit_log WHERE store_id=$1', [ids.store]], ['DELETE FROM prodx_payments WHERE store_id=$1', [ids.store]], ['DELETE FROM prodx_order_items WHERE store_id=$1', [ids.store]], ['DELETE FROM prodx_inventory_ledger WHERE store_id=$1', [ids.store]], ['DELETE FROM prodx_orders WHERE store_id=$1', [ids.store]], ['DELETE FROM prodx_shifts WHERE id=$1', [ids.shift]], ['DELETE FROM prodx_products WHERE id=$1', [ids.product]], ['DELETE FROM prodx_categories WHERE id=$1', [ids.category]], ['DELETE FROM prodx_registers WHERE id=$1', [ids.register]], ['DELETE FROM prodx_store_memberships WHERE store_id=$1', [ids.store]], ['DELETE FROM prodx_users WHERE id=$1', [ids.user]], ['DELETE FROM prodx_stores WHERE id=$1', [ids.store]], ['DELETE FROM prodx_organizations WHERE id=$1', [ids.org]],
-    ] as const) await pool.query(sql as string, params as unknown[]);
+    ] as const) await pool.query(sql as string, [...params]);
   };
   await clean();
   try {
