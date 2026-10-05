@@ -1,7 +1,17 @@
 import type { Money } from "../domain/money";
 import type { RefundItemRestock } from "./types";
 
-const REFUND_API_BASE_URL = import.meta.env.VITE_AUTH_API_BASE_URL;
+const configuredBaseUrl = () => import.meta.env?.VITE_AUTH_API_BASE_URL as string | undefined;
+
+function requireBaseUrl(baseUrl?: string): string {
+  const resolved = baseUrl ?? configuredBaseUrl();
+  if (!resolved) {
+    throw new Error(
+      "Production refund API is not configured: VITE_AUTH_API_BASE_URL is missing.",
+    );
+  }
+  return resolved.replace(/\/$/, "");
+}
 
 export type ProductionRefundRequest = {
   orderId: string;
@@ -22,15 +32,6 @@ export type ProductionRefundResponse = {
   message: string;
   idempotencyCached: boolean;
 };
-
-function requireBaseUrl(): string {
-  if (!REFUND_API_BASE_URL) {
-    throw new Error(
-      "Production refund API is not configured: VITE_AUTH_API_BASE_URL is missing.",
-    );
-  }
-  return REFUND_API_BASE_URL.replace(/\/$/, "");
-}
 
 function errorMessage(body: unknown, fallback: string): string {
   if (typeof body !== "object" || body === null) return fallback;
@@ -54,7 +55,7 @@ function isRefundResponse(body: unknown): body is ProductionRefundResponse {
   );
 }
 
-export function createProductionRefundApi(token: string) {
+export function createProductionRefundApi(token: string, baseUrl?: string) {
   return {
     async refund(
       request: ProductionRefundRequest,
@@ -66,7 +67,7 @@ export function createProductionRefundApi(token: string) {
         throw new Error("Server supervisor authorization is required for refund.");
       }
 
-      const response = await fetch(`${requireBaseUrl()}/api/v1/orders/refund`, {
+      const response = await fetch(`${requireBaseUrl(baseUrl)}/api/v1/orders/refund`, {
         method: "POST",
         credentials: "include",
         headers: {
