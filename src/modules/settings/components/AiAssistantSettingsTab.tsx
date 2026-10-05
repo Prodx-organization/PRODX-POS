@@ -21,7 +21,7 @@ export const AiAssistantSettingsTab: React.FC = () => {
     setTesting(true); setResponse('');
     try {
       const result = await aiService.chatCompletion([{ role: 'system', content: 'You are PRODX AI, a helpful assistant for a retail POS system.' }, { role: 'user', content: prompt }], config);
-      setResponse(result); addToast({ title: isThai ? 'เชื่อมต่อ Gemini สำเร็จ' : 'Gemini connected', message: isThai ? 'PRODX AI backend responded successfully via Gemini.' : 'PRODX backend Gemini responded successfully.', type: 'success' });
+      setResponse(result); addToast({ title: isThai ? 'เชื่อมต่อ Gemini สำเร็จ' : 'Gemini connected', message: isThai ? 'PRODX AI backend responded successfully via Gemini.' : 'PRODX AI backend responded successfully via Gemini.', type: 'success' });
     } catch (error) {
       setResponse(error instanceof Error ? error.message : String(error)); addToast({ title: isThai ? 'เชื่อมต่อ Gemini ล้มเหลว' : 'Gemini connection failed', message: error instanceof Error ? error.message : String(error), type: 'error' });
     } finally { setTesting(false); }
