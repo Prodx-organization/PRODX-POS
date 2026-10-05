@@ -35,7 +35,7 @@
     "react-i18next": "^17.0.13",
     "recharts": "^3.10.1",
     "vite": "^6.2.3",
-    "@supabase/supabase-js": "2.75.0",
+    "@supabase/supabase-js": "2.117.2",
     "jose": "6.2.12"
   },
   "devDependencies": {
