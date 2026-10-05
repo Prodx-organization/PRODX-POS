@@ -10,7 +10,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { OutboxItem } from '../domain/sync';
 import { normalizeOutboxForRecovery } from '../domain/sync-recovery';
 import { createSyncApi } from '../adapters/syncApiFactory';
-import { clearOutboxItems, loadOutboxItems, putOutboxItem, replaceOutboxItems, updateOutboxItem } from '../adapters/offlineOutboxStore';
+import { clearOutboxItems, clearSyncedOutboxItems, loadOutboxItems, putOutboxItem, replaceOutboxItems, updateOutboxItem } from '../adapters/offlineOutboxStore';
 import { Order } from '../domain/order';
 import { useToast } from './ToastContext';
 import { useLanguage } from './LanguageContext';
@@ -369,8 +369,9 @@ export const OfflineProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [isEffectiveOnline, outbox, triggerSync]);
 
   const clearSyncedItems = () => {
-    const remaining = outbox.filter((i) => i.syncState !== 'synced');
-    void persistOutbox(remaining);
+    void clearSyncedOutboxItems().then(() =>
+      setOutbox((current) => current.filter((i) => i.syncState !== 'synced'))
+    );
   };
 
   const clearOutbox = () => {
