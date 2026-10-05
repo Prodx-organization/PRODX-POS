@@ -109,6 +109,33 @@ export async function removeOutboxItem(id: string): Promise<void> {
   }
 }
 
+export async function clearSyncedOutboxItems(): Promise<void> {
+  const db = await openDatabase();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.openCursor();
+      request.onerror = () => reject(request.error ?? new Error('Failed to scan offline outbox.'));
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) {
+          resolve();
+          return;
+        }
+        const item = cursor.value as OutboxItem;
+        if (item.syncState === 'synced') {
+          cursor.delete();
+        }
+        cursor.continue();
+      };
+      transaction.onerror = () => reject(transaction.error ?? new Error('Failed to clear synced offline outbox items.'));
+    });
+  } finally {
+    db.close();
+  }
+}
+
 export async function clearOutboxItems(): Promise<void> {
   const db = await openDatabase();
   try {
