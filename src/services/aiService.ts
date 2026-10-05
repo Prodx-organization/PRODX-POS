@@ -99,26 +99,26 @@ export class AiService {
   }
 
   public async analyzeSalesDashboard(context: { totalRevenue: string; totalOrders: number; topProducts: Array<{ name: string; qty: number; revenue: string }>; paymentBreakdown: Record<string, string>; dateRange: string; timeframe: string }): Promise<string> {
-    const systemPrompt = 'คุณเป็น PRODX Gemini AI ผู้เชี่ยวชาญการวิเคราะห์ธุรกิจร้านค้าและการขาย (POS & Retail Analytics Specialist) ตอบเป็นภาษาไทยแบบมืออาชีพ กระชับ ชัดเจน';
+    const systemPrompt = 'คุณเป็น PRODX AI ผู้เชี่ยวชาญการวิเคราะห์ธุรกิจร้านค้าและการขาย (POS & Retail Analytics Specialist) ตอบเป็นภาษาไทยแบบมืออาชีพ กระชับ ชัดเจน';
     const userPrompt = `วิเคราะห์ข้อมูลช่วง "${context.timeframe}" (${context.dateRange}): ยอดขายรวม ${context.totalRevenue}; จำนวนคำสั่งซื้อ ${context.totalOrders}; ช่องทางชำระเงิน ${JSON.stringify(context.paymentBreakdown)}; 5 อันดับสินค้า ${context.topProducts.map((p) => `${p.name} - ${p.qty} ชิ้น - ${p.revenue}`).join('; ')}. สรุปจุดเด่น แนวโน้ม cross-selling/upselling และข้อเสนอแนะเชิงกลยุทธ์ 2-3 ข้อ`;
     return this.chatCompletion([{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }]);
   }
 
   public async getPosRecommendation(context: { cartItems: Array<{ name: string; qty: number; price: string; category?: string }>; availableProducts: Array<{ name: string; price: string; category?: string; stock: number }>; customerName?: string; customerTier?: string }): Promise<string> {
-    const systemPrompt = 'คุณคือ PRODX Gemini AI ผู้ช่วยแคชเชียร์อัจฉริยะสำหรับ POS ตอบภาษาไทย สุภาพ กระชับ และให้คำแนะนำที่ไม่เปลี่ยนแปลงสถานะ POS';
+    const systemPrompt = 'คุณคือ PRODX AI ผู้ช่วยแคชเชียร์อัจฉริยะสำหรับ POS ตอบภาษาไทย สุภาพ กระชับ และให้คำแนะนำที่ไม่เปลี่ยนแปลงสถานะ POS';
     const userPrompt = `ตะกร้า: ${context.cartItems.map((item) => `${item.name} x${item.qty} (${item.price})`).join('; ') || '(ว่าง)'}; ลูกค้า: ${context.customerName ?? 'ทั่วไป'}; สต็อกที่มี: ${context.availableProducts.slice(0, 15).map((p) => `${p.name} (${p.price}, คงเหลือ ${p.stock})`).join('; ')}. แนะนำสินค้า/ประโยค upsell 2-3 ข้อ`;
     return this.chatCompletion([{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }]);
   }
 
   public async optimizeInventory(context: { lowStockProducts: Array<{ name: string; stock: number; minStock: number; category: string }>; totalProductsCount: number; outOfStockCount: number }): Promise<string> {
-    const systemPrompt = 'คุณคือ PRODX Gemini AI ผู้เชี่ยวชาญคลังสินค้าและการเติมสินค้า ตอบเป็นภาษาไทย ชัดเจน กระชับ และไม่สั่งแก้ไขสต็อกโดยตรง';
+    const systemPrompt = 'คุณคือ PRODX AI ผู้เชี่ยวชาญคลังสินค้าและการเติมสินค้า ตอบเป็นภาษาไทย ชัดเจน กระชับ และไม่สั่งแก้ไขสต็อกโดยตรง';
     const userPrompt = `คลัง: ทั้งหมด ${context.totalProductsCount}; หมด ${context.outOfStockCount}; สินค้าสต็อกต่ำ: ${context.lowStockProducts.map((p) => `${p.name} (${p.stock}/min ${p.minStock}, ${p.category})`).join('; ')}. จัดลำดับความเร่งด่วนและแนะนำปริมาณเติม`;
     return this.chatCompletion([{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }]);
   }
 
   public async generateProductDetails(productName: string, categoryHint?: string): Promise<{ description: string; suggestedCategory: string; suggestedPrice: number; tags: string[]; sellingPoints: string[] }> {
     const raw = await this.chatCompletion([
-      { role: 'system', content: 'คุณคือ PRODX Gemini AI สำหรับสร้างรายละเอียดสินค้า ส่ง JSON เท่านั้นตาม schema: description:string,suggestedCategory:string,suggestedPrice:number,tags:string[],sellingPoints:string[]' },
+      { role: 'system', content: 'คุณคือ PRODX AI สำหรับสร้างรายละเอียดสินค้า ส่ง JSON เท่านั้นตาม schema: description:string,suggestedCategory:string,suggestedPrice:number,tags:string[],sellingPoints:string[]' },
       { role: 'user', content: `สร้างรายละเอียดสำหรับสินค้า "${productName}" ${categoryHint ? `หมวดหมู่: ${categoryHint}` : ''}` },
     ]);
     try {
