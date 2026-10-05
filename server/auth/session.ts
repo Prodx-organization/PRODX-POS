@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { RequestPrincipal } from '../http/types';
 
 export type AuthenticatedSession = RequestPrincipal & { sessionId: string };
@@ -23,8 +24,10 @@ export type AuthenticationRepository = {
   touchSession: (sessionId: string, at: Date) => Promise<void>;
 };
 export type AuthenticateCredentialsInput = { username: string; password: string; deviceId: string };
+export type AuthenticateSupabaseTokenInput = { token: string; deviceId: string };
 export type SessionIssuer = {
   authenticateCredentials: (input: AuthenticateCredentialsInput) => Promise<{ token: string; sessionId: string; expiresAt: Date } | null>;
+  authenticateSupabaseToken: (input: AuthenticateSupabaseTokenInput) => Promise<{ token: string; sessionId: string; expiresAt: Date } | null>;
   authenticateBearer: (token: string) => Promise<AuthenticatedSession | null>;
   revokeBearer: (token: string) => Promise<boolean>;
 };
@@ -65,7 +68,7 @@ export const createSessionIssuer = (
     await repository.createSession({ id: sessionId, organizationId: credential.organizationId, userId: credential.userId, deviceId: device.id, tokenHash: hashSessionToken(token), expiresAt });
     return { token, sessionId, expiresAt };
   },
-  authenticateBearer: async (token) => {
+  authenticateSupabaseToken: async ({ token: supabaseToken, deviceId }) => {\n    const verified = await verifySupabaseToken(supabaseToken);\n    if (!verified) return null;\n    const device = await repository.findDevice(deviceId);\n    if (!device || device.status !== 'active') return null;\n    const credential = await repository.findCredentialByUsername(verified.email, device.organizationId);\n    if (!credential || credential.status !== 'active') return null;\n    const nowValue = now();\n    if (verified.expiresAt <= nowValue) return null;\n    const localToken = newBearerToken();\n    const sessionId = crypto.randomUUID();\n    const expiresAt = verified.expiresAt < new Date(nowValue.getTime() + SESSION_TTL_MS) ? verified.expiresAt : new Date(nowValue.getTime() + SESSION_TTL_MS);\n    await repository.createSession({ id: sessionId, organizationId: credential.organizationId, userId: credential.userId, deviceId: device.id, tokenHash: hashSessionToken(localToken), expiresAt });\n    return { token: localToken, sessionId, expiresAt };\n  },\n  authenticateBearer: async (token) => {
     if (!token) return null;
     const session = await repository.findSessionByTokenHash(hashSessionToken(token));
     if (!session || session.revokedAt || session.expiresAt <= now() || session.userStatus !== 'active') return null;
