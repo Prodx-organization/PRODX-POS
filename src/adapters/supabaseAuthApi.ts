@@ -2,11 +2,7 @@ import type { IAuthApi, LoginRequest } from './types';
 import type { SessionContext, Store } from '../domain/auth';
 import { supabase } from '../lib/supabase';
 
-const baseUrl = () => {
-  const value = import.meta.env.VITE_AUTH_API_BASE_URL;
-  if (!value) throw new Error('Production authentication API is not configured: VITE_AUTH_API_BASE_URL is missing.');
-  return value.replace(/\/$/, '');
-};
+const baseUrl = () => (import.meta.env.VITE_AUTH_API_BASE_URL?.trim() || '').replace(/\/$/, '');
 
 const requireToken = (token: string) => {
   const normalized = token.trim();
