@@ -1,4 +1,4 @@
-import { createProductionApp } from '../server/entrypoint.js';
+import { createProductionApp } from '../server-bundle.js';
 
 const { app } = createProductionApp();
 
