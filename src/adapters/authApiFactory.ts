@@ -9,6 +9,6 @@ import { IAuthApi } from './types';
 import { authApi as mockAuthApi } from './mockAdapter';
 import { createSupabaseAuthApi } from './supabaseAuthApi';
 
-export const authApi: IAuthApi = import.meta.env.DEV
-  ? mockAuthApi
-  : createSupabaseAuthApi();
+const productionAuthApi: IAuthApi = createSupabaseAuthApi();
+
+export const authApi: IAuthApi = import.meta.env.DEV ? mockAuthApi : productionAuthApi;
