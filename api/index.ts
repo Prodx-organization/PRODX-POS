@@ -1,4 +1,4 @@
-import { createProductionApp } from '../server/entrypoint';
+import { createProductionApp } from '../server/entrypoint.js';
 
 const { app } = createProductionApp();
 
