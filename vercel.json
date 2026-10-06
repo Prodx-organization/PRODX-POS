@@ -3,12 +3,6 @@
   "buildCommand": "bun run build",
   "installCommand": "bun install --frozen-lockfile",
   "outputDirectory": "dist",
-  "functions": {
-    "api/index.ts": {
-      "runtime": "nodejs24.x",
-      "maxDuration": 60
-    }
-  },
   "rewrites": [
     {
       "source": "/api/:path*",
