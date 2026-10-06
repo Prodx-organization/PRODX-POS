@@ -40,12 +40,12 @@ export const hashSessionToken = (token: string): string => crypto.createHash('sh
 const newBearerToken = (): string => crypto.randomBytes(32).toString('base64url');
 
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
-const supabaseJwks = supabaseUrl
-  ? createRemoteJWKSet(new URL(supabaseUrl + '/auth/v1/.well-known/jwks.json'))
-  : null;
+const supabaseJwksUrl = process.env.SUPABASE_JWKS_URL?.trim()
+  || (supabaseUrl ? supabaseUrl + '/auth/v1/.well-known/jwks.json' : null);
+const supabaseJwks = supabaseJwksUrl ? createRemoteJWKSet(new URL(supabaseJwksUrl)) : null;
 
 const verifySupabaseToken = async (token: string) => {
-  if (!supabaseJwks || !token) return null;
+  if (!supabaseJwks || !supabaseUrl || !token) return null;
   try {
     const { payload } = await jwtVerify(token, supabaseJwks, {
       issuer: supabaseUrl + '/auth/v1',
