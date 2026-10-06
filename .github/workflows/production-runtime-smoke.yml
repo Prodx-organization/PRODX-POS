@@ -22,14 +22,14 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --show-error --silent --retry 3 --retry-delay 2             --max-time 15             --output /tmp/api-healthz.json             --write-out "HTTP %{http_code}
-"             https://prodx-pos-api-test-current-production.up.railway.app/api/v1/healthz
+"             https://prodx-pos.vercel.app/api/v1/healthz
           grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"' /tmp/api-healthz.json
 
       - name: Check API readiness
         run: |
           set -euo pipefail
           curl --fail --show-error --silent --retry 3 --retry-delay 2             --max-time 15             --output /tmp/api-readyz.json             --write-out "HTTP %{http_code}
-"             https://prodx-pos-api-test-current-production.up.railway.app/api/v1/readyz
+"             https://prodx-pos.vercel.app/api/v1/readyz
           grep -Eq '"status"[[:space:]]*:[[:space:]]*"ready"' /tmp/api-readyz.json
 
       - name: Check frontend availability
