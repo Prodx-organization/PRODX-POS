@@ -1,12 +1,14 @@
 /**
  * Authentication adapter selection.
  *
- * Mock authentication is allowed only in Vite development mode. Production
- * builds always use the network adapter and fail closed when it is not
- * configured.
+ * Development keeps the local mock adapter. Production uses Supabase Auth
+ * for identity and exchanges the verified Supabase JWT for the POS server's
+ * short-lived, store-scoped session token.
  */
 import { IAuthApi } from './types';
-import { productionAuthApi } from './authApi';
 import { authApi as mockAuthApi } from './mockAdapter';
+import { createSupabaseAuthApi } from './supabaseAuthApi';
+
+const productionAuthApi: IAuthApi = createSupabaseAuthApi();
 
 export const authApi: IAuthApi = import.meta.env.DEV ? mockAuthApi : productionAuthApi;
