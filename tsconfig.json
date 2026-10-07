@@ -26,5 +26,8 @@
       "vite/client",
       "vite-plugin-pwa/client"
     ]
-  }
+  },
+  "exclude": [
+    "supabase/functions"
+  ]
 }
