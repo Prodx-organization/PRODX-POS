@@ -1,14 +1,12 @@
 /**
- * Authentication adapter selection.
- *
- * Development keeps the local mock adapter. Production uses Supabase Auth
- * for identity and exchanges the verified Supabase JWT for the POS server's
- * short-lived, store-scoped session token.
+ * Production authentication uses the PRODX backend as the password verifier.
+ * The backend owns credential hashing, compromised-password screening,
+ * rate limiting, device/store scope and short-lived POS sessions.
  */
 import { IAuthApi } from './types';
 import { authApi as mockAuthApi } from './mockAdapter';
-import { createSupabaseAuthApi } from './supabaseAuthApi';
+import { createProductionAuthApi } from './productionAuthApi';
 
-const productionAuthApi: IAuthApi = createSupabaseAuthApi();
+const productionAuthApi: IAuthApi = createProductionAuthApi();
 
 export const authApi: IAuthApi = import.meta.env.DEV ? mockAuthApi : productionAuthApi;
