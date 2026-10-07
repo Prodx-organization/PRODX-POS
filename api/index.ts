@@ -1,5 +1,5 @@
 import { createProductionApp } from '../server-bundle.js';
 
-const { app } = createProductionApp();
+const { app } = await createProductionApp();
 
 export default app;

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { createPostgresAuthentication } from './auth/composition';
 import { createPostgresAuthorization } from './auth/production-authorization';
-import { asSqlExecutor, createPostgresPool } from './db/postgres';
+import { asSqlExecutor, createProductionPostgresPool } from './db/postgres';
 import { createTransactionalPostgresExecutor } from './db/transaction';
 import { createAIGatewayService } from './ai/production-composition';
 import { registerCheckoutRoute } from './http/checkout-route';
@@ -24,8 +24,8 @@ import { registerVoidRoute } from './http/void-route';
 import { registerInventoryAdjustmentRoute } from './http/inventory-adjustment-route';
 import { installAIHttpRoute } from './ai/http-route';
 
-export const createProductionApp = () => {
-  const pool = createPostgresPool();
+export const createProductionApp = async () => {
+  const pool = await createProductionPostgresPool();
   const sql = asSqlExecutor(pool);
   const transactions = createTransactionalPostgresExecutor(pool);
   const sessions = createPostgresAuthentication(sql);
@@ -70,7 +70,7 @@ export const createProductionApp = () => {
 };
 
 export const startProductionServer = async (): Promise<void> => {
-  const { app, pool } = createProductionApp();
+  const { app, pool } = await createProductionApp();
   const host = process.env.HOST ?? '0.0.0.0';
   const port = Number.parseInt(process.env.PORT ?? '4000', 10);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
