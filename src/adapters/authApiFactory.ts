@@ -1,12 +1,12 @@
 /**
- * Authentication adapter selection.
- *
- * Mock authentication is allowed only in Vite development mode. Production
- * builds always use the network adapter and fail closed when it is not
- * configured.
+ * Production authentication uses the PRODX backend as the password verifier.
+ * The backend owns credential hashing, compromised-password screening,
+ * rate limiting, device/store scope and short-lived POS sessions.
  */
 import { IAuthApi } from './types';
-import { productionAuthApi } from './authApi';
 import { authApi as mockAuthApi } from './mockAdapter';
+import { createProductionAuthApi } from './productionAuthApi';
+
+const productionAuthApi: IAuthApi = createProductionAuthApi();
 
 export const authApi: IAuthApi = import.meta.env.DEV ? mockAuthApi : productionAuthApi;

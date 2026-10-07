@@ -40,7 +40,7 @@ const clock = new Date('2026-09-13T12:00:00.000Z');
 
 test('credential authentication issues only a hashed bearer token', async () => {
   const { repository, calls, getSession } = repositoryFixture();
-  const issuer = createSessionIssuer(repository, async (secret, encoded) => secret === 'good' && encoded === 'hash', () => clock);
+  const issuer = createSessionIssuer(repository, async (secret, encoded) => secret === 'good' && encoded === 'hash', () => clock, async () => ({ compromised: false, count: 0 }));
   const result = await issuer.authenticateCredentials({ username: ' cashier ', password: 'good', deviceId: device.id });
   assert.ok(result);
   assert.notEqual(result.token, getSession()?.tokenHash);
@@ -51,7 +51,7 @@ test('credential authentication issues only a hashed bearer token', async () => 
 
 test('wrong credentials do not create sessions and record a failed attempt', async () => {
   const { repository, calls, getSession } = repositoryFixture();
-  const issuer = createSessionIssuer(repository, async () => false, () => clock);
+  const issuer = createSessionIssuer(repository, async () => false, () => clock, async () => ({ compromised: false, count: 0 }));
   assert.equal(await issuer.authenticateCredentials({ username: 'cashier', password: 'bad', deviceId: device.id }), null);
   assert.equal(getSession(), null);
   assert.equal(calls.failed, 1);
@@ -60,7 +60,7 @@ test('wrong credentials do not create sessions and record a failed attempt', asy
 
 test('five failed attempts lock the credential for fifteen minutes and lockout attempts do not increment', async () => {
   const { repository, calls, getCredential } = repositoryFixture();
-  const issuer = createSessionIssuer(repository, async () => false, () => clock);
+  const issuer = createSessionIssuer(repository, async () => false, () => clock, async () => ({ compromised: false, count: 0 }));
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     assert.equal(await issuer.authenticateCredentials({ username: 'cashier', password: 'bad', deviceId: device.id }), null);
   }
@@ -73,7 +73,7 @@ test('five failed attempts lock the credential for fifteen minutes and lockout a
 
 test('successful authentication resets failed attempts and clears lockout state', async () => {
   const { repository, getCredential } = repositoryFixture();
-  const issuer = createSessionIssuer(repository, async (secret) => secret === 'good', () => clock);
+  const issuer = createSessionIssuer(repository, async (secret) => secret === 'good', () => clock, async () => ({ compromised: false, count: 0 }));
   for (let attempt = 0; attempt < 4; attempt += 1) {
     assert.equal(await issuer.authenticateCredentials({ username: 'cashier', password: 'bad', deviceId: device.id }), null);
   }
@@ -86,7 +86,7 @@ test('successful authentication resets failed attempts and clears lockout state'
 
 test('disabled device, locked user, and cross-tenant device cannot authenticate', async () => {
   const { repository } = repositoryFixture();
-  const issuer = createSessionIssuer(repository, async () => true, () => clock);
+  const issuer = createSessionIssuer(repository, async () => true, () => clock, async () => ({ compromised: false, count: 0 }));
   assert.equal(await issuer.authenticateCredentials({ username: 'cashier', password: 'good', deviceId: 'unknown' }), null);
   const lockedCredential = { ...credential, lockedUntil: new Date(clock.getTime() + 60_000) };
   repository.findCredentialByUsername = async () => lockedCredential;
@@ -98,7 +98,7 @@ test('disabled device, locked user, and cross-tenant device cannot authenticate'
 
 test('bearer authentication rejects expired, revoked, disabled-user, and disabled-device sessions', async () => {
   const { repository, calls, getSession } = repositoryFixture();
-  const issuer = createSessionIssuer(repository, async () => true, () => clock);
+  const issuer = createSessionIssuer(repository, async () => true, () => clock, async () => ({ compromised: false, count: 0 }));
   const result = await issuer.authenticateCredentials({ username: 'cashier', password: 'good', deviceId: device.id });
   assert.ok(result);
   assert.deepEqual(await issuer.authenticateBearer(result.token), {
@@ -118,7 +118,7 @@ test('bearer authentication rejects expired, revoked, disabled-user, and disable
 
 test('revokeBearer revokes an active session once and rejects unknown tokens', async () => {
   const { repository, calls } = repositoryFixture();
-  const issuer = createSessionIssuer(repository, async () => true, () => clock);
+  const issuer = createSessionIssuer(repository, async () => true, () => clock, async () => ({ compromised: false, count: 0 }));
   const result = await issuer.authenticateCredentials({ username: 'cashier', password: 'good', deviceId: device.id });
   assert.ok(result);
   assert.ok(result.expiresAt > clock);
@@ -132,7 +132,21 @@ test('revokeBearer revokes an active session once and rejects unknown tokens', a
 
 test('credential lookup is scoped to the device organization', async () => {
   const { repository } = repositoryFixture();
-  const issuer = createSessionIssuer(repository, async () => true, () => clock);
+  const issuer = createSessionIssuer(repository, async () => true, () => clock, async () => ({ compromised: false, count: 0 }));
   repository.findDevice = async () => ({ ...device, organizationId: '00000000-0000-0000-0000-000000000099' });
   assert.equal(await issuer.authenticateCredentials({ username: 'cashier', password: 'good', deviceId: device.id }), null);
+});
+
+test('rejects authentication when the credential password is compromised', async () => {
+  const { repository } = repositoryFixture();
+  const issuer = createSessionIssuer(
+    repository,
+    async () => true,
+    () => new Date('2026-09-14T00:00:00.000Z'),
+    async () => ({ compromised: true, count: 42 }),
+  );
+  assert.equal(
+    await issuer.authenticateCredentials({ username: 'cashier', password: 'known-compromised', deviceId: 'device-1' }),
+    null,
+  );
 });

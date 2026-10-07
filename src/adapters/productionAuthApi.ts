@@ -1,0 +1,61 @@
+import type { IAuthApi, LoginRequest } from './types';
+import type { SessionContext, Store } from '../domain/auth';
+
+const baseUrl = () => (import.meta.env.VITE_AUTH_API_BASE_URL?.trim() || '').replace(/\/$/, '');
+
+const requireToken = (token: string) => {
+  const normalized = token.trim();
+  if (!normalized) throw new Error('Authentication token is required.');
+  return normalized;
+};
+
+export const createProductionAuthApi = (): IAuthApi => ({
+  async login(request: LoginRequest): Promise<SessionContext> {
+    const response = await fetch(`${baseUrl()}/auth/login`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        organizationSlug: request.organizationSlug,
+        storeCode: request.storeCode,
+        registerId: request.registerId,
+        emailOrPin: request.emailOrPin,
+        passwordOrPin: request.passwordOrPin ?? '',
+      }),
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(body?.error?.message ?? 'Authentication failed.');
+    }
+    return body as SessionContext;
+  },
+
+  async logout(token: string): Promise<void> {
+    const response = await fetch(`${baseUrl()}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { Accept: 'application/json', Authorization: `Bearer ${requireToken(token)}` },
+    });
+    if (!response.ok && response.status !== 401) throw new Error('Authentication logout failed.');
+  },
+
+  async verifySession(token: string): Promise<SessionContext | null> {
+    if (!token) return null;
+    const response = await fetch(`${baseUrl()}/auth/session`, {
+      credentials: 'include',
+      headers: { Accept: 'application/json', Authorization: `Bearer ${requireToken(token)}` },
+    });
+    if (response.status === 401) return null;
+    if (!response.ok) throw new Error(`Authentication API request failed (${response.status}).`);
+    return response.json() as Promise<SessionContext>;
+  },
+
+  async getStores(orgSlug: string, token: string): Promise<readonly Store[]> {
+    const response = await fetch(`${baseUrl()}/organizations/${encodeURIComponent(orgSlug)}/stores`, {
+      credentials: 'include',
+      headers: { Accept: 'application/json', Authorization: `Bearer ${requireToken(token)}` },
+    });
+    if (!response.ok) throw new Error(`Authentication API request failed (${response.status}).`);
+    return response.json() as Promise<readonly Store[]>;
+  },
+});

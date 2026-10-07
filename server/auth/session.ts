@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { RequestPrincipal } from '../http/types';
+import { checkPasswordCompromise, type PasswordCompromiseCheck } from './password-compromise';
 
 export type AuthenticatedSession = RequestPrincipal & { sessionId: string };
 export type CredentialRecord = {
@@ -23,8 +25,10 @@ export type AuthenticationRepository = {
   touchSession: (sessionId: string, at: Date) => Promise<void>;
 };
 export type AuthenticateCredentialsInput = { username: string; password: string; deviceId: string };
+export type AuthenticateSupabaseTokenInput = { token: string; deviceId: string };
 export type SessionIssuer = {
   authenticateCredentials: (input: AuthenticateCredentialsInput) => Promise<{ token: string; sessionId: string; expiresAt: Date } | null>;
+  authenticateSupabaseToken: (input: AuthenticateSupabaseTokenInput) => Promise<{ token: string; sessionId: string; expiresAt: Date } | null>;
   authenticateBearer: (token: string) => Promise<AuthenticatedSession | null>;
   revokeBearer: (token: string) => Promise<boolean>;
 };
@@ -36,10 +40,30 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 export const hashSessionToken = (token: string): string => crypto.createHash('sha256').update(token, 'utf8').digest('hex');
 const newBearerToken = (): string => crypto.randomBytes(32).toString('base64url');
 
+const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
+const supabaseJwksUrl = process.env.SUPABASE_JWKS_URL?.trim()
+  || (supabaseUrl ? supabaseUrl + '/auth/v1/.well-known/jwks.json' : null);
+const supabaseJwks = supabaseJwksUrl ? createRemoteJWKSet(new URL(supabaseJwksUrl)) : null;
+
+const verifySupabaseToken = async (token: string) => {
+  if (!supabaseJwks || !supabaseUrl || !token) return null;
+  try {
+    const { payload } = await jwtVerify(token, supabaseJwks, {
+      issuer: supabaseUrl + '/auth/v1',
+      audience: 'authenticated',
+    });
+    if (typeof payload.sub !== 'string' || typeof payload.email !== 'string' || typeof payload.exp !== 'number') return null;
+    return { userId: payload.sub, email: payload.email, expiresAt: new Date(payload.exp * 1000) };
+  } catch {
+    return null;
+  }
+};
+
 export const createSessionIssuer = (
   repository: AuthenticationRepository,
   verifySecret: (secret: string, encodedHash: string) => Promise<boolean>,
   now: () => Date = () => new Date(),
+  checkCompromisedPassword: (password: string) => Promise<PasswordCompromiseCheck> = checkPasswordCompromise,
 ): SessionIssuer => ({
   authenticateCredentials: async ({ username, password, deviceId }) => {
     const normalizedUsername = username.trim();
@@ -53,6 +77,18 @@ export const createSessionIssuer = (
     if (device.organizationId !== credential.organizationId) return null;
     const current = now();
     if (credential.lockedUntil && credential.lockedUntil > current) return null;
+    let compromise: PasswordCompromiseCheck;
+    try {
+      compromise = await checkCompromisedPassword(password);
+    } catch {
+      // Do not reveal whether an account exists when the external screening service is unavailable.
+      // Fail closed for password authentication: compromised-password screening is a production control.
+      return null;
+    }
+    if (compromise.compromised) {
+      await repository.recordFailedAttempt(credential.userId);
+      return null;
+    }
     if (!(await verifySecret(password, credential.secretHash))) {
       // The repository owns the atomic threshold decision. Never derive the lockout timestamp from a credential snapshot: concurrent failures may observe the same failedAttempts value.
       await repository.recordFailedAttempt(credential.userId);
@@ -64,6 +100,29 @@ export const createSessionIssuer = (
     const expiresAt = new Date(current.getTime() + SESSION_TTL_MS);
     await repository.createSession({ id: sessionId, organizationId: credential.organizationId, userId: credential.userId, deviceId: device.id, tokenHash: hashSessionToken(token), expiresAt });
     return { token, sessionId, expiresAt };
+  },
+  authenticateSupabaseToken: async ({ token: supabaseToken, deviceId }) => {
+    const verified = await verifySupabaseToken(supabaseToken);
+    if (!verified) return null;
+    const device = await repository.findDevice(deviceId);
+    if (!device || device.status !== 'active') return null;
+    const credential = await repository.findCredentialByUsername(verified.email, device.organizationId);
+    if (!credential || credential.status !== 'active') return null;
+    const nowValue = now();
+    if (verified.expiresAt <= nowValue) return null;
+    const localToken = newBearerToken();
+    const sessionId = crypto.randomUUID();
+    const maxExpiry = new Date(nowValue.getTime() + SESSION_TTL_MS);
+    const expiresAt = verified.expiresAt < maxExpiry ? verified.expiresAt : maxExpiry;
+    await repository.createSession({
+      id: sessionId,
+      organizationId: credential.organizationId,
+      userId: credential.userId,
+      deviceId: device.id,
+      tokenHash: hashSessionToken(localToken),
+      expiresAt,
+    });
+    return { token: localToken, sessionId, expiresAt };
   },
   authenticateBearer: async (token) => {
     if (!token) return null;

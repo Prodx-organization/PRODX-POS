@@ -160,6 +160,45 @@ const loadSessionContext = async (
  * through the same SessionIssuer used by the global middleware.
  */
 export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: SessionIssuer): void => {
+  app.post('/auth/supabase/session', asyncRoute(async (request, response) => {
+    const token = bearerToken(request);
+    if (!token) { sendUnauthenticated(request, response); return; }
+    const body = request.body as Record<string, unknown> | null;
+    const organizationSlug = typeof body?.organizationSlug === 'string' ? body.organizationSlug.trim() : '';
+    const storeCode = typeof body?.storeCode === 'string' ? body.storeCode.trim() : '';
+    const registerId = typeof body?.registerId === 'string' ? body.registerId.trim() : '';
+    if (!organizationSlug || !storeCode || !registerId) {
+      response.status(400).json(errorBody(request, 'AUTH_REQUEST_INVALID', 'organizationSlug, storeCode, and registerId are required.'));
+      return;
+    }
+    const devices = await db.query<{ id: string; store_id: string }>(
+      `SELECT d.id, d.store_id
+         FROM prodx_organizations o
+         JOIN prodx_stores s ON s.organization_id = o.id AND lower(s.code) = lower($2) AND s.active = TRUE
+         JOIN prodx_devices d ON d.organization_id = o.id AND d.store_id = s.id AND d.device_key = $3 AND d.status = 'active'
+        WHERE lower(o.code) = lower($1)
+        LIMIT 1`,
+      [organizationSlug, storeCode, registerId],
+    );
+    const device = devices[0];
+    if (!device) { sendAuthFailed(request, response); return; }
+    const issued = await sessions.authenticateSupabaseToken({ token, deviceId: device.id });
+    if (!issued) { sendAuthFailed(request, response); return; }
+    const principal = await sessions.authenticateBearer(issued.token);
+    if (!principal || principal.storeId !== device.store_id) {
+      await sessions.revokeBearer(issued.token);
+      sendAuthFailed(request, response);
+      return;
+    }
+    const context = await loadSessionContext(db, principal, issued.token, issued.expiresAt);
+    if (!context) {
+      await sessions.revokeBearer(issued.token);
+      sendAuthFailed(request, response, 'Session scope could not be established.');
+      return;
+    }
+    response.status(200).json(context);
+  }));
+
   app.post('/auth/login', asyncRoute(async (request, response) => {
     const body = readLoginBody(request.body);
     if (!body) {

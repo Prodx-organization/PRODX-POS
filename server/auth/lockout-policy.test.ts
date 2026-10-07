@@ -28,7 +28,7 @@ test('approved policy: fifth failure locks for 15 minutes and active-lockout att
     touchSession: async () => {},
   };
   const now = new Date('2026-09-14T00:00:00.000Z');
-  const issuer = createSessionIssuer(repository, async () => false, () => now);
+  const issuer = createSessionIssuer(repository, async () => false, () => now, async () => ({ compromised: false, count: 0 }));
 
   for (let i = 0; i < 5; i += 1) {
     assert.equal(await issuer.authenticateCredentials({ username: 'cashier', password: 'bad', deviceId: device.id }), null);

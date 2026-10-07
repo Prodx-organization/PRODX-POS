@@ -10,6 +10,8 @@ export const createPostgresPool = (config: PoolConfig = {}): Pool => {
   return new Pool({
     ...config,
     connectionString,
+    max: config.max ?? (process.env.VERCEL ? 1 : 10),
+    ssl: config.ssl ?? (process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : undefined),
   });
 };
 
