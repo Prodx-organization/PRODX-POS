@@ -130,7 +130,19 @@ export const createApp = (options: BackendBoundaryOptions) => {
     try {
       await options.readinessCheck();
       response.json({ status: 'ready' });
-    } catch {
+    } catch (error: unknown) {
+      const diagnostic = error instanceof Error
+        ? {
+            name: error.name,
+            code: typeof (error as { code?: unknown }).code === 'string'
+              ? (error as unknown as { code: string }).code
+              : undefined,
+          }
+        : { name: 'unknown' };
+      console.error('PRODX readiness check failed', {
+        requestId: request.id,
+        ...diagnostic,
+      });
       sendError(response, 503, 'NOT_READY', 'The service is not ready.', request.id);
     }
   });
