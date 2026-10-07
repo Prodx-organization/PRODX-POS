@@ -1,6 +1,7 @@
 import { createPostgresAuthenticationRepository, type SqlExecutor } from './postgres-repository';
 import { createSessionIssuer, type SessionIssuer } from './session';
 import { verifyPassword } from './password';
+import { checkPasswordCompromise } from './password-compromise';
 
 /**
  * Application composition boundary for M2 authentication.
@@ -11,5 +12,5 @@ import { verifyPassword } from './password';
  */
 export const createPostgresAuthentication = (db: SqlExecutor): SessionIssuer => {
   const repository = createPostgresAuthenticationRepository(db);
-  return createSessionIssuer(repository, verifyPassword);
+  return createSessionIssuer(repository, verifyPassword, () => new Date(), checkPasswordCompromise);
 };
