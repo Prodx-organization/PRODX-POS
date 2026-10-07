@@ -24,8 +24,12 @@ import { registerVoidRoute } from './http/void-route';
 import { registerInventoryAdjustmentRoute } from './http/inventory-adjustment-route';
 import { installAIHttpRoute } from './ai/http-route';
 
-export const createProductionApp = async () => {
-  const pool = await createProductionPostgresPool();
+export type ProductionAppOptions = {
+  vercelOidcToken?: string;
+};
+
+export const createProductionApp = async (options: ProductionAppOptions = {}) => {
+  const pool = await createProductionPostgresPool({}, options.vercelOidcToken);
   const sql = asSqlExecutor(pool);
   const transactions = createTransactionalPostgresExecutor(pool);
   const sessions = createPostgresAuthentication(sql);

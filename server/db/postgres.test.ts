@@ -32,19 +32,19 @@ test('resolveProductionDatabaseUrl uses DATABASE_URL outside Vercel production',
   );
 });
 
-test('resolveProductionDatabaseUrl fails closed when Vercel OIDC is unavailable', async () => {
+test('resolveProductionDatabaseUrl fails closed when no Vercel runtime token is available', async () => {
   await withEnvironment(
     { VERCEL: '1', NODE_ENV: 'production', DATABASE_URL: 'postgresql://legacy.example/prodx', VERCEL_OIDC_TOKEN: undefined },
     async () => {
       await assert.rejects(
         resolveProductionDatabaseUrl(),
-        /VERCEL_OIDC_TOKEN is required/,
+        /Vercel OIDC token is required/,
       );
     },
   );
 });
 
-test('resolveProductionDatabaseUrl resolves the production database through the OIDC broker', async () => {
+test('resolveProductionDatabaseUrl uses the Vercel request token instead of DATABASE_URL', async () => {
   const originalFetch = globalThis.fetch;
   let requestedUrl = '';
   let requestedAuthorization = '';
@@ -64,13 +64,47 @@ test('resolveProductionDatabaseUrl resolves the production database through the 
         VERCEL: '1',
         NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://legacy.example/prodx',
-        VERCEL_OIDC_TOKEN: 'vercel-oidc-token',
+        VERCEL_OIDC_TOKEN: undefined,
+        PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+      },
+      async () => {
+        assert.equal(
+          await resolveProductionDatabaseUrl('request-oidc-token'),
+          'postgresql://supabase.example/prodx',
+        );
+        assert.equal(requestedUrl, 'https://broker.example/prodx-db');
+        assert.equal(requestedAuthorization, 'Bearer request-oidc-token');
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('resolveProductionDatabaseUrl falls back to VERCEL_OIDC_TOKEN for local tooling', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedAuthorization = '';
+
+  globalThis.fetch = async (_input, init) => {
+    requestedAuthorization = new Headers(init?.headers).get('authorization') ?? '';
+    return new Response(JSON.stringify({ databaseUrl: 'postgresql://supabase.example/prodx' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    await withEnvironment(
+      {
+        VERCEL: '1',
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://legacy.example/prodx',
+        VERCEL_OIDC_TOKEN: 'environment-oidc-token',
         PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
       },
       async () => {
         assert.equal(await resolveProductionDatabaseUrl(), 'postgresql://supabase.example/prodx');
-        assert.equal(requestedUrl, 'https://broker.example/prodx-db');
-        assert.equal(requestedAuthorization, 'Bearer vercel-oidc-token');
+        assert.equal(requestedAuthorization, 'Bearer environment-oidc-token');
       },
     );
   } finally {
@@ -88,11 +122,11 @@ test('resolveProductionDatabaseUrl rejects a broker failure', async () => {
         VERCEL: '1',
         NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://legacy.example/prodx',
-        VERCEL_OIDC_TOKEN: 'vercel-oidc-token',
+        VERCEL_OIDC_TOKEN: undefined,
       },
       async () => {
         await assert.rejects(
-          resolveProductionDatabaseUrl(),
+          resolveProductionDatabaseUrl('request-oidc-token'),
           /broker rejected the request with HTTP 503/,
         );
       },
