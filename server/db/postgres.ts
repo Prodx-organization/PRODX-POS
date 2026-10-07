@@ -6,7 +6,9 @@ const DEFAULT_DB_BROKER_URL = 'https://sjgwesmmpegtzsqqqhvd.supabase.co/function
 const shouldResolveProductionDatabaseUrl = (): boolean =>
   process.env.VERCEL === '1' && process.env.NODE_ENV === 'production';
 
-export const resolveProductionDatabaseUrl = async (): Promise<string> => {
+export const resolveProductionDatabaseUrl = async (
+  vercelOidcToken?: string,
+): Promise<string> => {
   if (!shouldResolveProductionDatabaseUrl()) {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
@@ -15,9 +17,9 @@ export const resolveProductionDatabaseUrl = async (): Promise<string> => {
     return connectionString;
   }
 
-  const oidcToken = process.env.VERCEL_OIDC_TOKEN;
+  const oidcToken = vercelOidcToken ?? process.env.VERCEL_OIDC_TOKEN;
   if (!oidcToken) {
-    throw new Error('VERCEL_OIDC_TOKEN is required to resolve the production PostgreSQL connection.');
+    throw new Error('Vercel OIDC token is required to resolve the production PostgreSQL connection.');
   }
 
   const brokerUrl = process.env.PRODX_DB_BROKER_URL ?? DEFAULT_DB_BROKER_URL;
@@ -55,8 +57,11 @@ export const createPostgresPool = (config: PoolConfig = {}): Pool => {
   });
 };
 
-export const createProductionPostgresPool = async (config: PoolConfig = {}): Promise<Pool> => {
-  const connectionString = config.connectionString ?? await resolveProductionDatabaseUrl();
+export const createProductionPostgresPool = async (
+  config: PoolConfig = {},
+  vercelOidcToken?: string,
+): Promise<Pool> => {
+  const connectionString = config.connectionString ?? await resolveProductionDatabaseUrl(vercelOidcToken);
   return createPostgresPool({ ...config, connectionString });
 };
 
