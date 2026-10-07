@@ -138,7 +138,7 @@ test('credential lookup is scoped to the device organization', async () => {
 });
 
 test('rejects authentication when the credential password is compromised', async () => {
-  const { repository, device } = repositoryFixture();
+  const { repository } = repositoryFixture();
   const issuer = createSessionIssuer(
     repository,
     async () => true,
@@ -146,7 +146,7 @@ test('rejects authentication when the credential password is compromised', async
     async () => ({ compromised: true, count: 42 }),
   );
   assert.equal(
-    await issuer.authenticateCredentials({ username: 'cashier', password: 'known-compromised', deviceId: device.id }),
+    await issuer.authenticateCredentials({ username: 'cashier', password: 'known-compromised', deviceId: 'device-1' }),
     null,
   );
 });
