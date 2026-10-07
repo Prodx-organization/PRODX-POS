@@ -8,7 +8,7 @@ test('HIBP screening uses only the first five SHA-1 characters and matches suffi
     fetchImpl: async (input, init) => {
       requested = String(input);
       assert.equal(init?.headers && (init.headers as Record<string,string>)['user-agent'], 'PRODX-POS/1.0 password-security');
-      return new Response('0018A45C4D1DEF81644B54AB7F969B88D65:10\n', { status: 200 });
+      return new Response('61E4C9B93F3F0682250B6CF8331B7EE68FD8:10\n', { status: 200 });
     },
   });
   assert.equal(requested, 'https://api.pwnedpasswords.com/range/5BAA6');
@@ -17,7 +17,7 @@ test('HIBP screening uses only the first five SHA-1 characters and matches suffi
 
 test('HIBP screening returns safe when the complete hash suffix is absent', async () => {
   const result = await checkPasswordCompromise('password', {
-    fetchImpl: async () => new Response('0018A45C4D1DEF81644B54AB7F969B88D65:10\n', { status: 200 }),
+    fetchImpl: async () => new Response('61E4C9B93F3F0682250B6CF8331B7EE68FD8:10\n', { status: 200 }),
   });
   assert.deepEqual(result, { compromised: false, count: 0 });
 });
