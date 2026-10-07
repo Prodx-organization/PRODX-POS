@@ -23,7 +23,7 @@ test('production auth HTTP boundary enforces login scope, session revocation, ma
     return;
   }
 
-  const { app, pool } = createProductionApp();
+  const { app, pool } = await createProductionApp();
   const passwordHash = await hashPassword('correct-password');
 
   const cleanup = async () => {
