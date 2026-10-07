@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import * as jose from "npm:jose@6.2.12";
+import { resolveProductionDatabaseUrl } from "./url.ts";
 
 const VERCEL_ISSUER = "https://oidc.vercel.com/prodx-team";
 const VERCEL_AUDIENCE = "https://vercel.com/prodx-team";
@@ -25,7 +26,7 @@ Deno.serve(async (req: Request) => {
 
     const dbUrl = Deno.env.get("SUPABASE_DB_URL");
     if (!dbUrl) return new Response("db-url-unavailable", { status: 503 });
-    return Response.json({ databaseUrl: dbUrl });
+    return Response.json({ databaseUrl: resolveProductionDatabaseUrl(dbUrl) });
   } catch {
     return new Response("unauthorized", { status: 401 });
   }
