@@ -40,7 +40,7 @@ const clock = new Date('2026-09-13T12:00:00.000Z');
 
 test('credential authentication issues only a hashed bearer token', async () => {
   const { repository, calls, getSession } = repositoryFixture();
-  const issuer = createSessionIssuer(repository, async (secret, encoded) => secret === 'good' && encoded === 'hash', () => clock);
+  const issuer = createSessionIssuer(repository, async (secret, encoded) => secret === 'good' && encoded === 'hash', () => clock, async () => ({ compromised: false, count: 0 }));
   const result = await issuer.authenticateCredentials({ username: ' cashier ', password: 'good', deviceId: device.id });
   assert.ok(result);
   assert.notEqual(result.token, getSession()?.tokenHash);
@@ -51,7 +51,7 @@ test('credential authentication issues only a hashed bearer token', async () => 
 
 test('wrong credentials do not create sessions and record a failed attempt', async () => {
   const { repository, calls, getSession } = repositoryFixture();
-  const issuer = createSessionIssuer(repository, async () => false, () => clock);
+  const issuer = createSessionIssuer(repository, async () => false, () => clock, async () => ({ compromised: false, count: 0 }));
   assert.equal(await issuer.authenticateCredentials({ username: 'cashier', password: 'bad', deviceId: device.id }), null);
   assert.equal(getSession(), null);
   assert.equal(calls.failed, 1);
@@ -60,7 +60,7 @@ test('wrong credentials do not create sessions and record a failed attempt', asy
 
 test('five failed attempts lock the credential for fifteen minutes and lockout attempts do not increment', async () => {
   const { repository, calls, getCredential } = repositoryFixture();
-  const issuer = createSessionIssuer(repository, async () => false, () => clock);
+  const issuer = createSessionIssuer(repository, async () => false, () => clock, async () => ({ compromised: false, count: 0 }));
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     assert.equal(await issuer.authenticateCredentials({ username: 'cashier', password: 'bad', deviceId: device.id }), null);
   }
