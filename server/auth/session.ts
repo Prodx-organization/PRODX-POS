@@ -63,7 +63,7 @@ export const createSessionIssuer = (
   repository: AuthenticationRepository,
   verifySecret: (secret: string, encodedHash: string) => Promise<boolean>,
   now: () => Date = () => new Date(),
-  checkCompromisedPassword: (password: string) => checkPasswordCompromise(password),
+  checkCompromisedPassword: (password: string) => Promise<PasswordCompromiseCheck> = checkPasswordCompromise,
 ): SessionIssuer => ({
   authenticateCredentials: async ({ username, password, deviceId }) => {
     const normalizedUsername = username.trim();
