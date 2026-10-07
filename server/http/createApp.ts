@@ -135,7 +135,7 @@ export const createApp = (options: BackendBoundaryOptions) => {
         ? {
             name: error.name,
             code: typeof (error as { code?: unknown }).code === 'string'
-              ? (error as { code: string }).code
+              ? (error as unknown as { code: string }).code
               : undefined,
           }
         : { name: 'unknown' };
