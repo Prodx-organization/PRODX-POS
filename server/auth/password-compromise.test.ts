@@ -17,7 +17,7 @@ test('HIBP screening uses only the first five SHA-1 characters and matches suffi
 
 test('HIBP screening returns safe when the complete hash suffix is absent', async () => {
   const result = await checkPasswordCompromise('password', {
-    fetchImpl: async () => new Response('1E4C9B93F3F0682250B6CF8331B7EE68FD8:10\n', { status: 200 }),
+    fetchImpl: async () => new Response('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:10\n', { status: 200 }),
   });
   assert.deepEqual(result, { compromised: false, count: 0 });
 });
