@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { RequestPrincipal } from '../http/types';
+import { checkPasswordCompromise, type PasswordCompromiseCheck } from './password-compromise';
 
 export type AuthenticatedSession = RequestPrincipal & { sessionId: string };
 export type CredentialRecord = {
@@ -62,6 +63,7 @@ export const createSessionIssuer = (
   repository: AuthenticationRepository,
   verifySecret: (secret: string, encodedHash: string) => Promise<boolean>,
   now: () => Date = () => new Date(),
+  checkCompromisedPassword: (password: string) => checkPasswordCompromise(password),
 ): SessionIssuer => ({
   authenticateCredentials: async ({ username, password, deviceId }) => {
     const normalizedUsername = username.trim();
@@ -75,6 +77,18 @@ export const createSessionIssuer = (
     if (device.organizationId !== credential.organizationId) return null;
     const current = now();
     if (credential.lockedUntil && credential.lockedUntil > current) return null;
+    let compromise: PasswordCompromiseCheck;
+    try {
+      compromise = await checkCompromisedPassword(password);
+    } catch {
+      // Do not reveal whether an account exists when the external screening service is unavailable.
+      // Fail closed for password authentication: compromised-password screening is a production control.
+      return null;
+    }
+    if (compromise.compromised) {
+      await repository.recordFailedAttempt(credential.userId);
+      return null;
+    }
     if (!(await verifySecret(password, credential.secretHash))) {
       // The repository owns the atomic threshold decision. Never derive the lockout timestamp from a credential snapshot: concurrent failures may observe the same failedAttempts value.
       await repository.recordFailedAttempt(credential.userId);
