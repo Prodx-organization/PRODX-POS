@@ -128,7 +128,7 @@ export const createApp = (options: BackendBoundaryOptions) => {
   // proxy hop count; otherwise Express uses the direct socket address.
   const trustedProxy = process.env.TRUST_PROXY?.trim();
   if (trustedProxy) {
-    if (/^\\d+$/.test(trustedProxy)) {
+    if (/^\d+$/.test(trustedProxy)) {
       app.set('trust proxy', Number.parseInt(trustedProxy, 10));
     } else if (trustedProxy === 'true') {
       app.set('trust proxy', true);
