@@ -6,6 +6,19 @@ const DEFAULT_DB_BROKER_URL = 'https://sjgwesmmpegtzsqqqhvd.supabase.co/function
 const shouldResolveProductionDatabaseUrl = (): boolean =>
   process.env.VERCEL === '1' && process.env.NODE_ENV === 'production';
 
+export type ProductionDatabaseTarget = 'supabase_session_pooler' | 'supabase_direct' | 'other' | 'invalid';
+
+export const classifyProductionDatabaseTarget = (databaseUrl: string): ProductionDatabaseTarget => {
+  try {
+    const hostname = new URL(databaseUrl).hostname;
+    if (hostname === 'aws-0-ap-northeast-1.pooler.supabase.com') return 'supabase_session_pooler';
+    if (hostname === 'db.sjgwesmmpegtzsqqqhvd.supabase.co') return 'supabase_direct';
+    return 'other';
+  } catch {
+    return 'invalid';
+  }
+};
+
 export const resolveProductionDatabaseUrl = async (
   vercelOidcToken?: string,
 ): Promise<string> => {
@@ -62,6 +75,11 @@ export const createProductionPostgresPool = async (
   vercelOidcToken?: string,
 ): Promise<Pool> => {
   const connectionString = config.connectionString ?? await resolveProductionDatabaseUrl(vercelOidcToken);
+  if (shouldResolveProductionDatabaseUrl()) {
+    console.info('PRODX production database target selected', {
+      target: classifyProductionDatabaseTarget(connectionString),
+    });
+  }
   return createPostgresPool({ ...config, connectionString });
 };
 
