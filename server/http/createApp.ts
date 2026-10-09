@@ -41,7 +41,7 @@ const sendError = (
 
 const safeReadinessDiagnostic = (error: unknown): Record<string, string | number> => {
   const candidate = error && typeof error === 'object'
-    ? error as { name?: unknown; code?: unknown; syscall?: unknown; hostname?: unknown; port?: unknown }
+    ? error as { name?: unknown; code?: unknown; syscall?: unknown; port?: unknown; stage?: unknown }
     : {};
   const diagnostic: Record<string, string | number> = {
     name: typeof candidate.name === 'string' && /^[A-Za-z][A-Za-z0-9]*$/.test(candidate.name)
@@ -59,6 +59,10 @@ const safeReadinessDiagnostic = (error: unknown): Record<string, string | number
   if (typeof candidate.port === 'number' && Number.isInteger(candidate.port) &&
       candidate.port >= 1 && candidate.port <= 65535) {
     diagnostic.port = candidate.port;
+  }
+  if (candidate.stage === 'database_query' || candidate.stage === 'broker_fetch' ||
+      candidate.stage === 'broker_http' || candidate.stage === 'broker_response') {
+    diagnostic.stage = candidate.stage;
   }
 
   return diagnostic;
@@ -158,6 +162,7 @@ export const createApp = (options: BackendBoundaryOptions) => {
     } catch (error: unknown) {
       console.error('PRODX readiness check failed', {
         requestId: request.id,
+        status: 503,
         ...safeReadinessDiagnostic(error),
       });
       sendError(response, 503, 'NOT_READY', 'The service is not ready.', request.id);
