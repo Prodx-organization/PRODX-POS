@@ -11,3 +11,7 @@ ALTER FUNCTION public.prodx_validate_order_financial_invariants() SET search_pat
 ALTER FUNCTION public.prodx_validate_payment_currency() SET search_path = public, pg_catalog;
 ALTER FUNCTION public.prodx_validate_refund_commit() SET search_path = public, pg_catalog;
 ALTER FUNCTION public.prodx_validate_refund_item_effect() SET search_path = public, pg_catalog;
+
+INSERT INTO prodx_schema_migrations(version)
+VALUES ('0032_security_harden_function_search_path')
+ON CONFLICT(version) DO NOTHING;

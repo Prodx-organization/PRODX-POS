@@ -20,7 +20,11 @@ $$;
 COMMENT ON ROLE prodx_app IS
   'PRODX-POS backend runtime role. Authorization remains server-side; RLS policies explicitly permit this trusted backend role.';
 
-GRANT CONNECT ON DATABASE postgres TO prodx_app;
+DO $$
+BEGIN
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO prodx_app', current_database());
+END
+$$;
 GRANT USAGE ON SCHEMA public TO prodx_app;
 
 GRANT SELECT, INSERT, UPDATE, DELETE
@@ -66,3 +70,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO prodx_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO prodx_app;
+
+INSERT INTO prodx_schema_migrations(version)
+VALUES ('0033_security_prodx_app_role')
+ON CONFLICT(version) DO NOTHING;
