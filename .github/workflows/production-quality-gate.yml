@@ -48,6 +48,14 @@ jobs:
       - name: Install dependencies from lockfile
         run: bun install --frozen-lockfile
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed
+        with:
+          deno-version: v2.x
+
+      - name: Database broker URL tests (Deno)
+        run: deno test supabase/functions/prodx-db-broker/url.test.ts
+
       - name: Type check frontend
         run: bun run lint
 
