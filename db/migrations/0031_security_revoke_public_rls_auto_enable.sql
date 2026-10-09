@@ -18,3 +18,7 @@ BEGIN
   END IF;
 END
 $$;
+
+INSERT INTO prodx_schema_migrations(version)
+VALUES ('0031_security_revoke_public_rls_auto_enable')
+ON CONFLICT(version) DO NOTHING;

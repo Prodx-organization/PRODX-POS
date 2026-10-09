@@ -5,6 +5,9 @@ import { hashPassword } from '../auth/password';
 import { createProductionApp } from '../entrypoint';
 
 const databaseUrl = process.env.DATABASE_URL;
+const localClientFingerprints = ['127.0.0.1', '::ffff:127.0.0.1', '::1'].map((address) =>
+  createHash('sha256').update(address).digest('hex'),
+);
 
 const ids = {
   organizationA: '00000000-0000-4000-8000-000000000301',
@@ -27,6 +30,7 @@ test('production auth HTTP boundary enforces login scope, session revocation, ma
   const passwordHash = await hashPassword('correct-password');
 
   const cleanup = async () => {
+    await pool.query('DELETE FROM prodx_auth_login_throttles WHERE client_fingerprint = ANY($1::text[])', [localClientFingerprints]);
     await pool.query('DELETE FROM prodx_security_audit_events WHERE organization_id IN ($1, $2)', [ids.organizationA, ids.organizationB]);
     await pool.query('DELETE FROM prodx_sessions WHERE organization_id IN ($1, $2)', [ids.organizationA, ids.organizationB]);
     await pool.query('DELETE FROM prodx_user_credentials WHERE user_id IN ($1, $2)', [ids.userA, ids.userB]);
@@ -38,6 +42,7 @@ test('production auth HTTP boundary enforces login scope, session revocation, ma
     await pool.end();
   };
 
+  await pool.query('DELETE FROM prodx_auth_login_throttles WHERE client_fingerprint = ANY($1::text[])', [localClientFingerprints]);
   await pool.query('DELETE FROM prodx_security_audit_events WHERE organization_id IN ($1, $2)', [ids.organizationA, ids.organizationB]);
   await pool.query('DELETE FROM prodx_sessions WHERE organization_id IN ($1, $2)', [ids.organizationA, ids.organizationB]);
   await pool.query('DELETE FROM prodx_user_credentials WHERE user_id IN ($1, $2)', [ids.userA, ids.userB]);
