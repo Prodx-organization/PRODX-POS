@@ -94,6 +94,15 @@ jobs:
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0031_security_revoke_public_rls_auto_enable';
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0032_security_harden_function_search_path';
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0033_security_prodx_app_role';
+          DO $$
+          BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'prodx_app' AND rolsuper = false AND rolbypassrls = false) THEN
+              RAISE EXCEPTION 'prodx_app must not be superuser or bypass RLS';
+            END IF;
+            IF NOT has_database_privilege('prodx_app', current_database(), 'CONNECT') THEN
+              RAISE EXCEPTION 'prodx_app cannot connect to the current database';
+            END IF;
+          END $$;
           SELECT tgname FROM pg_trigger WHERE tgname = 'prodx_audit_log_immutable_guard' AND NOT tgisinternal;
           SELECT 1 FROM prodx_migration_lock WHERE lock_id = 1;
           SELECT current_setting('TimeZone') AS session_timezone;

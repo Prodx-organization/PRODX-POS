@@ -20,7 +20,11 @@ $$;
 COMMENT ON ROLE prodx_app IS
   'PRODX-POS backend runtime role. Authorization remains server-side; RLS policies explicitly permit this trusted backend role.';
 
-GRANT CONNECT ON DATABASE postgres TO prodx_app;
+DO $$
+BEGIN
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO prodx_app', current_database());
+END
+$$;
 GRANT USAGE ON SCHEMA public TO prodx_app;
 
 GRANT SELECT, INSERT, UPDATE, DELETE
