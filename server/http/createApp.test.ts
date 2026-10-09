@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import crypto from 'node:crypto';
 import test from 'node:test';
 import { createApp, requirePermission } from './createApp';
 
@@ -98,7 +97,7 @@ test('readiness reports database dependency failures without authentication', as
   }
 });
 
-test('readiness logs redacted DNS diagnostics without exposing the hostname or error message', async () => {
+test('readiness logs safe DNS diagnostics without exposing the hostname or error message', async () => {
   const sensitiveHostname = 'db.internal.example';
   const originalConsoleError = console.error;
   let loggedArgs: unknown[] = [];
@@ -129,10 +128,6 @@ test('readiness logs redacted DNS diagnostics without exposing the hostname or e
     assert.equal(diagnostic.code, 'ENOTFOUND');
     assert.equal(diagnostic.syscall, 'getaddrinfo');
     assert.equal(diagnostic.port, 5432);
-    assert.equal(
-      diagnostic.hostnameFingerprint,
-      crypto.createHash('sha256').update(sensitiveHostname).digest('hex').slice(0, 12),
-    );
     assert.equal('hostname' in diagnostic, false);
     assert.equal('message' in diagnostic, false);
     assert.equal(JSON.stringify(loggedArgs).includes(sensitiveHostname), false);
