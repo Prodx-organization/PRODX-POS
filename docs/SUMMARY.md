@@ -2,6 +2,7 @@
 
 - [Overview](README.md)
 - [Production Handbook](PRODUCTION-HANDBOOK.md)
+- [Agent Engineering Skills](engineering-skills/README.md)
 - [Architecture Decision — Database & Backend](architecture/ADR-001-database-backend-foundation.md)
 - [Engineering Operating Model](architecture/PRODX-ENGINEERING-OPERATING-MODEL.md)
 - [M1 Auth Identity](database-m1-1-auth-identity.md)
