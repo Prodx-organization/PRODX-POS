@@ -121,3 +121,49 @@ test("refund route derives the authorizing user from the authenticated principal
     await server.close();
   }
 });
+
+test("card and QR refunds fail closed before opening a database transaction", async () => {
+  let transactionCalls = 0;
+  const query = async <T extends QueryResultRow>() => {
+    throw new Error("Unexpected database query for an unsupported refund provider.");
+    return { rows: [] as unknown as T[] };
+  };
+  const db: TransactionalSqlExecutor = {
+    query,
+    transaction: async (work) => {
+      transactionCalls += 1;
+      return work({ query });
+    },
+  };
+  const app = createApp({
+    authenticateRequest: () => principal,
+    authorizeRequest: () => true,
+    configureRoutes: (configuredApp) => registerRefundRoute(configuredApp, db),
+  });
+  const server = await start(app);
+
+  try {
+    for (const refundMethod of ["card", "qr_digital"] as const) {
+      const response = await fetch(`${server.baseUrl}/api/v1/orders/refund`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          orderId: "order-1",
+          refundAmount: { amountInCents: 1000, currency: "THB" },
+          reason: "Customer return",
+          refundMethod,
+          itemsToRestock: [],
+          idempotencyKey: `unsupported-provider-${refundMethod}`,
+          supervisorAuthorizationToken: "server-issued-token",
+        }),
+      });
+
+      assert.equal(response.status, 503, `${refundMethod} must report provider unavailable`);
+      const body = (await response.json()) as { error?: { code?: string } };
+      assert.equal(body.error?.code, "REFUND_PROVIDER_UNAVAILABLE");
+    }
+    assert.equal(transactionCalls, 0, "unsupported provider requests must not enter the financial transaction");
+  } finally {
+    await server.close();
+  }
+});
