@@ -34,12 +34,26 @@ Never declare Production Ready from a checklist, percentage, implementation exis
 7. Re-run affected gates after changes and post-deployment.
 8. Publish a concise status report without hiding failed or unavailable checks.
 
+## Checklist
+- [ ] Every applicable required gate has current direct evidence tied to the candidate SHA.
+- [ ] Production deployment SHA is known and matches the intended release.
+- [ ] Production health and readiness probes pass, with correlated safe runtime logs.
+- [ ] Live database identity, least privilege, grants/RLS, and migrations are verified.
+- [ ] Financial and inventory invariants pass database-backed integration/concurrency tests.
+- [ ] Retryable operations and offline replay have durable idempotency evidence.
+- [ ] Audit coverage/immutability and observability/alert delivery are verified.
+- [ ] Full tests, lint/typecheck/build, architecture/security/database gates, and exact-head CI pass.
+- [ ] Required branch protection/ruleset enforcement is active.
+- [ ] Backup restore, integrity checks, approved RPO/RTO, and a DR drill are evidenced.
+- [ ] Deployment/rollback plan and post-deploy verification are documented and tested.
+- [ ] No required gate is FAIL, BLOCKED, or UNVERIFIED.
+
 ## Status vocabulary
 - **PASS**: current direct evidence proves the gate.
 - **FAIL**: direct evidence shows the gate is violated.
 - **BLOCKED**: the gate cannot be executed because a prerequisite/access/infrastructure is unavailable.
 - **UNVERIFIED**: evidence is missing, stale, indirect, or insufficient.
-- **NOT APPLICABLE**: a documented reason proves the gate does not apply.
+- **NOT APPLICABLE**: a documented reason proves the criterion does not apply.
 
 ## Hard-stop conditions
 - Any required gate is FAIL, BLOCKED, or UNVERIFIED.
@@ -49,5 +63,7 @@ Never declare Production Ready from a checklist, percentage, implementation exis
 - Branch ruleset enforcement is disabled.
 - Financial, inventory, idempotency, offline-sync, audit, backup/restore, or recovery evidence is missing.
 
-## Output
-Report overall status as **NOT PRODUCTION READY** if any applicable required gate is not PASS. List current production SHA, gate-by-gate evidence, blockers, owner/dependency, and next action. Never merge or deploy to bypass a failed gate.
+## Evidence contract
+Record each gate's status, exact source/test paths, CI run URL and conclusion, production deployment ID/SHA, observation time, and any missing evidence. A plan, skill file, passing unit-test subset, or successful build is not evidence that the operation occurred.
+
+Overall status must be **NOT PRODUCTION READY** if any applicable required gate is not PASS. List the blocker, owner/dependency, and safest next action. Never merge or deploy to bypass a failed gate.
