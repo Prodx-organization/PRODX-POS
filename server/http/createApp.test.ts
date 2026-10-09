@@ -74,7 +74,7 @@ test('exposes unauthenticated liveness and readiness boundaries', async () => {
 
     const readiness = await fetch(server.baseUrl + '/api/v1/readyz');
     assert.equal(readiness.status, 503);
-    assert.deepEqual((await readiness.json()).error.code, 'READINESS_NOT_CONFIGURED');
+    assert.equal((await readiness.json()).error.code, 'READINESS_NOT_CONFIGURED');
   } finally {
     await server.close();
   }
