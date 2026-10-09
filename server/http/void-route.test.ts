@@ -71,7 +71,7 @@ test("card and QR voids fail closed before recording void or inventory/cash reve
     if (sql.includes("FROM prodx_payments")) {
       return { rows: [{ method: activeMethod, amount: "10.00", currency: "THB", status: "captured" }] as unknown as T[] };
     }
-    if (/^\\s*(INSERT INTO prodx_voids|INSERT INTO prodx_inventory_ledger|INSERT INTO prodx_cash_movements|UPDATE prodx_products|UPDATE prodx_orders)/i.test(sql)) {
+    if (sql.startsWith("INSERT INTO prodx_voids") || sql.includes("INSERT INTO prodx_inventory_ledger") || sql.includes("INSERT INTO prodx_cash_movements") || sql.startsWith("UPDATE prodx_products") || sql.startsWith("UPDATE prodx_orders")) {
       sideEffectStatements.push(sql);
       return { rows: [] as unknown as T[] };
     }
