@@ -55,3 +55,62 @@ test("void route fails closed without pos.void permission", async () => {
     assert.equal(response.status, 403);
   } finally { await server.close(); }
 });
+
+
+test("card and QR voids fail closed before recording void or inventory/cash reversal effects", async () => {
+  let transactionCalls = 0;
+  let activeMethod: "card" | "qr_digital" = "card";
+  const sideEffectStatements: string[] = [];
+  const query = async <T extends QueryResultRow>(sql: string) => {
+    if (sql.includes("FROM prodx_orders") && sql.includes("FOR UPDATE")) {
+      return { rows: [{ id: "order-1", organization_id: principal.organizationId, store_id: principal.storeId, order_number: "ORD-1", register_id: "register-1", shift_id: "shift-1", status: "server_confirmed", currency: "THB", grand_total_amount: "10.00" }] as unknown as T[] };
+    }
+    if (sql.includes("FROM prodx_voids")) return { rows: [] as unknown as T[] };
+    if (sql.includes("UPDATE prodx_supervisor_authorizations")) return { rows: [{ supervisorUserId: "supervisor-1" }] as unknown as T[] };
+    if (sql.includes("FROM prodx_store_memberships")) return { rows: [{ id: "membership-1" }] as unknown as T[] };
+    if (sql.includes("FROM prodx_payments")) {
+      return { rows: [{ method: activeMethod, amount: "10.00", currency: "THB", status: "captured" }] as unknown as T[] };
+    }
+    if (sql.startsWith("INSERT INTO prodx_voids") || sql.includes("INSERT INTO prodx_inventory_ledger") || sql.includes("INSERT INTO prodx_cash_movements") || sql.startsWith("UPDATE prodx_products") || sql.startsWith("UPDATE prodx_orders")) {
+      sideEffectStatements.push(sql);
+      return { rows: [] as unknown as T[] };
+    }
+    throw new Error(`Unexpected SQL in unsupported void-provider test: ${sql}`);
+  };
+  const db: TransactionalSqlExecutor = {
+    query,
+    transaction: async (work) => {
+      transactionCalls += 1;
+      return work({ query });
+    },
+  };
+  const app = createApp({
+    authenticateRequest: () => principal,
+    authorizeRequest: (_context, permission) => permission === "pos.void",
+    configureRoutes: (configuredApp) => registerVoidRoute(configuredApp, db),
+  });
+  const server = await start(app);
+
+  try {
+    for (const method of ["card", "qr_digital"] as const) {
+      activeMethod = method;
+      const response = await fetch(`${server.baseUrl}/api/v1/orders/void`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          orderId: "order-1",
+          reason: "Supervisor approved correction",
+          idempotencyKey: `unsupported-provider-void-${method}`,
+          supervisorAuthorizationToken: "server-issued-token",
+        }),
+      });
+      assert.equal(response.status, 503, `${method} void must report provider unavailable`);
+      const body = (await response.json()) as { error?: { code?: string } };
+      assert.equal(body.error?.code, "VOID_PROVIDER_UNAVAILABLE");
+    }
+    assert.equal(transactionCalls, 2, "each request must run the provider guard inside the transaction");
+    assert.deepEqual(sideEffectStatements, [], "unsupported provider voids must not record financial or inventory reversal effects");
+  } finally {
+    await server.close();
+  }
+});
