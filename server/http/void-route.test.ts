@@ -59,6 +59,7 @@ test("void route fails closed without pos.void permission", async () => {
 
 test("card and QR voids fail closed before recording void or inventory/cash reversal effects", async () => {
   let transactionCalls = 0;
+  let activeMethod: "card" | "qr_digital" = "card";
   const sideEffectStatements: string[] = [];
   const query = async <T extends QueryResultRow>(sql: string) => {
     if (sql.includes("FROM prodx_orders") && sql.includes("FOR UPDATE")) {
@@ -68,8 +69,7 @@ test("card and QR voids fail closed before recording void or inventory/cash reve
     if (sql.includes("UPDATE prodx_supervisor_authorizations")) return { rows: [{ supervisorUserId: "supervisor-1" }] as unknown as T[] };
     if (sql.includes("FROM prodx_store_memberships")) return { rows: [{ id: "membership-1" }] as unknown as T[] };
     if (sql.includes("FROM prodx_payments")) {
-      const method = String((arguments as unknown as { 0?: unknown })[0] ?? "");
-      return { rows: [{ method: "card", amount: "10.00", currency: "THB", status: "captured" }] as unknown as T[] };
+      return { rows: [{ method: activeMethod, amount: "10.00", currency: "THB", status: "captured" }] as unknown as T[] };
     }
     if (/^\\s*(INSERT INTO prodx_voids|INSERT INTO prodx_inventory_ledger|INSERT INTO prodx_cash_movements|UPDATE prodx_products|UPDATE prodx_orders)/i.test(sql)) {
       sideEffectStatements.push(sql);
@@ -93,14 +93,7 @@ test("card and QR voids fail closed before recording void or inventory/cash reve
 
   try {
     for (const method of ["card", "qr_digital"] as const) {
-      // The query adapter returns the requested method for the payment lookup.
-      const originalQuery = db.query;
-      db.query = async <T extends QueryResultRow>(sql: string, parameters: readonly unknown[] = []) => {
-        if (sql.includes("FROM prodx_payments")) {
-          return { rows: [{ method, amount: "10.00", currency: "THB", status: "captured" }] as unknown as T[] };
-        }
-        return originalQuery<T>(sql, parameters);
-      };
+      activeMethod = method;
       const response = await fetch(`${server.baseUrl}/api/v1/orders/void`, {
         method: "POST",
         headers: { "content-type": "application/json" },
