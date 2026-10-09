@@ -38,7 +38,25 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
 
   const app = createApp({
     readinessCheck: async () => {
-      await sql.query<{ ok: number }>('SELECT 1 AS ok');
+      try {
+        await sql.query<{ ok: number }>('SELECT 1 AS ok');
+      } catch (error: unknown) {
+        const candidate = error && typeof error === 'object'
+          ? error as { code?: unknown; syscall?: unknown; port?: unknown }
+          : {};
+        throw Object.assign(new Error('Database readiness query failed.'), {
+          stage: 'database_query',
+          ...(typeof candidate.code === 'string' ? { code: candidate.code } : {}),
+          ...(candidate.syscall === 'getaddrinfo' || candidate.syscall === 'connect' ||
+              candidate.syscall === 'read' || candidate.syscall === 'write'
+            ? { syscall: candidate.syscall }
+            : {}),
+          ...(typeof candidate.port === 'number' && Number.isInteger(candidate.port) &&
+              candidate.port >= 1 && candidate.port <= 65535
+            ? { port: candidate.port }
+            : {}),
+        });
+      }
     },
     configurePublicRoutes: (configuredApp) => {
       registerAuthRoutes(configuredApp, sql, sessions);
