@@ -56,13 +56,6 @@ const safeReadinessDiagnostic = (error: unknown): Record<string, string | number
       candidate.syscall === 'read' || candidate.syscall === 'write') {
     diagnostic.syscall = candidate.syscall;
   }
-  if (typeof candidate.hostname === 'string' && candidate.hostname.length > 0) {
-    diagnostic.hostnameFingerprint = crypto
-      .createHash('sha256')
-      .update(candidate.hostname.toLowerCase())
-      .digest('hex')
-      .slice(0, 12);
-  }
   if (typeof candidate.port === 'number' && Number.isInteger(candidate.port) &&
       candidate.port >= 1 && candidate.port <= 65535) {
     diagnostic.port = candidate.port;
@@ -135,7 +128,7 @@ export const createApp = (options: BackendBoundaryOptions) => {
   // proxy hop count; otherwise Express uses the direct socket address.
   const trustedProxy = process.env.TRUST_PROXY?.trim();
   if (trustedProxy) {
-    if (/^\d+$/.test(trustedProxy)) {
+    if (/^\\d+$/.test(trustedProxy)) {
       app.set('trust proxy', Number.parseInt(trustedProxy, 10));
     } else if (trustedProxy === 'true') {
       app.set('trust proxy', true);
