@@ -130,6 +130,7 @@ test('readiness logs safe DNS diagnostics without exposing the hostname or error
     assert.equal(diagnostic.port, 5432);
     assert.equal('hostname' in diagnostic, false);
     assert.equal('message' in diagnostic, false);
+    assert.equal('hostnameFingerprint' in diagnostic, false);
     assert.equal(JSON.stringify(loggedArgs).includes(sensitiveHostname), false);
   } finally {
     console.error = originalConsoleError;
