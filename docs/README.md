@@ -18,4 +18,8 @@ Financial integrity · Inventory integrity · Security by default · Multi-tenan
 
 The repository already contains approved architecture, engineering operating model, tenancy, authentication/RBAC/device foundations, authentication enforcement, lockout policy and PostgreSQL recovery documentation. This documentation layer organizes those records into a production documentation system without replacing them.
 
+## Agent engineering skills
+
+The [PRODX-POS Engineering Skill Pack](engineering-skills/README.md) defines reusable, evidence-first procedures for architecture, security, PostgreSQL, financial/inventory integrity, idempotency, offline sync, testing, observability, CI/CD, backup/recovery, and production-readiness decisions.
+
 See [SUMMARY.md](SUMMARY.md) for the complete map.
