@@ -39,6 +39,31 @@ const sendError = (
   response.status(status).json(body);
 };
 
+const safeReadinessDiagnostic = (error: unknown): Record<string, string | number> => {
+  const candidate = error && typeof error === 'object'
+    ? error as { name?: unknown; code?: unknown; syscall?: unknown; hostname?: unknown; port?: unknown }
+    : {};
+  const diagnostic: Record<string, string | number> = {
+    name: typeof candidate.name === 'string' && /^[A-Za-z][A-Za-z0-9]*$/.test(candidate.name)
+      ? candidate.name
+      : 'unknown',
+  };
+
+  if (typeof candidate.code === 'string' && /^[A-Z0-9_]{1,40}$/.test(candidate.code)) {
+    diagnostic.code = candidate.code;
+  }
+  if (candidate.syscall === 'getaddrinfo' || candidate.syscall === 'connect' ||
+      candidate.syscall === 'read' || candidate.syscall === 'write') {
+    diagnostic.syscall = candidate.syscall;
+  }
+  if (typeof candidate.port === 'number' && Number.isInteger(candidate.port) &&
+      candidate.port >= 1 && candidate.port <= 65535) {
+    diagnostic.port = candidate.port;
+  }
+
+  return diagnostic;
+};
+
 const requestId = (request: Request): string => {
   const supplied = request.header('x-request-id');
   return supplied && supplied.length <= 128 ? supplied : crypto.randomUUID();
@@ -131,17 +156,9 @@ export const createApp = (options: BackendBoundaryOptions) => {
       await options.readinessCheck();
       response.json({ status: 'ready' });
     } catch (error: unknown) {
-      const diagnostic = error instanceof Error
-        ? {
-            name: error.name,
-            code: typeof (error as { code?: unknown }).code === 'string'
-              ? (error as unknown as { code: string }).code
-              : undefined,
-          }
-        : { name: 'unknown' };
       console.error('PRODX readiness check failed', {
         requestId: request.id,
-        ...diagnostic,
+        ...safeReadinessDiagnostic(error),
       });
       sendError(response, 503, 'NOT_READY', 'The service is not ready.', request.id);
     }

@@ -97,6 +97,47 @@ test('readiness reports database dependency failures without authentication', as
   }
 });
 
+test('readiness logs safe DNS diagnostics without exposing the hostname or error message', async () => {
+  const sensitiveHostname = 'db.internal.example';
+  const originalConsoleError = console.error;
+  let loggedArgs: unknown[] = [];
+  console.error = (...args: unknown[]) => {
+    loggedArgs = args;
+  };
+
+  const app = createApp({
+    authenticateRequest: () => null,
+    readinessCheck: async () => {
+      throw Object.assign(new Error(`failed to resolve ${sensitiveHostname}`), {
+        code: 'ENOTFOUND',
+        syscall: 'getaddrinfo',
+        hostname: sensitiveHostname,
+        port: 5432,
+      });
+    },
+  });
+  const server = await start(app);
+
+  try {
+    const response = await fetch(server.baseUrl + '/api/v1/readyz');
+    assert.equal(response.status, 503);
+    assert.deepEqual((await response.json()).error.code, 'NOT_READY');
+
+    assert.equal(loggedArgs[0], 'PRODX readiness check failed');
+    const diagnostic = loggedArgs[1] as Record<string, unknown>;
+    assert.equal(diagnostic.code, 'ENOTFOUND');
+    assert.equal(diagnostic.syscall, 'getaddrinfo');
+    assert.equal(diagnostic.port, 5432);
+    assert.equal('hostname' in diagnostic, false);
+    assert.equal('message' in diagnostic, false);
+    assert.equal('hostnameFingerprint' in diagnostic, false);
+    assert.equal(JSON.stringify(loggedArgs).includes(sensitiveHostname), false);
+  } finally {
+    console.error = originalConsoleError;
+    await server.close();
+  }
+});
+
 test('readiness succeeds when the production dependency check succeeds', async () => {
   let checks = 0;
   const app = createApp({
