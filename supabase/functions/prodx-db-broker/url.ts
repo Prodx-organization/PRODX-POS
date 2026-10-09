@@ -1,17 +1,34 @@
 const DIRECT_HOST = "db.sjgwesmmpegtzsqqqhvd.supabase.co";
 const SESSION_POOLER_HOST = "aws-0-ap-northeast-1.pooler.supabase.com";
-const SESSION_POOLER_USER = "postgres.sjgwesmmpegtzsqqqhvd";
+const PROJECT_REF = "sjgwesmmpegtzsqqqhvd";
+const RUNTIME_ROLE = "prodx_app";
+const POSTGRES_PROTOCOLS = new Set(["postgres:", "postgresql:"]);
 
 export const resolveProductionDatabaseUrl = (dbUrl: string): string => {
-  const url = new URL(dbUrl);
-  if (url.hostname !== DIRECT_HOST) return dbUrl;
+  let url: URL;
+  try {
+    url = new URL(dbUrl);
+  } catch {
+    throw new Error("Runtime database URL must be a valid PostgreSQL URL.");
+  }
+
+  if (!POSTGRES_PROTOCOLS.has(url.protocol)) {
+    throw new Error("Runtime database URL must use the PostgreSQL protocol.");
+  }
+  if (url.hostname !== DIRECT_HOST && url.hostname !== SESSION_POOLER_HOST) {
+    throw new Error("Runtime database URL must target the approved Supabase endpoint.");
+  }
+
+  const runtimeRole = url.username;
+  const qualifiedRuntimeRole = `${RUNTIME_ROLE}.${PROJECT_REF}`;
+  if (runtimeRole !== RUNTIME_ROLE && runtimeRole !== qualifiedRuntimeRole) {
+    throw new Error("Runtime database URL must use the dedicated prodx_app role.");
+  }
 
   url.hostname = SESSION_POOLER_HOST;
   url.port = "5432";
-  url.username = SESSION_POOLER_USER;
-  if (!url.searchParams.has("sslmode")) {
-    url.searchParams.set("sslmode", "require");
-  }
+  url.username = qualifiedRuntimeRole;
+  url.searchParams.set("sslmode", "require");
 
   return url.toString();
 };

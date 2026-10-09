@@ -11,23 +11,32 @@ const JWKS = jose.createRemoteJWKSet(new URL(VERCEL_ISSUER + "/.well-known/jwks"
 
 Deno.serve(async (req: Request) => {
   if (req.method !== "GET") return new Response("method-not-allowed", { status: 405 });
+
+  const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+  if (!token) return new Response("unauthorized", { status: 401 });
+
+  let payload: jose.JWTPayload;
   try {
-    const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
-    if (!token) return new Response("unauthorized", { status: 401 });
-    const { payload } = await jose.jwtVerify(token, JWKS, {
+    ({ payload } = await jose.jwtVerify(token, JWKS, {
       issuer: VERCEL_ISSUER,
       audience: VERCEL_AUDIENCE,
-    });
-    if (
-      payload.project_id !== VERCEL_PROJECT_ID ||
-      payload.owner !== VERCEL_OWNER ||
-      payload.environment !== VERCEL_ENVIRONMENT
-    ) return new Response("forbidden", { status: 403 });
-
-    const dbUrl = Deno.env.get("SUPABASE_DB_URL");
-    if (!dbUrl) return new Response("db-url-unavailable", { status: 503 });
-    return Response.json({ databaseUrl: resolveProductionDatabaseUrl(dbUrl) });
+    }));
   } catch {
     return new Response("unauthorized", { status: 401 });
+  }
+
+  if (
+    payload.project_id !== VERCEL_PROJECT_ID ||
+    payload.owner !== VERCEL_OWNER ||
+    payload.environment !== VERCEL_ENVIRONMENT
+  ) return new Response("forbidden", { status: 403 });
+
+  const dbUrl = Deno.env.get("PRODX_APP_DB_URL");
+  if (!dbUrl) return new Response("runtime-db-url-unavailable", { status: 503 });
+
+  try {
+    return Response.json({ databaseUrl: resolveProductionDatabaseUrl(dbUrl) });
+  } catch {
+    return new Response("runtime-db-url-invalid", { status: 503 });
   }
 });
