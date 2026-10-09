@@ -41,6 +41,7 @@ test('readiness logs only safe dependency diagnostics and the request id', async
       'PRODX readiness check failed',
       {
         requestId: 'readyz-safe-log-001',
+        status: 503,
         name: 'Error',
         code: 'ECONNREFUSED',
       },
