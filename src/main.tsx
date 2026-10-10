@@ -5,6 +5,7 @@ import App from './App.tsx';
 import './index.css';
 import './premium-design-system.css';
 import { registerSW } from 'virtual:pwa-register';
+import { injectSpeedInsights } from '@vercel/speed-insights';
 
 const updateServiceWorker = registerSW({
   immediate: true,
@@ -37,6 +38,9 @@ const updateServiceWorker = registerSW({
 });
 
 void updateServiceWorker;
+
+// Inject Vercel Speed Insights for performance monitoring
+injectSpeedInsights();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
