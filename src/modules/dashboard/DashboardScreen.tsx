@@ -26,13 +26,22 @@ import {
 import { NavRoute } from '../../components/layout/Sidebar';
 import { DateRangePicker, DateRange } from './DateRangePicker';
 import { DashboardMetrics, HourlyDataPoint } from './types';
-import { RolePerspectiveBanner } from './components/RolePerspectiveBanner';
-import { ManagerFinancialKPIs } from './components/ManagerFinancialKPIs';
-import { StaffOperationalKPIs } from './components/StaffOperationalKPIs';
-import { HourlyVelocityChart } from './components/HourlyVelocityChart';
-import { DashboardQuickActions } from './components/DashboardQuickActions';
-import { RecentTransactionsSection } from './components/RecentTransactionsSection';
-import { AiDashboardInsightsWidget } from './components/AiDashboardInsightsWidget';
+
+// Load dashboard widgets only when the dashboard route is opened.
+const RolePerspectiveBanner = React.lazy(() => import('./components/RolePerspectiveBanner').then((module) => ({ default: module.RolePerspectiveBanner })));
+const ManagerFinancialKPIs = React.lazy(() => import('./components/ManagerFinancialKPIs').then((module) => ({ default: module.ManagerFinancialKPIs })));
+const StaffOperationalKPIs = React.lazy(() => import('./components/StaffOperationalKPIs').then((module) => ({ default: module.StaffOperationalKPIs })));
+const HourlyVelocityChart = React.lazy(() => import('./components/HourlyVelocityChart').then((module) => ({ default: module.HourlyVelocityChart })));
+const DashboardQuickActions = React.lazy(() => import('./components/DashboardQuickActions').then((module) => ({ default: module.DashboardQuickActions })));
+const RecentTransactionsSection = React.lazy(() => import('./components/RecentTransactionsSection').then((module) => ({ default: module.RecentTransactionsSection })));
+const AiDashboardInsightsWidget = React.lazy(() => import('./components/AiDashboardInsightsWidget').then((module) => ({ default: module.AiDashboardInsightsWidget })));
+
+
+
+
+
+
+
 
 export interface DashboardScreenProps {
   onNavigate: (route: NavRoute) => void;
@@ -548,6 +557,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       </div>
 
       {/* 4. Draggable Dashboard Widgets Container */}
+      <React.Suspense fallback={<div role="status" className="p-4 text-sm text-text/60">กำลังโหลดวิดเจ็ทแดชบอร์ด…</div>}>
       <div className="space-y-6">
         {widgetOrder.map((widgetId, index) => {
           if (widgetId === 'low_stock' && lowStockProducts.length === 0 && !isCustomizeMode) {
@@ -739,6 +749,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           );
         })}
       </div>
+      </React.Suspense>
     </div>
   );
 };
