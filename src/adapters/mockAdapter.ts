@@ -735,18 +735,18 @@ export class MockAuthApi implements IAuthApi {
     const staffList = typeof window !== 'undefined' ? getStoredStaffDirectory() : DEFAULT_STAFF_DIRECTORY;
     const rolePerms = typeof window !== 'undefined' ? getStoredRolePermissions() : ROLE_PERMISSIONS;
 
-    // Extract user id from token if possible (e.g. mock-jwt-usr-admin-alex-123456789)
-    let foundUser: User | undefined;
-    if (token.startsWith('mock-jwt-')) {
-      const parts = token.split('-');
-      // token format: mock-jwt-{id}-{timestamp}
-      if (parts.length >= 4) {
-        const potentialId = parts.slice(2, parts.length - 1).join('-');
-        foundUser = staffList.find((u) => u.id === potentialId);
-      }
-    }
+    // Mock tokens are not real JWTs; accept only the exact format minted by login.
+    // Never turn an unknown, malformed, expired, or forged token into the first staff user.
+    const match = /^mock-jwt-(.+)-(\\d+)$/.exec(token);
+    if (!match) return null;
+    const potentialId = match[1];
+    const issuedAt = Number(match[2]);
+    const now = Date.now();
+    const maxAgeMs = 8 * 60 * 60 * 1000;
+    if (!Number.isSafeInteger(issuedAt) || issuedAt > now + 60_000 || now - issuedAt > maxAgeMs) return null;
 
-    const effectiveUser = foundUser || staffList[0] || SEED_USERS[0];
+    const effectiveUser = staffList.find((u) => u.id === potentialId);
+    if (!effectiveUser) return null;
     const currentPermissions = rolePerms[effectiveUser.role] || effectiveUser.permissions || ROLE_PERMISSIONS[effectiveUser.role];
 
     return {
