@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
+    "owner:test": "node --import tsx --test src/modules/owner/ownerAuthorization.test.ts",
     "server:check": "tsc -p tsconfig.server.json",
     "server:test": "node --import tsx --test server/**/*.test.ts",
     "server:test:integration": "node --import tsx --test server/**/*.integration.test.ts",
