@@ -57,6 +57,9 @@ jobs:
       - name: Owner role authorization tests
         run: bun run owner:test
 
+      - name: Mock authentication regression tests
+        run: bun run mock-auth:test
+
       - name: Prepare PostgreSQL schema for backend integration tests
         shell: bash
         run: |
