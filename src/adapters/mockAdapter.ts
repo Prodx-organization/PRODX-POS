@@ -630,6 +630,8 @@ async function delay(ms = mockState.simulatedLatencyMs): Promise<void> {
 // ---------------------------------------------------------------------------
 // Mock Auth API
 // ---------------------------------------------------------------------------
+const issuedMockSessions = new Map<string, { userId: string; expiresAt: number }>();
+
 export class MockAuthApi implements IAuthApi {
   async login(req: LoginRequest): Promise<SessionContext> {
     await delay();
@@ -698,13 +700,16 @@ export class MockAuthApi implements IAuthApi {
       permissions: currentPermissions,
     };
 
+    const expiresAt = Date.now() + 8 * 3600 * 1000;
+    const token = `mock-jwt-${resolvedUser.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    issuedMockSessions.set(token, { userId: resolvedUser.id, expiresAt });
     const session: SessionContext = {
       organization: SEED_ORG,
       currentStore: store,
       registerId: req.registerId || 'REG-01',
       currentUser: resolvedUser,
-      token: `mock-jwt-${resolvedUser.id}-${Date.now()}`,
-      expiresAt: new Date(Date.now() + 8 * 3600 * 1000).toISOString(),
+      token,
+      expiresAt: new Date(expiresAt).toISOString(),
     };
 
     // Log audit event
@@ -723,8 +728,9 @@ export class MockAuthApi implements IAuthApi {
     return session;
   }
 
-  async logout(_token: string): Promise<void> {
+  async logout(token: string): Promise<void> {
     await delay(50);
+    issuedMockSessions.delete(token);
     console.info(`${LOG_PREFIX} User logged out`);
   }
 
@@ -735,18 +741,16 @@ export class MockAuthApi implements IAuthApi {
     const staffList = typeof window !== 'undefined' ? getStoredStaffDirectory() : DEFAULT_STAFF_DIRECTORY;
     const rolePerms = typeof window !== 'undefined' ? getStoredRolePermissions() : ROLE_PERMISSIONS;
 
-    // Mock tokens are not real JWTs; accept only the exact format minted by login.
-    // Never turn an unknown, malformed, expired, or forged token into the first staff user.
-    const match = /^mock-jwt-(.+)-(\\d+)$/.exec(token);
-    if (!match) return null;
-    const potentialId = match[1];
-    const issuedAt = Number(match[2]);
-    const now = Date.now();
-    const maxAgeMs = 8 * 60 * 60 * 1000;
-    if (!Number.isSafeInteger(issuedAt) || issuedAt > now + 60_000 || now - issuedAt > maxAgeMs) return null;
-
-    const effectiveUser = staffList.find((u) => u.id === potentialId);
-    if (!effectiveUser) return null;
+    const issued = issuedMockSessions.get(token);
+    if (!issued || issued.expiresAt <= Date.now()) {
+      issuedMockSessions.delete(token);
+      return null;
+    }
+    const effectiveUser = staffList.find((u) => u.id === issued.userId);
+    if (!effectiveUser) {
+      issuedMockSessions.delete(token);
+      return null;
+    }
     const currentPermissions = rolePerms[effectiveUser.role] || effectiveUser.permissions || ROLE_PERMISSIONS[effectiveUser.role];
 
     return {
@@ -758,7 +762,7 @@ export class MockAuthApi implements IAuthApi {
         permissions: currentPermissions,
       },
       token,
-      expiresAt: new Date(Date.now() + 8 * 3600 * 1000).toISOString(),
+      expiresAt: new Date(issued.expiresAt).toISOString(),
     };
   }
 
