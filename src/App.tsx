@@ -20,14 +20,14 @@ import { SettingsProvider } from './context/SettingsContext';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { GlobalErrorRecoveryProvider } from './context/GlobalErrorRecoveryProvider';
 import { AppShell } from './components/layout/AppShell';
-import { CustomerDisplayView } from './modules/customerDisplay/CustomerDisplayView';
+const CustomerDisplayView = React.lazy(() => import('./modules/customerDisplay/CustomerDisplayView').then((module) => ({ default: module.CustomerDisplayView })));
 import { NavRoute } from './components/layout/Sidebar';
 import { LoginScreen } from './modules/auth/LoginScreen';
-import { ReceiptValidationPortal } from './components/receipt/ReceiptValidationPortal';
+const ReceiptValidationPortal = React.lazy(() => import('./components/receipt/ReceiptValidationPortal').then((module) => ({ default: module.ReceiptValidationPortal })));
 import { ShortcutsOverlay } from './components/common/ShortcutsOverlay';
 import { DevPerformanceOverlay } from './components/dev/DevPerformanceOverlay';
 import { RbacGuard } from './components/auth/RbacGuard';
-import { OwnerPortal } from './modules/owner/OwnerPortal';
+const OwnerPortal = React.lazy(() => import('./modules/owner/OwnerPortal').then((module) => ({ default: module.OwnerPortal })));
 
 // Defer route-specific modules until the user navigates to them.
 const PosScreen = React.lazy(() => import('./modules/pos/PosScreen').then((module) => ({ default: module.PosScreen })));
@@ -38,6 +38,9 @@ const ShiftScreen = React.lazy(() => import('./modules/shift/ShiftScreen').then(
 const CustomersScreen = React.lazy(() => import('./modules/customers/CustomersScreen').then((module) => ({ default: module.CustomersScreen })));
 const AuditScreen = React.lazy(() => import('./modules/audit/AuditScreen').then((module) => ({ default: module.AuditScreen })));
 const SettingsScreen = React.lazy(() => import('./modules/settings/SettingsScreen').then((module) => ({ default: module.SettingsScreen })));
+const CustomerDisplayView = React.lazy(() => import('./modules/customerDisplay/CustomerDisplayView').then((module) => ({ default: module.CustomerDisplayView })));
+const ReceiptValidationPortal = React.lazy(() => import('./components/receipt/ReceiptValidationPortal').then((module) => ({ default: module.ReceiptValidationPortal })));
+const OwnerPortal = React.lazy(() => import('./modules/owner/OwnerPortal').then((module) => ({ default: module.OwnerPortal })));
 
 const MainApplication: React.FC = () => {
   const { session } = useAuth();
@@ -203,7 +206,7 @@ const MainApplication: React.FC = () => {
 export default function App() {
   // Owner console is a separate auth boundary; POS staff authentication remains unchanged.
   if (typeof window !== 'undefined' && (window.location.pathname === '/owner' || window.location.pathname.startsWith('/owner/'))) {
-    return <OwnerPortal />;
+    return <React.Suspense fallback={<div role="status">กำลังโหลด Owner Console…</div>}><OwnerPortal /></React.Suspense>;
   }
 
   const isCustomerDisplayMode =
@@ -224,7 +227,7 @@ export default function App() {
         <ErrorBoundary isGlobal moduleName="PRODX Receipt Validation Portal">
           <ThemeProvider>
             <LanguageProvider>
-              <ReceiptValidationPortal />
+              <React.Suspense fallback={<div role="status">กำลังโหลดหน้าตรวจสอบใบเสร็จ…</div>}><ReceiptValidationPortal /></React.Suspense>
             </LanguageProvider>
           </ThemeProvider>
         </ErrorBoundary>
@@ -238,7 +241,7 @@ export default function App() {
         <ErrorBoundary isGlobal moduleName="PRODX Customer-Facing Display">
           <ThemeProvider>
             <LanguageProvider>
-              <CustomerDisplayView />
+              <React.Suspense fallback={<div role="status">กำลังโหลดจอลูกค้า…</div>}><CustomerDisplayView /></React.Suspense>
             </LanguageProvider>
           </ThemeProvider>
         </ErrorBoundary>
