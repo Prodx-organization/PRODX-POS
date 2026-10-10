@@ -1,11 +1,14 @@
-import { StrictMode } from 'react';
+import { StrictMode, lazy, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import './i18n';
 import App from './App.tsx';
-import { AdminPortal } from './modules/admin/AdminPortal';
 import './index.css';
 import './premium-design-system.css';
 import { registerSW } from 'virtual:pwa-register';
+
+const AdminPortal = lazy(() =>
+  import('./modules/admin/AdminPortal').then(({ AdminPortal }) => ({ default: AdminPortal })),
+);
 
 const updateServiceWorker = registerSW({
   immediate: true,
@@ -37,6 +40,12 @@ void updateServiceWorker;
 const isAdminRoute = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/');
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {isAdminRoute ? <AdminPortal /> : <App />}
+    {isAdminRoute ? (
+      <Suspense fallback={<main role="status" className="min-h-screen bg-slate-950 p-8 text-slate-100">Loading administration…</main>}>
+        <AdminPortal />
+      </Suspense>
+    ) : (
+      <App />
+    )}
   </StrictMode>,
 );
