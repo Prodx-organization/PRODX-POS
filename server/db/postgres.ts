@@ -3,8 +3,14 @@ import type { SqlExecutor } from '../auth/postgres-repository';
 
 const DEFAULT_DB_BROKER_URL = 'https://sjgwesmmpegtzsqqqhvd.supabase.co/functions/v1/prodx-db-broker';
 
+// Vercel's deployment target is authoritative for production routing. NODE_ENV may
+// be overridden by a project variable (it is currently "test" in Production), which
+// must not silently route the production database through DATABASE_URL.
 const shouldResolveProductionDatabaseUrl = (): boolean =>
-  process.env.VERCEL === '1' && process.env.NODE_ENV === 'production';
+  process.env.VERCEL_ENV === 'production';
+
+const shouldUseProductionTls = (): boolean =>
+  process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production';
 
 export type ProductionDatabaseTarget = 'supabase_session_pooler' | 'supabase_direct' | 'other' | 'invalid';
 
@@ -53,6 +59,13 @@ export const resolveProductionDatabaseUrl = async (
     throw new Error('Production database broker returned no database URL.');
   }
 
+  const target = classifyProductionDatabaseTarget(payload.databaseUrl);
+  if (target !== 'supabase_session_pooler' && target !== 'supabase_direct') {
+    // Do not let a stale private-network DATABASE_URL (e.g. a Railway-only host)
+    // silently become the production authentication database.
+    throw new Error('Production database broker returned an unsupported database target.');
+  }
+
   return payload.databaseUrl;
 };
 
@@ -66,7 +79,7 @@ export const createPostgresPool = (config: PoolConfig = {}): Pool => {
     ...config,
     connectionString,
     max: config.max ?? (process.env.VERCEL ? 1 : 10),
-    ssl: config.ssl ?? (process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : undefined),
+    ssl: config.ssl ?? (shouldUseProductionTls() ? { rejectUnauthorized: true } : undefined),
   });
 };
 
