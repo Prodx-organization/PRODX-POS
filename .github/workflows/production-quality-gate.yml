@@ -54,6 +54,9 @@ jobs:
       - name: Type check backend
         run: bun run server:check
 
+      - name: Owner role authorization tests
+        run: bun run owner:test
+
       - name: Prepare PostgreSQL schema for backend integration tests
         shell: bash
         run: |
