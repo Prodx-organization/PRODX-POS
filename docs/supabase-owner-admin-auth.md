@@ -2,10 +2,11 @@
 
 ## Scope
 
-- Admin Control Plane is served at `/admin`.
+- Admin Control Plane UI is served at `/admin`.
 - The existing POS application and its PRODX backend authentication remain unchanged.
 - Admin login uses Supabase Auth email/password; this UI intentionally does not expose public sign-up.
-- The page reads the signed-in user's own `public.user_roles` row and grants the admin UI only to `owner` or `admin`.
+- The page reads the signed-in user's own `public.user_roles` row and grants access to the admin UI only to `owner` or `admin`.
+- This PR implements the login/role-gated UI only. It does **not** implement privileged admin business APIs or prove that Supabase access tokens are accepted by the PRODX backend.
 
 ## Required environment
 
@@ -38,11 +39,13 @@ Do not implement a custom password breach checker in the browser or log/store ra
 
 The root `.mcp.json` points developer MCP clients at the official Supabase MCP server scoped to this project. Authenticate through the MCP client's OAuth flow. The project ref is not a credential. ChatGPT's existing connected Supabase tools are a separate client connection.
 
-## Security boundary
+## Security boundary and production wiring
 
-The `/admin` gate protects UI navigation only. Every privileged API and data operation must independently validate the Supabase access token server-side, check the current role from a trusted source, and enforce tenant/store scope. Database tables exposed through the Data API need appropriate grants and RLS policies. Do not treat a hidden UI as authorization.
+The `/admin` gate protects UI navigation only. It is not server-side authorization. The inspected production backend (`server/entrypoint.ts`) currently wires its own PRODX bearer-session authentication and PostgreSQL authorization; this PR does not add Supabase-token verification to that backend.
 
-The existing `public.user_roles` RLS policy currently permits authenticated users to read only their own role row. Preserve that isolation. Role changes must be performed by trusted administrative processes.
+Before adding any privileged Admin Control Plane operation, implement and test an explicit server-side trust boundary: validate Supabase access tokens using a trusted server-side verification path, check current owner/admin role from a trusted source, enforce organization/store scope, and protect each route independently. Do not simply accept a client-supplied role or treat a decoded JWT as verified. Keep the existing POS auth flow unchanged unless a separate migration is designed and reviewed.
+
+Database tables exposed through the Supabase Data API need appropriate grants and RLS policies. The existing `public.user_roles` RLS policy currently permits authenticated users to read only their own role row. Preserve that isolation. Role changes must be performed by trusted administrative processes.
 
 ## Verification checklist
 
@@ -51,7 +54,7 @@ The existing `public.user_roles` RLS policy currently permits authenticated user
 - [ ] Verify cashier/manager/role-less users are denied.
 - [ ] Verify unauthenticated users see the sign-in form.
 - [ ] Verify sign-out clears the session.
-- [ ] Verify direct access to protected APIs is denied without valid server-side authorization.
+- [ ] Before privileged admin APIs are added, verify direct API access is denied without valid server-side token and role authorization.
 - [ ] Verify available password-strength settings and Auth rate limits in the Free Plan dashboard.
 - [ ] Enable CAPTCHA/bot protection where supported and verify its production flow.
 - [ ] Record leaked-password protection as unavailable on Free Plan; do not mark that check passed.
