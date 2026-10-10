@@ -1,8 +1,7 @@
 import React, { FormEvent, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
-
-type AdminRole = 'owner' | 'admin' | 'manager' | 'cashier';
+import { isAdminRole, type AdminRole } from './authorization';
 
 export function AdminPortal() {
   const [session, setSession] = useState<Session | null>(null);
@@ -91,7 +90,7 @@ export function AdminPortal() {
     setBusy(false);
   };
 
-  const canAdminister = role === 'owner' || role === 'admin';
+  const canAdminister = isAdminRole(role);
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
