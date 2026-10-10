@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { SoundProvider } from './context/SoundContext';
@@ -215,6 +216,7 @@ export default function App() {
           <ThemeProvider>
             <LanguageProvider>
               <ReceiptValidationPortal />
+              <SpeedInsights />
             </LanguageProvider>
           </ThemeProvider>
         </ErrorBoundary>
@@ -229,6 +231,7 @@ export default function App() {
           <ThemeProvider>
             <LanguageProvider>
               <CustomerDisplayView />
+              <SpeedInsights />
             </LanguageProvider>
           </ThemeProvider>
         </ErrorBoundary>
@@ -253,6 +256,7 @@ export default function App() {
                               <VisualInspectorProvider>
                                 <BreadcrumbProvider>
                                   <MainApplication />
+                                  <SpeedInsights />
                                 </BreadcrumbProvider>
                               </VisualInspectorProvider>
                             </ReceiptPrinterProvider>
@@ -270,4 +274,3 @@ export default function App() {
     </GlobalErrorRecoveryProvider>
   );
 }
-
