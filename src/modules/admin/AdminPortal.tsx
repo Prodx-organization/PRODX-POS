@@ -15,8 +15,12 @@ export function AdminPortal() {
 
   useEffect(() => {
     let alive = true;
+    let authStateObserved = false;
+    let roleRequest = 0;
 
     const loadRole = async (userId: string) => {
+      const requestId = ++roleRequest;
+      setRole(null);
       setRoleLoading(true);
       const { data, error: roleError } = await supabase
         .from('user_roles')
@@ -24,7 +28,7 @@ export function AdminPortal() {
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (!alive) return;
+      if (!alive || requestId !== roleRequest) return;
       setRole(roleError ? null : (data?.role as AdminRole | null) ?? null);
       if (roleError) setError('Could not verify your administrator role. Please try again.');
       setRoleLoading(false);
@@ -32,18 +36,20 @@ export function AdminPortal() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!alive) return;
+      authStateObserved = true;
       setSession(nextSession);
+      setRole(null);
       setError('');
       if (nextSession?.user.id) {
         queueMicrotask(() => { void loadRole(nextSession.user.id); });
       } else {
-        setRole(null);
+        roleRequest += 1;
         setRoleLoading(false);
       }
     });
 
     void supabase.auth.getSession().then(({ data, error: sessionError }) => {
-      if (!alive) return;
+      if (!alive || authStateObserved) return;
       if (sessionError) setError('Could not restore your session. Please sign in again.');
       setSession(data.session);
       if (data.session?.user.id) void loadRole(data.session.user.id);
@@ -54,6 +60,7 @@ export function AdminPortal() {
 
     return () => {
       alive = false;
+      roleRequest += 1;
       subscription.unsubscribe();
     };
   }, []);
