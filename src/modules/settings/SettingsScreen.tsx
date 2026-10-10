@@ -68,24 +68,39 @@ import {
   DEFAULT_RECEIPT_TEMPLATE,
 } from './defaultSettingsData';
 
-import { GeneralSettingsTab } from './components/GeneralSettingsTab';
-import { AppearanceSettingsTab } from './components/AppearanceSettingsTab';
-import { HardwareSettingsTab } from './components/HardwareSettingsTab';
-import { TaxAccountingSettingsTab } from './components/TaxAccountingSettingsTab';
-import { SecurityRolesSettingsTab } from './components/SecurityRolesSettingsTab';
-import { UserToRoleAssignmentTable } from './components/UserToRoleAssignmentTable';
-import { PermissionSetsManagement } from './components/PermissionSetsManagement';
-import { RoleManagementModule } from './components/RoleManagementModule';
-import { DataSyncSettingsTab } from './components/DataSyncSettingsTab';
-import { ModulesControlSettingsTab } from './components/ModulesControlSettingsTab';
-import { SystemToolsManagementTab } from './components/SystemToolsManagementTab';
-import { LoyaltyCrmSettingsTab } from './components/LoyaltyCrmSettingsTab';
-import { AiAssistantSettingsTab } from './components/AiAssistantSettingsTab';
+
+
+
+
+
+
+
+
+
+
+
+
+
 import { StickyActionBar } from './components/StickyActionBar';
 import { SettingsKeyboardShortcutsModal } from './components/SettingsKeyboardShortcutsModal';
 import { SystemDiagnosticOverlay } from './components/SystemDiagnosticOverlay';
 import { SystemHealthWidget } from './components/SystemHealthWidget';
 import { SettingsMenuSelector } from './components/SettingsMenuSelector';
+
+// Load the selected settings panel on demand instead of bundling every panel upfront.
+const GeneralSettingsTab = React.lazy(() => import('./components/GeneralSettingsTab').then((module) => ({ default: module.GeneralSettingsTab })));
+const AppearanceSettingsTab = React.lazy(() => import('./components/AppearanceSettingsTab').then((module) => ({ default: module.AppearanceSettingsTab })));
+const HardwareSettingsTab = React.lazy(() => import('./components/HardwareSettingsTab').then((module) => ({ default: module.HardwareSettingsTab })));
+const TaxAccountingSettingsTab = React.lazy(() => import('./components/TaxAccountingSettingsTab').then((module) => ({ default: module.TaxAccountingSettingsTab })));
+const SecurityRolesSettingsTab = React.lazy(() => import('./components/SecurityRolesSettingsTab').then((module) => ({ default: module.SecurityRolesSettingsTab })));
+const UserToRoleAssignmentTable = React.lazy(() => import('./components/UserToRoleAssignmentTable').then((module) => ({ default: module.UserToRoleAssignmentTable })));
+const PermissionSetsManagement = React.lazy(() => import('./components/PermissionSetsManagement').then((module) => ({ default: module.PermissionSetsManagement })));
+const RoleManagementModule = React.lazy(() => import('./components/RoleManagementModule').then((module) => ({ default: module.RoleManagementModule })));
+const DataSyncSettingsTab = React.lazy(() => import('./components/DataSyncSettingsTab').then((module) => ({ default: module.DataSyncSettingsTab })));
+const ModulesControlSettingsTab = React.lazy(() => import('./components/ModulesControlSettingsTab').then((module) => ({ default: module.ModulesControlSettingsTab })));
+const SystemToolsManagementTab = React.lazy(() => import('./components/SystemToolsManagementTab').then((module) => ({ default: module.SystemToolsManagementTab })));
+const LoyaltyCrmSettingsTab = React.lazy(() => import('./components/LoyaltyCrmSettingsTab').then((module) => ({ default: module.LoyaltyCrmSettingsTab })));
+const AiAssistantSettingsTab = React.lazy(() => import('./components/AiAssistantSettingsTab').then((module) => ({ default: module.AiAssistantSettingsTab })));
 
 const TAB_ITEMS: SettingsTabItem[] = [
   // 1. Store & POS Config
@@ -1340,6 +1355,7 @@ export const SettingsScreen: React.FC = () => {
           <SystemHealthWidget />
 
           {/* Active Tab Component Render */}
+          <React.Suspense fallback={<div role="status" className="p-4 text-sm text-text/60">กำลังโหลดการตั้งค่า…</div>}>
           <div className="pb-28">
             {activeTab === 'general' && (
               <GeneralSettingsTab
@@ -1419,6 +1435,7 @@ export const SettingsScreen: React.FC = () => {
 
             {activeTab === 'data_sync' && <DataSyncSettingsTab />}
           </div>
+          </React.Suspense>
         </main>
       </div>
 
