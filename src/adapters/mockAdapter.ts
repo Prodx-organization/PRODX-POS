@@ -645,24 +645,15 @@ export class MockAuthApi implements IAuthApi {
 
     const term = (req.emailOrPin || '').trim();
     const passOrPin = (req.passwordOrPin || '').trim();
-    
-    // Mock auth is development-only, but it must still fail closed.
-    // Guest aliases and unknown identities must never mint a session.
-    const term = (req.emailOrPin || '').trim();
-    const passOrPin = (req.passwordOrPin || '').trim();
     if (!term || !passOrPin || term.toLowerCase() === 'guest' || term === 'GUEST-POS') {
       throw new Error('Invalid email or password.');
     }
 
     const isPinIdentity = /^\\d{4}$/.test(term);
     let matched: User | undefined;
-
     if (isPinIdentity) {
       const userIdForPin = Object.keys(staffPins).find((uid) => staffPins[uid] === term);
       if (userIdForPin) matched = staffList.find((u) => u.id === userIdForPin);
-
-      // Keep explicit demo PINs only in the development mock, and only as an
-      // identity that must be repeated in the secret field.
       if (!matched && term === '1234') matched = staffList.find((u) => u.role === 'admin');
       else if (!matched && term === '5678') matched = staffList.find((u) => u.role === 'manager');
       else if (!matched && (term === '0000' || term === '1111')) matched = staffList.find((u) => u.role === 'cashier');
@@ -672,9 +663,7 @@ export class MockAuthApi implements IAuthApi {
       if (!matched) matched = staffList.find((u) => u.id === term);
     }
 
-    if (!matched) {
-      throw new Error('Invalid email or password.');
-    }
+    if (!matched) throw new Error('Invalid email or password.');
 
     const correctPassword = staffPasswords[matched.id];
     const correctPin = staffPins[matched.id];
@@ -688,10 +677,9 @@ export class MockAuthApi implements IAuthApi {
       ? passOrPin === term || (typeof correctPassword === 'string' && correctPassword.length > 0 && passOrPin === correctPassword)
       : (typeof correctPassword === 'string' && correctPassword.length > 0 && passOrPin === correctPassword) ||
         (typeof correctPin === 'string' && correctPin.length > 0 && passOrPin === correctPin);
+    if (!validSecret) throw new Error('Invalid email or password.');
 
-    if (!validSecret) {
-      throw new Error('Invalid email or password.');
-    }
+    const user: User = matched;
 
     // Ensure permissions are synchronized with current role permissions matrix
     const currentPermissions = rolePerms[user.role] || user.permissions || ROLE_PERMISSIONS[user.role];
