@@ -13,6 +13,8 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  checks: read
+  actions: read
 
 concurrency:
   group: antigravity-autonomous-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
