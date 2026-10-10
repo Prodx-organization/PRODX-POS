@@ -23,6 +23,13 @@ import { AppShell } from './components/layout/AppShell';
 import { CustomerDisplayView } from './modules/customerDisplay/CustomerDisplayView';
 import { NavRoute } from './components/layout/Sidebar';
 import { LoginScreen } from './modules/auth/LoginScreen';
+import { ReceiptValidationPortal } from './components/receipt/ReceiptValidationPortal';
+import { ShortcutsOverlay } from './components/common/ShortcutsOverlay';
+import { DevPerformanceOverlay } from './components/dev/DevPerformanceOverlay';
+import { RbacGuard } from './components/auth/RbacGuard';
+import { OwnerPortal } from './modules/owner/OwnerPortal';
+
+// Defer route-specific modules until the user navigates to them.
 const PosScreen = React.lazy(() => import('./modules/pos/PosScreen').then((module) => ({ default: module.PosScreen })));
 const DashboardScreen = React.lazy(() => import('./modules/dashboard/DashboardScreen').then((module) => ({ default: module.DashboardScreen })));
 const OrdersScreen = React.lazy(() => import('./modules/orders/OrdersScreen').then((module) => ({ default: module.OrdersScreen })));
@@ -31,11 +38,6 @@ const ShiftScreen = React.lazy(() => import('./modules/shift/ShiftScreen').then(
 const CustomersScreen = React.lazy(() => import('./modules/customers/CustomersScreen').then((module) => ({ default: module.CustomersScreen })));
 const AuditScreen = React.lazy(() => import('./modules/audit/AuditScreen').then((module) => ({ default: module.AuditScreen })));
 const SettingsScreen = React.lazy(() => import('./modules/settings/SettingsScreen').then((module) => ({ default: module.SettingsScreen })));
-import { ReceiptValidationPortal } from './components/receipt/ReceiptValidationPortal';
-import { ShortcutsOverlay } from './components/common/ShortcutsOverlay';
-import { DevPerformanceOverlay } from './components/dev/DevPerformanceOverlay';
-import { RbacGuard } from './components/auth/RbacGuard';
-import { OwnerPortal } from './modules/owner/OwnerPortal';
 
 const MainApplication: React.FC = () => {
   const { session } = useAuth();
