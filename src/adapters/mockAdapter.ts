@@ -644,68 +644,51 @@ export class MockAuthApi implements IAuthApi {
     const term = (req.emailOrPin || '').trim();
     const passOrPin = (req.passwordOrPin || '').trim();
     
-    // Find user by email or pin match, or construct Guest user
-    let user: User;
-    if (term.toLowerCase() === 'guest' || term === 'GUEST-POS') {
-      user = {
-        id: 'usr-guest',
-        name: 'Guest Staff',
-        email: 'guest@prodx.io',
-        role: 'cashier',
-        employeeCode: 'GUEST-POS',
-        permissions: ['pos:checkout', 'inventory:read', 'customers:read'],
-      };
+    // Mock auth is development-only, but it must still fail closed.
+    // Guest aliases and unknown identities must never mint a session.
+    const term = (req.emailOrPin || '').trim();
+    const passOrPin = (req.passwordOrPin || '').trim();
+    if (!term || !passOrPin || term.toLowerCase() === 'guest' || term === 'GUEST-POS') {
+      throw new Error('Invalid email or password.');
+    }
+
+    const isPinIdentity = /^\\d{4}$/.test(term);
+    let matched: User | undefined;
+
+    if (isPinIdentity) {
+      const userIdForPin = Object.keys(staffPins).find((uid) => staffPins[uid] === term);
+      if (userIdForPin) matched = staffList.find((u) => u.id === userIdForPin);
+
+      // Keep explicit demo PINs only in the development mock, and only as an
+      // identity that must be repeated in the secret field.
+      if (!matched && term === '1234') matched = staffList.find((u) => u.role === 'admin');
+      else if (!matched && term === '5678') matched = staffList.find((u) => u.role === 'manager');
+      else if (!matched && (term === '0000' || term === '1111')) matched = staffList.find((u) => u.role === 'cashier');
     } else {
-      // 1. Match by email
-      let matched = staffList.find((u) => u.email.toLowerCase() === term.toLowerCase());
+      matched = staffList.find((u) => u.email.toLowerCase() === term.toLowerCase());
+      if (!matched) matched = staffList.find((u) => u.employeeCode.toLowerCase() === term.toLowerCase());
+      if (!matched) matched = staffList.find((u) => u.id === term);
+    }
 
-      // 2. Match by employeeCode
-      if (!matched) {
-        matched = staffList.find((u) => u.employeeCode.toLowerCase() === term.toLowerCase());
-      }
+    if (!matched) {
+      throw new Error('Invalid email or password.');
+    }
 
-      // 3. Match by ID
-      if (!matched) {
-        matched = staffList.find((u) => u.id === term);
-      }
+    const correctPassword = staffPasswords[matched.id];
+    const correctPin = staffPins[matched.id];
+    const validPinIdentity = isPinIdentity && (
+      correctPin === term ||
+      (term === '1234' && matched.role === 'admin') ||
+      (term === '5678' && matched.role === 'manager') ||
+      ((term === '0000' || term === '1111') && matched.role === 'cashier')
+    );
+    const validSecret = validPinIdentity
+      ? passOrPin === term || (typeof correctPassword === 'string' && correctPassword.length > 0 && passOrPin === correctPassword)
+      : (typeof correctPassword === 'string' && correctPassword.length > 0 && passOrPin === correctPassword) ||
+        (typeof correctPin === 'string' && correctPin.length > 0 && passOrPin === correctPin);
 
-      // 4. Match by PIN if term is a 4-digit PIN
-      if (!matched) {
-        // Check stored pins
-        const userIdForPin = Object.keys(staffPins).find((uid) => staffPins[uid] === term);
-        if (userIdForPin) {
-          matched = staffList.find((u) => u.id === userIdForPin);
-        }
-      }
-
-      // 5. Fallback matching for default role PINs
-      if (!matched) {
-        if (term === '1234') matched = staffList.find((u) => u.role === 'admin');
-        else if (term === '5678') matched = staffList.find((u) => u.role === 'manager');
-        else if (term === '0000' || term === '1111') matched = staffList.find((u) => u.role === 'cashier');
-      }
-
-      // 6. Fallback if passOrPin is the PIN matching the user
-      if (!matched && passOrPin) {
-        const userIdForPin = Object.keys(staffPins).find((uid) => staffPins[uid] === passOrPin);
-        if (userIdForPin) {
-          matched = staffList.find((u) => u.id === userIdForPin);
-        }
-      }
-
-      // Validate credentials if authenticating via password
-      if (matched && passOrPin && !term.match(/^\d{4}$/)) {
-        const correctPassword = staffPasswords[matched.id];
-        const correctPin = staffPins[matched.id];
-        const isValid =
-          (typeof correctPassword === 'string' && correctPassword.length > 0 && passOrPin === correctPassword) ||
-          (typeof correctPin === 'string' && correctPin.length > 0 && passOrPin === correctPin);
-        if (!isValid) {
-          throw new Error('Invalid email or password. Please verify your credentials or use "Manage / Reset Password".');
-        }
-      }
-
-      user = matched || staffList[0] || SEED_USERS[0];
+    if (!validSecret) {
+      throw new Error('Invalid email or password.');
     }
 
     // Ensure permissions are synchronized with current role permissions matrix
