@@ -3,7 +3,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
-import { CustomerDisplayView } from '../../modules/customerDisplay/CustomerDisplayView';
+const CustomerDisplayView = React.lazy(() => import('../../modules/customerDisplay/CustomerDisplayView').then((module) => ({ default: module.CustomerDisplayView })));
 import {
   Monitor,
   ExternalLink,
@@ -124,7 +124,7 @@ export const CustomerDisplayLauncherModal: React.FC<CustomerDisplayLauncherModal
 
           <div className="w-full h-80 rounded-lg border border-border border-crisp overflow-hidden shadow-xs relative bg-card">
             <div className="w-[125%] h-[125%] origin-top-left scale-80 pointer-events-none">
-              <CustomerDisplayView />
+              <React.Suspense fallback={<div role="status" className="p-4 text-xs text-text/60">กำลังโหลดตัวอย่างจอฝั่งลูกค้า…</div>}><CustomerDisplayView /></React.Suspense>
             </div>
           </div>
         </div>
