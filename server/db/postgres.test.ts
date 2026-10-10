@@ -32,7 +32,7 @@ test('classifies production database targets without returning or logging hostna
 
 test('resolveProductionDatabaseUrl uses DATABASE_URL outside Vercel production', async () => {
   await withEnvironment(
-    { VERCEL: undefined, NODE_ENV: 'test', DATABASE_URL: 'postgresql://local.example/prodx' },
+    { VERCEL: undefined, VERCEL_ENV: undefined, NODE_ENV: 'test', DATABASE_URL: 'postgresql://local.example/prodx' },
     async () => {
       assert.equal(await resolveProductionDatabaseUrl(), 'postgresql://local.example/prodx');
     },
@@ -41,7 +41,7 @@ test('resolveProductionDatabaseUrl uses DATABASE_URL outside Vercel production',
 
 test('resolveProductionDatabaseUrl fails closed when no Vercel runtime token is available', async () => {
   await withEnvironment(
-    { VERCEL: '1', NODE_ENV: 'production', DATABASE_URL: 'postgresql://legacy.example/prodx', VERCEL_OIDC_TOKEN: undefined },
+    { VERCEL: '1', VERCEL_ENV: 'production', NODE_ENV: 'production', DATABASE_URL: 'postgresql://legacy.example/prodx', VERCEL_OIDC_TOKEN: undefined },
     async () => {
       await assert.rejects(
         resolveProductionDatabaseUrl(),
@@ -68,8 +68,7 @@ test('resolveProductionDatabaseUrl uses the Vercel request token instead of DATA
   try {
     await withEnvironment(
       {
-        VERCEL: '1',
-        NODE_ENV: 'production',
+        VERCEL: '1', VERCEL_ENV: 'production', NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://legacy.example/prodx',
         VERCEL_OIDC_TOKEN: undefined,
         PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
@@ -83,6 +82,59 @@ test('resolveProductionDatabaseUrl uses the Vercel request token instead of DATA
         assert.equal(requestedAuthorization, 'Bearer request-oidc-token');
       },
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('production Vercel routing uses the broker even when NODE_ENV is overridden to test', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = '';
+  globalThis.fetch = async (input) => {
+    requestedUrl = String(input);
+    return new Response(JSON.stringify({ databaseUrl: 'postgresql://app:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    await withEnvironment({
+      VERCEL: '1',
+      VERCEL_ENV: 'production',
+      NODE_ENV: 'test',
+      DATABASE_URL: 'postgresql://app:secret@postgres-test.railway.internal:5432/prodx',
+      VERCEL_OIDC_TOKEN: undefined,
+      PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+    }, async () => {
+      const resolved = await resolveProductionDatabaseUrl('request-oidc-token');
+      assert.equal(new URL(resolved).hostname, 'aws-0-ap-northeast-1.pooler.supabase.com');
+      assert.equal(requestedUrl, 'https://broker.example/prodx-db');
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('production broker rejects private or unapproved database hosts', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    databaseUrl: 'postgresql://app:secret@postgres-test.railway.internal:5432/prodx',
+  }), { status: 200, headers: { 'content-type': 'application/json' } });
+
+  try {
+    await withEnvironment({
+      VERCEL: '1',
+      VERCEL_ENV: 'production',
+      NODE_ENV: 'test',
+      DATABASE_URL: 'postgresql://app:secret@postgres-test.railway.internal:5432/prodx',
+      PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+    }, async () => {
+      await assert.rejects(
+        resolveProductionDatabaseUrl('request-oidc-token'),
+        /unsupported database target/,
+      );
+    });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -103,8 +155,7 @@ test('resolveProductionDatabaseUrl falls back to VERCEL_OIDC_TOKEN for local too
   try {
     await withEnvironment(
       {
-        VERCEL: '1',
-        NODE_ENV: 'production',
+        VERCEL: '1', VERCEL_ENV: 'production', NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://legacy.example/prodx',
         VERCEL_OIDC_TOKEN: 'environment-oidc-token',
         PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
@@ -126,8 +177,7 @@ test('resolveProductionDatabaseUrl rejects a broker failure', async () => {
   try {
     await withEnvironment(
       {
-        VERCEL: '1',
-        NODE_ENV: 'production',
+        VERCEL: '1', VERCEL_ENV: 'production', NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://legacy.example/prodx',
         VERCEL_OIDC_TOKEN: undefined,
       },
