@@ -35,6 +35,7 @@ import { ReceiptValidationPortal } from './components/receipt/ReceiptValidationP
 import { ShortcutsOverlay } from './components/common/ShortcutsOverlay';
 import { DevPerformanceOverlay } from './components/dev/DevPerformanceOverlay';
 import { RbacGuard } from './components/auth/RbacGuard';
+import { OwnerPortal } from './modules/owner/OwnerPortal';
 
 const MainApplication: React.FC = () => {
   const { session } = useAuth();
@@ -196,6 +197,11 @@ const MainApplication: React.FC = () => {
 };
 
 export default function App() {
+  // Owner console is a separate auth boundary; POS staff authentication remains unchanged.
+  if (typeof window !== 'undefined' && (window.location.pathname === '/owner' || window.location.pathname.startsWith('/owner/'))) {
+    return <OwnerPortal />;
+  }
+
   const isCustomerDisplayMode =
     typeof window !== 'undefined' &&
     (window.location.search.includes('mode=customer_display') ||
