@@ -51,6 +51,9 @@ jobs:
       - name: Type check frontend
         run: bun run lint
 
+      - name: Admin role authorization regression tests
+        run: bun run admin:test
+
       - name: Type check backend
         run: bun run server:check
 
