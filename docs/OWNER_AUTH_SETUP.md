@@ -4,11 +4,11 @@ The owner console is isolated from the existing cashier/terminal authentication.
 
 ## Browser environment
 
-Set these values in local `.env.local` and the production deployment environment:
+Set these Owner Console-specific values in local `.env.local` and Vercel. They intentionally remain separate from the shared `VITE_SUPABASE_*` values used by existing application modules:
 
 ```dotenv
-VITE_SUPABASE_URL=https://bbxoywnlayduqbrjeixj.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_project_key
+VITE_OWNER_SUPABASE_URL=https://bbxoywnlayduqbrjeixj.supabase.co
+VITE_OWNER_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_project_key
 ```
 
 Use the project's publishable key only. Never use a Supabase `service_role` or secret key in a `VITE_*` variable. The repository ignores `.env*` except `.env.example`.
@@ -38,5 +38,5 @@ Only a trusted project administrator should assign this role. Do not grant owner
 
 - Set the production site URL in Supabase Authentication → URL Configuration.
 - If adding OAuth later, add exact callback URLs for each environment and enable the provider in Supabase first.
-- Configure the same browser-safe environment variables in the Vercel project and redeploy.
+- Configure `VITE_OWNER_SUPABASE_URL` and `VITE_OWNER_SUPABASE_PUBLISHABLE_KEY` in Vercel and redeploy the Preview/Production build after verification.
 - Test `/owner` in a private window, with an authorized owner account, a regular user without an owner role, and a signed-out browser.
