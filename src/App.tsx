@@ -20,14 +20,11 @@ import { SettingsProvider } from './context/SettingsContext';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { GlobalErrorRecoveryProvider } from './context/GlobalErrorRecoveryProvider';
 import { AppShell } from './components/layout/AppShell';
-const CustomerDisplayView = React.lazy(() => import('./modules/customerDisplay/CustomerDisplayView').then((module) => ({ default: module.CustomerDisplayView })));
 import { NavRoute } from './components/layout/Sidebar';
 import { LoginScreen } from './modules/auth/LoginScreen';
-const ReceiptValidationPortal = React.lazy(() => import('./components/receipt/ReceiptValidationPortal').then((module) => ({ default: module.ReceiptValidationPortal })));
 import { ShortcutsOverlay } from './components/common/ShortcutsOverlay';
 import { DevPerformanceOverlay } from './components/dev/DevPerformanceOverlay';
 import { RbacGuard } from './components/auth/RbacGuard';
-const OwnerPortal = React.lazy(() => import('./modules/owner/OwnerPortal').then((module) => ({ default: module.OwnerPortal })));
 
 // Defer route-specific modules until the user navigates to them.
 const PosScreen = React.lazy(() => import('./modules/pos/PosScreen').then((module) => ({ default: module.PosScreen })));
