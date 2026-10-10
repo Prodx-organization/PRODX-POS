@@ -1,7 +1,8 @@
-import {StrictMode} from 'react';
-import {createRoot} from 'react-dom/client';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
 import './i18n';
 import App from './App.tsx';
+import { AdminPortal } from './modules/admin/AdminPortal';
 import './index.css';
 import './premium-design-system.css';
 import { registerSW } from 'virtual:pwa-register';
@@ -19,14 +20,9 @@ const updateServiceWorker = registerSW({
       try {
         const response = await fetch(swUrl, {
           cache: 'no-store',
-          headers: {
-            'cache-control': 'no-cache',
-          },
+          headers: { 'cache-control': 'no-cache' },
         });
-
-        if (response.ok) {
-          await registration.update();
-        }
+        if (response.ok) await registration.update();
       } catch {
         // Offline or transient network failure: keep the current service worker.
       }
@@ -38,8 +34,9 @@ const updateServiceWorker = registerSW({
 
 void updateServiceWorker;
 
+const isAdminRoute = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/');
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {isAdminRoute ? <AdminPortal /> : <App />}
   </StrictMode>,
 );
