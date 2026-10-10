@@ -18,7 +18,7 @@
     "theme:fix": "tsx theme-validator.ts",
     "server:start": "tsx server/entrypoint.ts",
     "db:migrate": "tsx scripts/migrate.ts",
-    "mock-auth:test": "node --import tsx --test src/adapters/mockAdapter.auth.test.ts"
+    "mock-auth:test": "node --import tsx --test tests/mockAdapter.auth.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
