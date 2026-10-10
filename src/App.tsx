@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { SoundProvider } from './context/SoundContext';
@@ -23,14 +23,14 @@ import { AppShell } from './components/layout/AppShell';
 import { CustomerDisplayView } from './modules/customerDisplay/CustomerDisplayView';
 import { NavRoute } from './components/layout/Sidebar';
 import { LoginScreen } from './modules/auth/LoginScreen';
-import { PosScreen } from './modules/pos/PosScreen';
-import { DashboardScreen } from './modules/dashboard/DashboardScreen';
-import { OrdersScreen } from './modules/orders/OrdersScreen';
-import { InventoryScreen } from './modules/inventory/InventoryScreen';
-import { ShiftScreen } from './modules/shift/ShiftScreen';
-import { CustomersScreen } from './modules/customers/CustomersScreen';
-import { AuditScreen } from './modules/audit/AuditScreen';
-import { SettingsScreen } from './modules/settings/SettingsScreen';
+const PosScreen = React.lazy(() => import('./modules/pos/PosScreen').then((module) => ({ default: module.PosScreen })));
+const DashboardScreen = React.lazy(() => import('./modules/dashboard/DashboardScreen').then((module) => ({ default: module.DashboardScreen })));
+const OrdersScreen = React.lazy(() => import('./modules/orders/OrdersScreen').then((module) => ({ default: module.OrdersScreen })));
+const InventoryScreen = React.lazy(() => import('./modules/inventory/InventoryScreen').then((module) => ({ default: module.InventoryScreen })));
+const ShiftScreen = React.lazy(() => import('./modules/shift/ShiftScreen').then((module) => ({ default: module.ShiftScreen })));
+const CustomersScreen = React.lazy(() => import('./modules/customers/CustomersScreen').then((module) => ({ default: module.CustomersScreen })));
+const AuditScreen = React.lazy(() => import('./modules/audit/AuditScreen').then((module) => ({ default: module.AuditScreen })));
+const SettingsScreen = React.lazy(() => import('./modules/settings/SettingsScreen').then((module) => ({ default: module.SettingsScreen })));
 import { ReceiptValidationPortal } from './components/receipt/ReceiptValidationPortal';
 import { ShortcutsOverlay } from './components/common/ShortcutsOverlay';
 import { DevPerformanceOverlay } from './components/dev/DevPerformanceOverlay';
@@ -108,7 +108,8 @@ const MainApplication: React.FC = () => {
   }
 
   return (
-    <>
+    <Suspense fallback={<div role="status">กำลังโหลดโมดูล…</div>}>
+      <>
       <AppShell currentRoute={currentRoute} onNavigate={setCurrentRoute}>
         {currentRoute === 'pos' && (
           <ErrorBoundary moduleName="POS Cash Register & Checkout">
@@ -192,7 +193,8 @@ const MainApplication: React.FC = () => {
 
       {/* Hidden Developer HUD Overlay for Real-Time FPS, DB Latency & Memory (Ctrl+Shift+D) */}
       <DevPerformanceOverlay />
-    </>
+      </>
+    </Suspense>
   );
 };
 
