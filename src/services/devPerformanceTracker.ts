@@ -83,6 +83,17 @@ class DevPerformanceTracker {
    */
   public startMonitoring() {
     if (this.isRunning) return;
+
+    // This tracker is imported by shared modules and Node-based tests too.
+    // Browser-only telemetry must stay dormant when the DOM/frame APIs are absent.
+    if (
+      typeof window === 'undefined' ||
+      typeof window.requestAnimationFrame !== 'function' ||
+      typeof window.setInterval !== 'function'
+    ) {
+      return;
+    }
+
     this.isRunning = true;
 
     // Frame Rate Loop using requestAnimationFrame
@@ -126,10 +137,10 @@ class DevPerformanceTracker {
         }, 100);
       }
 
-      this.animFrameId = requestAnimationFrame(tick);
+      this.animFrameId = window.requestAnimationFrame(tick);
     };
 
-    this.animFrameId = requestAnimationFrame(tick);
+    this.animFrameId = window.requestAnimationFrame(tick);
 
     // Memory Telemetry Interval
     this.sampleMemory();
