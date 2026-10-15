@@ -54,6 +54,9 @@ jobs:
       - name: Type check backend
         run: bun run server:check
 
+      - name: Browser telemetry Node regression test
+        run: bun run telemetry:test
+
       - name: Prepare PostgreSQL schema for backend integration tests
         shell: bash
         run: |
