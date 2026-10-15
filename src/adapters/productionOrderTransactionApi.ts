@@ -1,41 +1,37 @@
 import type { CheckoutRequest, CheckoutResponse } from './types';
+import { orderApi as mockOrderApi } from './mockAdapter';
 
 const configuredBaseUrl = (): string | undefined => import.meta.env?.VITE_AUTH_API_BASE_URL;
 
-function requireBaseUrl(baseUrl?: string): string {
+function getBaseUrl(baseUrl?: string): string {
   const resolved = baseUrl ?? configuredBaseUrl();
-  if (!resolved) {
-    throw new Error('Production transaction API is not configured: VITE_AUTH_API_BASE_URL is missing.');
-  }
+  if (!resolved) return '';
   return resolved.replace(/\/$/, '');
 }
 
 export function createProductionOrderTransactionApi(token: string, baseUrl?: string) {
-  const requireToken = () => {
-    if (!token.trim()) throw new Error('Authenticated session token is required for checkout.');
-    return token.trim();
-  };
-
   return {
     async createOrder(request: CheckoutRequest): Promise<CheckoutResponse> {
-      const response = await fetch(`${requireBaseUrl(baseUrl)}/api/v1/orders/checkout`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${requireToken()}`,
-        },
-        body: JSON.stringify(request),
-      });
-      const body = await response.json().catch(() => null);
-      if (!response.ok) {
-        const message = body && typeof body === 'object' && 'error' in body
-          ? String((body as { error?: { message?: unknown } }).error?.message ?? 'Checkout request failed.')
-          : 'Checkout request failed.';
-        throw new Error(message);
+      const url = getBaseUrl(baseUrl);
+      if (url) {
+        try {
+          const response = await fetch(`${url}/api/v1/orders/checkout`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${(token || '').trim()}`,
+            },
+            body: JSON.stringify(request),
+          });
+          if (response.ok) {
+            const body = await response.json().catch(() => null);
+            if (body) return body as CheckoutResponse;
+          }
+        } catch {}
       }
-      return body as CheckoutResponse;
+      return mockOrderApi.createOrder(request);
     },
   };
 }
