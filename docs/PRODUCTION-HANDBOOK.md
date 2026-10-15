@@ -1,12 +1,10 @@
 # PRODX POS — Production Handbook
 
-**Status:** Production documentation baseline  
+**Status:** Production engineering baseline; see the dated status snapshot for current blockers  
 **Source:** `Prodx-organization/PRODX-POS`  
-**Baseline:** 2026-10-06
+**Reviewed baseline:** `main` at `652f2a7282d4f5b57ab1fe16bfc2bc731655b918` on 2026-10-15
 
-{% hint style="warning" %}
-Documentation is evidence-driven. **Verified** means current repository/CI/operational evidence; **Planned** means approved direction not yet proven; **Blocked** means a required gate or dependency is unresolved.
-{% endhint %}
+> Documentation is evidence-driven. **Verified** means current repository/CI/operational evidence; **Planned** means approved direction not yet proven; **Blocked** means a required gate or dependency is unresolved; **Unverified** means proof is missing or indirect. See [Engineering Status Snapshot](STATUS-2026-10-15.md) for the latest recorded repository/PR review. This snapshot is not a live dashboard.
 
 ## 1. Production principles
 
@@ -52,7 +50,7 @@ Authentication success is not authorization success.
 
 ## 4. API contract
 
-```
+```text
 Request -> Validation -> Authentication -> Trusted Context
 -> Authorization -> Application Use Case -> Domain Invariants
 -> Transaction/Persistence -> Audit -> Response
@@ -64,7 +62,7 @@ Retryable writes require durable idempotency keys scoped to the authenticated te
 
 ## 5. Offline synchronization
 
-```
+```text
 POS Client -> IndexedDB Outbox -> Replay API -> PostgreSQL
                     ^                 |
                     |------ retry ----|
@@ -84,7 +82,7 @@ PostgreSQL is authoritative. Required rules include UTC authoritative timestamps
 
 Every migration must be uniquely versioned, reviewable, applicable to a supported empty database, upgradeable from the previous supported state and validated by repository migration gates.
 
-Backup readiness requires restore evidence, not merely backup creation. The existing recovery workflow uses a custom logical dump and restores it into ephemeral PostgreSQL 16. Provider-native backup/PITR requires separate operational evidence.
+Backup readiness requires restore evidence, not merely backup creation. The repository includes a recovery workflow that restores a logical dump into ephemeral PostgreSQL 16; provider-native backup/PITR requires separate operational evidence.
 
 ## 8. Testing and quality gates
 
@@ -101,6 +99,8 @@ Required layers:
 9. Main-branch verification
 
 A skipped required test is not a pass. Required infrastructure must be provisioned in CI. No gate may be weakened to make CI green.
+
+Repository scripts currently include frontend build/type-check, server type-check/unit/integration tests, theme validation, and migration execution. Consult `package.json` for exact commands and inspect workflow definitions for the required CI gates. The presence of a script is not proof it passed.
 
 ## 9. Release management
 
@@ -138,9 +138,7 @@ Production Ready requires current evidence for:
 - main verification;
 - no unresolved production blocker.
 
-{% hint style="danger" %}
-A checklist or design document does not prove Production Ready. Production status must be backed by current executable evidence.
-{% endhint %}
+A checklist or design document does not prove Production Ready. Production status must be backed by current executable evidence. The repository status snapshot currently records unresolved database readiness and Owner Console acceptance/wiring work; do not infer release readiness from this handbook.
 
 ## 12. Milestone direction
 
@@ -151,4 +149,3 @@ Each milestone must pass implementation, automated tests, architecture, security
 ## 13. Engineering operating model
 
 The Owner is the product authority. AI assists and automates routine engineering work, but no AI provider is authoritative for production correctness. Provider fallback is permitted only when security, architecture, database, testing and acceptance gates remain intact.
-
