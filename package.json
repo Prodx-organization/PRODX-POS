@@ -16,7 +16,8 @@
     "theme:validate": "tsx theme-validator.ts --check",
     "theme:fix": "tsx theme-validator.ts",
     "server:start": "tsx server/entrypoint.ts",
-    "db:migrate": "tsx scripts/migrate.ts"
+    "db:migrate": "tsx scripts/migrate.ts",
+    "telemetry:test": "node --import tsx --test src/services/devPerformanceTracker.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
