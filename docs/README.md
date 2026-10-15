@@ -1,25 +1,30 @@
 # PRODX POS — Production Documentation
 
-**Status:** Production documentation baseline  
+**Status:** Evidence-driven engineering documentation  
 **Source of truth:** `Prodx-organization/PRODX-POS`  
-**Baseline:** `main` at 2026-10-06
+**Last documentation review:** 2026-10-15  
+**Reviewed baseline:** `main` at `652f2a7282d4f5b57ab1fe16bfc2bc731655b918`
 
-PRODX POS is a production-oriented retail POS platform. This documentation is evidence-driven: a documented capability is not automatically an implemented capability.
+PRODX POS is a production-oriented retail POS platform. A documented capability is not automatically an implemented or production-verified capability.
 
-{% hint style="warning" %}
-Use **Verified** for repository-backed facts, **Planned** for approved future capability, and **Required Evidence** for items that must be demonstrated before Production Ready.
-{% endhint %}
+> Use **Verified** only for current repository/CI/operational evidence, **Planned** for approved future capability, **Blocked** for an unresolved required dependency/gate, and **Unverified** when evidence is missing or indirect.
 
 ## Principles
 
 Financial integrity · Inventory integrity · Security by default · Multi-tenant isolation · Offline resilience · Auditability · Idempotency · Server authority.
 
-## Current foundation
+## Documentation map
 
-The repository already contains approved architecture, engineering operating model, tenancy, authentication/RBAC/device foundations, authentication enforcement, lockout policy and PostgreSQL recovery documentation. This documentation layer organizes those records into a production documentation system without replacing them.
+- [Engineering status snapshot — 2026-10-15](STATUS-2026-10-15.md): reviewed repository baseline, high-impact open PRs, recorded blockers, and next actions.
+- [Production Handbook](PRODUCTION-HANDBOOK.md): architecture, security, database, testing, operations, and release gates.
+- [Agent Engineering Skills](engineering-skills/README.md): which evidence-first skill to apply for each change type.
+- [Full documentation index](SUMMARY.md).
 
-## Agent engineering skills
+The repository also contains architecture decisions, auth/RBAC/device-session foundations, database recovery guidance, and agent operating rules. These documents explain the required behavior; they do not replace tests or runtime evidence.
 
-The [PRODX-POS Engineering Skill Pack](engineering-skills/README.md) defines reusable, evidence-first procedures for architecture, security, PostgreSQL, financial/inventory integrity, idempotency, offline sync, testing, observability, CI/CD, backup/recovery, and production-readiness decisions.
+## Evidence and change control
 
-See [SUMMARY.md](SUMMARY.md) for the complete map.
+- Record gate results against the exact candidate commit SHA.
+- Use **BLOCKED** for unavailable infrastructure/access and **UNVERIFIED** for missing or indirect proof.
+- A required gate that is not PASS prevents a Production Ready decision.
+- Do not merge, deploy, change production secrets, or perform destructive recovery actions solely because documentation or code CI is green.
