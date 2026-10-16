@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { classifyProductionDatabaseTarget, resolveProductionDatabaseUrl } from './postgres';
+import { classifyProductionDatabaseTarget, createProductionPostgresPool, resolveProductionDatabaseUrl } from './postgres';
 
 const withEnvironment = async (
   values: Record<string, string | undefined>,
@@ -141,4 +141,17 @@ test('resolveProductionDatabaseUrl rejects a broker failure', async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+
+test('createProductionPostgresPool fails closed when production has no resolved database URL', async () => {
+  await withEnvironment(
+    { VERCEL: undefined, NODE_ENV: 'production', DATABASE_URL: undefined },
+    async () => {
+      await assert.rejects(
+        createProductionPostgresPool(),
+        /DATABASE_URL is required to create the PostgreSQL pool/,
+      );
+    },
+  );
 });
