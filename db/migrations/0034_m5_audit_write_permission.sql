@@ -1,7 +1,7 @@
 -- Separate authorization for supplemental client-origin audit events.
 -- Server-owned critical events continue to be written inside their domain transactions.
 INSERT INTO prodx_permissions (id, permission_key, description)
-VALUES ('10000000-0000-4000-8000-000000000018', 'audit.write', 'Append validated supplemental audit events')
+VALUES ('10000000-0000-4000-8000-000000000021', 'audit.write', 'Append validated supplemental audit events')
 ON CONFLICT (permission_key) DO NOTHING;
 
 INSERT INTO prodx_role_permissions (organization_id, role_id, permission_id)
