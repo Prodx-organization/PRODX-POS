@@ -1,5 +1,6 @@
 import type { Express, Request, Response } from 'express';
 import { infrastructureAiService } from '../services/infrastructureAiService';
+import { firmwareRegistryService } from '../services/firmwareRegistryService';
 import { GoogleGenAI } from '@google/genai';
 
 export function registerInfrastructureRoutes(app: Express) {
@@ -54,6 +55,168 @@ export function registerInfrastructureRoutes(app: Express) {
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message || 'Driver update failed' });
+    }
+  });
+
+  // Get automated firmware/security advisory alerts
+  app.get('/api/v1/infrastructure/firmware-alerts', (_req: Request, res: Response) => {
+    try {
+      const alerts = firmwareRegistryService.getAlerts();
+      res.json({ success: true, data: alerts });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Failed to fetch firmware alerts' });
+    }
+  });
+
+  // Check hardware signatures against remote registry
+  app.post('/api/v1/infrastructure/firmware-check', (_req: Request, res: Response) => {
+    try {
+      const devices = infrastructureAiService.getDevices();
+      const alerts = firmwareRegistryService.checkHardwareSignatures(devices);
+      res.json({ success: true, data: alerts });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Firmware check failed' });
+    }
+  });
+
+  // Bulk firmware check across all connected peripherals
+  app.post('/api/v1/infrastructure/firmware-check/bulk', async (_req: Request, res: Response) => {
+    try {
+      const result = await infrastructureAiService.runBulkFirmwareCheck();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Bulk firmware check failed' });
+    }
+  });
+
+  // Apply critical firmware / security patch
+  app.post('/api/v1/infrastructure/apply-patch', (req: Request, res: Response) => {
+    try {
+      const { alertId } = req.body;
+      if (!alertId) {
+        return res.status(400).json({ success: false, error: 'alertId is required' });
+      }
+      const result = firmwareRegistryService.applySecurityPatch(alertId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Security patch application failed' });
+    }
+  });
+
+  // Get discovered USB / Bluetooth peripherals
+  app.get('/api/v1/infrastructure/peripheral-discovery', (_req: Request, res: Response) => {
+    try {
+      const peripherals = infrastructureAiService.getDiscoveredPeripherals();
+      res.json({ success: true, data: peripherals });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Failed to fetch discovered peripherals' });
+    }
+  });
+
+  // Scan USB and Bluetooth ports for new POS peripherals
+  app.post('/api/v1/infrastructure/peripheral-discovery/scan', async (_req: Request, res: Response) => {
+    try {
+      const result = await infrastructureAiService.scanAndDiscoverPeripherals();
+      res.json({ success: true, ...result });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'USB/Bluetooth peripheral port scan failed' });
+    }
+  });
+
+  // Auto-configure peripheral
+  app.post('/api/v1/infrastructure/peripheral-autoconfig', async (req: Request, res: Response) => {
+    try {
+      const { peripheralId } = req.body;
+      if (!peripheralId) {
+        return res.status(400).json({ success: false, error: 'peripheralId is required' });
+      }
+      const result = await infrastructureAiService.autoConfigurePeripheral(peripheralId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Auto-configuration failed' });
+    }
+  });
+
+  // Get real-time status of all detected hardware peripherals (printers, scanners, drawers)
+  app.get('/api/v1/infrastructure/hardware-peripherals', (_req: Request, res: Response) => {
+    try {
+      const peripherals = infrastructureAiService.getHardwarePeripherals();
+      res.json({ success: true, data: peripherals });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Failed to fetch hardware peripherals' });
+    }
+  });
+
+  // Antigravity AI on-demand peripheral & driver health audit
+  app.post('/api/v1/infrastructure/hardware-peripherals/audit', async (req: Request, res: Response) => {
+    try {
+      const { peripheralId } = req.body || {};
+      const result = await infrastructureAiService.runPeripheralHealthAudit(peripheralId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Hardware peripheral audit failed' });
+    }
+  });
+
+  // Simulated hardware connection handshake diagnostics
+  app.post('/api/v1/infrastructure/hardware-peripherals/diagnostics-handshake', async (req: Request, res: Response) => {
+    try {
+      const { peripheralId, simulateFailure } = req.body || {};
+      if (!peripheralId) {
+        return res.status(400).json({ success: false, error: 'peripheralId is required for diagnostics handshake' });
+      }
+      const result = await infrastructureAiService.runConnectionHandshake(peripheralId, simulateFailure);
+      if (!result.success) {
+        return res.status(502).json(result);
+      }
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Diagnostics handshake failed' });
+    }
+  });
+
+  // Run comprehensive hardware test suite for printers, scanners, and cash drawers
+  app.post('/api/v1/infrastructure/hardware-test-suite/run', async (req: Request, res: Response) => {
+    try {
+      const { category, simulateFaultDeviceId, simulateFaultAll } = req.body || {};
+      const suiteSummary = await infrastructureAiService.runHardwareTestSuite({
+        category,
+        simulateFaultDeviceId,
+        simulateFaultAll,
+      });
+      res.json({ success: true, data: suiteSummary });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Hardware test suite run failed' });
+    }
+  });
+
+  // Get latest hardware test suite results
+  app.get('/api/v1/infrastructure/hardware-test-suite/latest', async (_req: Request, res: Response) => {
+    try {
+      let suite = infrastructureAiService.getLatestTestSuiteSummary();
+      if (!suite) {
+        suite = await infrastructureAiService.runHardwareTestSuite();
+      }
+      res.json({ success: true, data: suite });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Failed to fetch test suite results' });
+    }
+  });
+
+  // Test a single hardware device on-demand
+  app.post('/api/v1/infrastructure/hardware-test-suite/device', async (req: Request, res: Response) => {
+    try {
+      const { deviceId, simulateFault } = req.body || {};
+      if (!deviceId) {
+        return res.status(400).json({ success: false, error: 'deviceId is required' });
+      }
+      const suite = await infrastructureAiService.runHardwareTestSuite({
+        simulateFaultDeviceId: simulateFault ? deviceId : undefined,
+      });
+      const deviceResult = suite.results.find((r) => r.peripheralId === deviceId);
+      res.json({ success: true, data: deviceResult, suiteSummary: suite });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Single hardware device test failed' });
     }
   });
 

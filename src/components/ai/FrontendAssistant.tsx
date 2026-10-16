@@ -52,7 +52,7 @@ export function FrontendAssistant() {
           <span className="font-medium text-sm">AI Assistant</span>
         </button>
       ) : (
-        <div className="w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden max-h-[550px]">
+        <div className="w-80 sm:w-96 bg-card rounded-2xl shadow-2xl border border-border border-crisp flex flex-col overflow-hidden max-h-[550px]">
           {/* Header */}
           <div className="bg-indigo-600 px-4 py-3 text-white flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -86,7 +86,7 @@ export function FrontendAssistant() {
                   className={`max-w-[75%] px-3 py-2 rounded-xl text-xs sm:text-sm leading-relaxed ${
                     m.role === 'user'
                       ? 'bg-indigo-600 text-white rounded-br-none'
-                      : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 shadow-sm rounded-bl-none'
+                      : 'bg-card text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700 shadow-sm rounded-bl-none'
                   }`}
                 >
                   {m.content}
@@ -102,13 +102,13 @@ export function FrontendAssistant() {
           </div>
 
           {/* Input Form */}
-          <form onSubmit={handleSend} className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex gap-2">
+          <form onSubmit={handleSend} className="p-3 bg-card border-t border-border border-crisp flex gap-2">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="พิมพ์คำถามหรือขอความช่วยเหลือ..."
-              className="flex-1 px-3 py-2 text-xs sm:text-sm bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-xl border border-transparent focus:border-indigo-500 focus:outline-none"
+              className="flex-1 px-3 py-2 text-xs sm:text-sm bg-background text-slate-800 dark:text-slate-100 rounded-xl border border-transparent focus:border-indigo-500 focus:outline-none"
             />
             <button
               type="submit"

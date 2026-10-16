@@ -8,6 +8,7 @@ import { useToast } from '../../../context/ToastContext';
 import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
 import { SUPPORTED_CURRENCIES, CurrencyService } from '../../../services/currency/currencyService';
 import { StoreProfileFormState } from '../types';
+import { PWAInstallCard } from '../../../components/pwa/PWAInstallCard';
 
 export interface GeneralSettingsTabProps {
   formData: StoreProfileFormState;
@@ -26,6 +27,9 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* PWA Prompt to Install Card */}
+      <PWAInstallCard />
+
       {/* Store Identity & Profile Card with Live Receipt Mockup */}
       <Card className="border border-border/80 shadow-sm rounded-lg overflow-hidden">
         <CardHeader className="bg-card/50 border-b border-border/60 py-3.5 px-5">

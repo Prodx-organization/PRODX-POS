@@ -545,6 +545,179 @@
 }
 
 /* ========================================================================= */
+/* Peripheral Real-time Health Pulse Animations (Idle, Active, Error)        */
+/* ========================================================================= */
+@keyframes health-pulse-idle {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.9;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45);
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes health-ring-idle {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  60% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@keyframes health-pulse-active {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.8);
+  }
+  40% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 8px rgba(99, 102, 241, 0.25);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 16px rgba(99, 102, 241, 0);
+  }
+}
+
+@keyframes health-ring-active {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes health-pulse-error {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  30% {
+    transform: scale(1.18);
+    box-shadow: 0 0 0 9px rgba(239, 68, 68, 0.3);
+  }
+  60% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 16px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes health-ring-error {
+  0% {
+    transform: scale(0.9);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.7);
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+.animate-pulse-idle {
+  animation: health-pulse-idle 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-ring-idle {
+  animation: health-ring-idle 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.animate-pulse-active {
+  animation: health-pulse-active 1s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+}
+
+.animate-ring-active {
+  animation: health-ring-active 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.animate-pulse-error {
+  animation: health-pulse-error 0.9s cubic-bezier(0.3, 0, 0.7, 1) infinite;
+}
+
+.animate-ring-error {
+  animation: health-ring-error 0.9s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ========================================================================= */
+/* Hardware Card Entrance & State-Transition Animations                       */
+/* ========================================================================= */
+@keyframes card-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes state-transition-pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer-sweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-card-entrance {
+  animation: card-entrance 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-state-pop {
+  animation: state-transition-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.shimmer-bg {
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0) 100%);
+  background-size: 200% 100%;
+  animation: shimmer-sweep 2.5s infinite;
+}
+
+@keyframes topology-dash-flow {
+  0% {
+    stroke-dashoffset: 24;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-topology-flow {
+  animation: topology-dash-flow 1.2s linear infinite;
+}
+
+/* ========================================================================= */
 /* Visual Inspector Mode (1px dashed outlines for flex & absolute elements)  */
 /* ========================================================================= */
 body.prodx-visual-inspector-active .flex,

@@ -35,6 +35,7 @@ import {
   Calendar,
   AlertCircle,
   ExternalLink,
+  CloudUpload,
 } from 'lucide-react';
 import { NavRoute } from '../layout/Sidebar';
 import { useAuth } from '../../context/AuthContext';
@@ -141,6 +142,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     pendingCount,
     isSyncing,
     triggerSync,
+    openSyncActivity,
   } = useOffline();
   const {
     items: cartItems,
@@ -543,6 +545,21 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             type: 'info',
             title: t.commandPalette.toast.syncTriggered,
           });
+        },
+      },
+      {
+        id: 'act-open-sync-activity',
+        category: 'actions',
+        title: language === 'th' ? 'เปิดดู Sync Activity Panel' : 'Open Sync Activity Panel',
+        description:
+          language === 'th'
+            ? 'ดูประวัติการซิงก์ข้อมูล Local Cache ↔ Cloud DB พร้อมเวลาสำเร็จ/ล้มเหลว'
+            : 'Inspect data synchronization history, latency, and success/failure timestamps',
+        icon: <CloudUpload className="h-4 w-4 text-primary" />,
+        shortcut: 'Alt+S',
+        keywords: 'sync activity panel log history telemetry offline cloud timestamp outbox cache ประวัติการซิงก์ ซิงค์ แคช',
+        onExecute: () => {
+          openSyncActivity();
         },
       },
       {

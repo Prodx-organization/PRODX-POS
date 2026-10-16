@@ -10,6 +10,8 @@ import { HoldOrdersModal } from '../../modules/pos/HoldOrdersModal';
 import { CommandPalette } from '../common/CommandPalette';
 import { LockScreenModal } from '../auth/LockScreenModal';
 import { GlobalBreadcrumb } from './GlobalBreadcrumb';
+import { SyncActivityPanel } from '../sync/SyncActivityPanel';
+import { useOffline } from '../../context/OfflineContext';
 
 export interface AppShellProps {
   currentRoute: NavRoute;
@@ -22,22 +24,29 @@ export const AppShell: React.FC<AppShellProps> = ({
   onNavigate,
   children,
 }) => {
+  const { isSyncActivityOpen, closeSyncActivity, toggleSyncActivity } = useOffline();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isHoldModalOpen, setIsHoldModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
-  // Global accelerator: Ctrl+K / Cmd+K
+  // Global accelerators: Ctrl+K / Cmd+K (Palette) and Alt+S / Ctrl+Shift+S (Sync Activity)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         setIsCommandPaletteOpen((prev) => !prev);
+      } else if (
+        (e.altKey && (e.key === 's' || e.key === 'S')) ||
+        ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 's' || e.key === 'S'))
+      ) {
+        e.preventDefault();
+        toggleSyncActivity();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [toggleSyncActivity]);
 
   return (
     <div className="relative flex h-[100dvh] w-screen overflow-hidden bg-background text-text font-sans select-none">
@@ -110,6 +119,12 @@ export const AppShell: React.FC<AppShellProps> = ({
 
       {/* Secure Lock Screen / Screensaver Modal */}
       <LockScreenModal />
+
+      {/* Real-time Sync Activity Panel (Local POS Cache <-> Cloud DB) */}
+      <SyncActivityPanel
+        isOpen={isSyncActivityOpen}
+        onClose={closeSyncActivity}
+      />
 
       {/* Toast Notification Container */}
       <ToastContainer />

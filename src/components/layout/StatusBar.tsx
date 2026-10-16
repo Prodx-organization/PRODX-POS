@@ -7,7 +7,7 @@ import { SyncLatencyIndicator } from './SyncLatencyIndicator';
 
 export const StatusBar: React.FC = () => {
   const { session } = useAuth();
-  const { isOnline, pendingCount } = useOffline();
+  const { isOnline, pendingCount, openSyncActivity } = useOffline();
   const { config } = useSettings();
 
   if (!session) return null;
@@ -60,20 +60,24 @@ export const StatusBar: React.FC = () => {
         {/* Real-Time Sync Latency (Round-Trip Time between local operations and cloud database) */}
         <SyncLatencyIndicator />
 
-        <span className="hidden sm:flex items-center gap-1.5">
-          <Database className="h-3 w-3 text-text/40" />
-          <span className="text-text/60">OUTBOX:</span>
+        {/* Sync Activity Quick Trigger Button */}
+        <button
+          type="button"
+          onClick={openSyncActivity}
+          className="flex items-center gap-2 px-2 py-0.5 rounded-lg border border-border border-crisp bg-background hover:bg-card text-text/80 hover:text-text transition-all duration-150 cursor-pointer active:scale-95"
+          title="Open Sync Activity Panel (ประวัติการซิงก์ข้อมูล Local Cache ↔ Cloud DB) [Alt+S]"
+        >
+          <Database className="h-3 w-3 text-primary" />
+          <span className="hidden sm:inline text-text/60">OUTBOX:</span>
           <span className={`font-bold ${pendingCount > 0 ? 'text-amber-600 dark:text-amber-400 animate-pulse' : 'text-text/80'}`}>
-            {pendingCount} {pendingCount === 1 ? 'queue' : 'queued'}
+            {pendingCount}
           </span>
-        </span>
-
-        <div className="flex items-center gap-1.5">
+          <span className="text-text/30">|</span>
           <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-amber-500'}`} />
           <span className={isOnline ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-amber-600 dark:text-amber-400 font-bold'}>
             {isOnline ? 'LIVE' : 'OFFLINE'}
           </span>
-        </div>
+        </button>
       </div>
     </footer>
   );
