@@ -38,12 +38,10 @@ export const createAuditReadService = (db: SqlQueryExecutor) => ({
 });
 
 
+// Never accept client-origin copies of server-authoritative financial,
+// inventory, shift, or refund events through this supplemental write endpoint.
 const allowedClientAuditActions = new Set([
-  'user_login', 'user_logout', 'shift_opened', 'shift_closed',
-  'cash_paid_in', 'cash_paid_out', 'order_checkout_committed',
-  'order_checkout_queued_offline', 'order_voided', 'order_refunded',
-  'price_override_applied', 'cart_discount_applied', 'stock_adjusted',
-  'offline_sync_completed', 'manager_override_authorized',
+  'user_login', 'user_logout', 'order_checkout_queued_offline',
 ]);
 
 export type AuditWriteInput = {
