@@ -99,5 +99,7 @@ test('audit write rejects unsupported actions and oversized or non-object detail
     assert.equal(invalidAction.status, 400);
     const invalidDetails = await fetch(`${server.baseUrl}/api/v1/audit/logs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'order_checkout_queued_offline', severity: 'warn', details: [] }) });
     assert.equal(invalidDetails.status, 400);
+    const oversizedDetails = await fetch(`${server.baseUrl}/api/v1/audit/logs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'order_checkout_queued_offline', severity: 'warn', details: { note: 'x'.repeat(17000) } }) });
+    assert.equal(oversizedDetails.status, 400);
   } finally { await server.close(); }
 });
