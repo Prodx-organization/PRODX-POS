@@ -66,7 +66,7 @@ test('audit write persists only a validated event with authenticated actor and t
     calls.push({ sql, parameters });
     if (sql.startsWith('INSERT INTO prodx_audit_log')) return { rows: [{ id: 'audit-new' }] as unknown as T[] };
     if (sql.includes('WHERE a.id = $1 AND a.organization_id = $2')) {
-      return { rows: [{ id: 'audit-new', store_id: 'store-1', register_id: '', user_id: 'user-1', user_name: 'Authenticated User', action: 'stock_adjusted', severity: 'warn', details: { reason: 'counted' }, created_at: '2026-10-17T00:00:00.000Z' }] as unknown as T[] };
+      return { rows: [{ id: 'audit-new', store_id: 'store-1', register_id: '', user_id: 'user-1', user_name: 'Authenticated User', action: 'order_checkout_queued_offline', severity: 'warn', details: { reason: 'counted' }, created_at: '2026-10-17T00:00:00.000Z' }] as unknown as T[] };
     }
     throw new Error(`Unexpected SQL: ${sql}`);
   };
@@ -77,13 +77,13 @@ test('audit write persists only a validated event with authenticated actor and t
     const response = await fetch(`${server.baseUrl}/api/v1/audit/logs`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ storeId: 'forged-store', userId: 'forged-user', userName: 'Forged Name', registerId: 'forged-register', action: 'stock_adjusted', severity: 'warn', details: { reason: 'counted' } }),
+      body: JSON.stringify({ storeId: 'forged-store', userId: 'forged-user', userName: 'Forged Name', registerId: 'forged-register', action: 'order_checkout_queued_offline', severity: 'warn', details: { reason: 'counted' } }),
     });
     assert.equal(response.status, 201);
-    assert.deepEqual(await response.json(), { id: 'audit-new', storeId: 'store-1', registerId: '', userId: 'user-1', userName: 'Authenticated User', action: 'stock_adjusted', severity: 'warn', details: { reason: 'counted' }, timestamp: '2026-10-17T00:00:00.000Z' });
+    assert.deepEqual(await response.json(), { id: 'audit-new', storeId: 'store-1', registerId: '', userId: 'user-1', userName: 'Authenticated User', action: 'order_checkout_queued_offline', severity: 'warn', details: { reason: 'counted' }, timestamp: '2026-10-17T00:00:00.000Z' });
     assert.equal(calls.length, 2);
     assert.equal(calls[0].sql.includes('NULL, $4'), true);
-    assert.deepEqual(calls[0].parameters.slice(1), ['org-1', 'store-1', 'user-1', 'stock_adjusted', 'warn', JSON.stringify({ reason: 'counted' })]);
+    assert.deepEqual(calls[0].parameters.slice(1), ['org-1', 'store-1', 'user-1', 'order_checkout_queued_offline', 'warn', JSON.stringify({ reason: 'counted' })]);
   } finally { await server.close(); }
 });
 
@@ -97,7 +97,7 @@ test('audit write rejects unsupported actions and oversized or non-object detail
   try {
     const invalidAction = await fetch(`${server.baseUrl}/api/v1/audit/logs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'arbitrary_forged_event', severity: 'critical', details: {} }) });
     assert.equal(invalidAction.status, 400);
-    const invalidDetails = await fetch(`${server.baseUrl}/api/v1/audit/logs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'stock_adjusted', severity: 'warn', details: [] }) });
+    const invalidDetails = await fetch(`${server.baseUrl}/api/v1/audit/logs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'order_checkout_queued_offline', severity: 'warn', details: [] }) });
     assert.equal(invalidDetails.status, 400);
   } finally { await server.close(); }
 });
