@@ -252,7 +252,7 @@ SELECT 1 FROM prodx_permissions WHERE permission_key = 'audit.write';
           for migration in "${migrations[@]}"; do
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration" >/dev/null
           done
-          after=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning', '0030_m5_audit_log_immutability', '0031_security_revoke_public_rls_auto_enable', '0032_security_harden_function_search_path', '0033_security_prodx_app_role');")
+          after=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning', '0030_m5_audit_log_immutability', '0031_security_revoke_public_rls_auto_enable', '0032_security_harden_function_search_path', '0033_security_prodx_app_role', '0034_m5_audit_write_permission');")
           test "$before" = "$after"
           test "$after" = "10"
 
