@@ -77,7 +77,7 @@ test('audit write persists only a validated event with authenticated actor and t
     const response = await fetch(`${server.baseUrl}/api/v1/audit/logs`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ storeId: 'forged-store', userId: 'forged-user', userName: 'Forged Name', registerId: 'forged-register', action: 'order_checkout_queued_offline', severity: 'warn', details: { reason: 'counted' } }),
+      body: JSON.stringify({ storeId: 'forged-store', userId: 'forged-user', userName: 'Forged Name', registerId: 'forged-register', action: 'order_checkout_queued_offline', severity: 'critical', details: { reason: 'counted' } }),
     });
     assert.equal(response.status, 201);
     assert.deepEqual(await response.json(), { id: 'audit-new', storeId: 'store-1', registerId: '', userId: 'user-1', userName: 'Authenticated User', action: 'order_checkout_queued_offline', severity: 'warn', details: { reason: 'counted' }, timestamp: '2026-10-17T00:00:00.000Z' });
