@@ -16,5 +16,7 @@ export const isAiStudioPreview = (): boolean => {
 
 export const shouldReadMock = (): boolean => {
   if (isMockDisabled()) return false;
-  return import.meta.env.DEV || !hasProductionUrl() || isAiStudioPreview();
+  // Missing production configuration must never select mocks. The production
+  // adapter owns the fail-closed behavior when its API URL is unavailable.
+  return import.meta.env.DEV || isAiStudioPreview();
 };
