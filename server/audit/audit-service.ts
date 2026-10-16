@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { SqlQueryExecutor, TransactionalSqlExecutor } from '../db/transaction';
 
 export class AuditValidationError extends Error { readonly code = 'AUDIT_VALIDATION_FAILED'; }
