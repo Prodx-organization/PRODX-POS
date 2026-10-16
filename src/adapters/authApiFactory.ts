@@ -7,8 +7,8 @@ import { IAuthApi } from './types';
 import { authApi as mockAuthApi } from './mockAdapter';
 import { createProductionAuthApi } from './productionAuthApi';
 
-import { shouldReadMock } from './env';
-
 const productionAuthApi: IAuthApi = createProductionAuthApi();
 
-export const authApi: IAuthApi = shouldReadMock() ? mockAuthApi : productionAuthApi;
+// Only an explicit development build may select the mock auth adapter.
+// Missing production configuration must fail closed inside createProductionAuthApi.
+export const authApi: IAuthApi = import.meta.env.DEV ? mockAuthApi : productionAuthApi;
