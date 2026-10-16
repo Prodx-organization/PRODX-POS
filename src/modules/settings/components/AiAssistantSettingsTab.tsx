@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, CheckCircle2, RefreshCw, Send, ShieldCheck, Sliders, Mail } from 'lucide-react';
+import { Bot, CheckCircle2, RefreshCw, Send, ShieldCheck, Sliders, Mail, BellRing } from 'lucide-react';
 import { Card, CardHeader, CardBody, CardTitle, CardDescription } from '../../../components/common/Card';
 import { Button } from '../../../components/common/Button';
 import { Badge } from '../../../components/common/Badge';
@@ -7,6 +7,7 @@ import { useToast } from '../../../context/ToastContext';
 import { useLanguage } from '../../../context/LanguageContext';
 import { aiService, AiConfig, DEFAULT_AI_CONFIG, AI_BACKEND_CHAT_PATH } from '../../../services/aiService';
 import { GmailIntegrationModal } from '../../../components/workspace/GmailIntegrationModal';
+import { FcmNotificationWidget } from '../../../components/workspace/FcmNotificationWidget';
 
 export const AiAssistantSettingsTab: React.FC = () => {
   const { addToast } = useToast();
@@ -42,6 +43,9 @@ export const AiAssistantSettingsTab: React.FC = () => {
       <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={reset}><RefreshCw className="mr-1.5 h-4 w-4" />{isThai ? 'ค่า Gemini เริ่มต้น' : 'Gemini defaults'}</Button><Button variant="primary" size="sm" onClick={save}><CheckCircle2 className="mr-1.5 h-4 w-4" />{isThai ? 'บันทึก' : 'Save'}</Button></div>
     </CardBody></Card>
 
+    {/* Firebase Cloud Messaging (FCM) Widget */}
+    <FcmNotificationWidget />
+
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-4">
@@ -76,4 +80,5 @@ export const AiAssistantSettingsTab: React.FC = () => {
     <GmailIntegrationModal isOpen={isGmailModalOpen} onClose={() => setIsGmailModalOpen(false)} />
   </div>;
 };
+
 
