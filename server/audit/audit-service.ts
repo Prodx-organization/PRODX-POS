@@ -72,8 +72,13 @@ export const createAuditWriteService = (db: TransactionalSqlExecutor) => ({
     }
     let detailsJson: string;
     try {
-      detailsJson = JSON.stringify(input.details);
-    } catch {
+      const serialized = JSON.stringify(input.details);
+      if (typeof serialized !== 'string') {
+        throw new AuditValidationError('Audit details must be serializable JSON.');
+      }
+      detailsJson = serialized;
+    } catch (error) {
+      if (error instanceof AuditValidationError) throw error;
       throw new AuditValidationError('Audit details must be serializable JSON.');
     }
     if (detailsJson.length > 16384) {
