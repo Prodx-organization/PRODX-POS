@@ -97,7 +97,7 @@ jobs:
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0031_security_revoke_public_rls_auto_enable';
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0032_security_harden_function_search_path';
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0033_security_prodx_app_role';
-SELECT 1 FROM prodx_schema_migrations WHERE version = '0034_m5_audit_write_permission';
+          SELECT 1 FROM prodx_schema_migrations WHERE version = '0034_m5_audit_write_permission';
           DO $$
           BEGIN
             IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'prodx_app' AND rolsuper = false AND rolbypassrls = false) THEN
@@ -123,7 +123,7 @@ SELECT 1 FROM prodx_schema_migrations WHERE version = '0034_m5_audit_write_permi
           SELECT 1 FROM prodx_permissions WHERE permission_key = 'ai:use';
           SELECT 1 FROM prodx_permissions WHERE permission_key = 'cash.shift.movement';
           SELECT 1 FROM prodx_permissions WHERE permission_key = 'audit.read';
-SELECT 1 FROM prodx_permissions WHERE permission_key = 'audit.write';
+          SELECT 1 FROM prodx_permissions WHERE permission_key = 'audit.write';
           SQL
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           INSERT INTO prodx_organizations (id, code, name)
