@@ -97,6 +97,7 @@ jobs:
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0031_security_revoke_public_rls_auto_enable';
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0032_security_harden_function_search_path';
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0033_security_prodx_app_role';
+SELECT 1 FROM prodx_schema_migrations WHERE version = '0034_m5_audit_write_permission';
           DO $$
           BEGIN
             IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'prodx_app' AND rolsuper = false AND rolbypassrls = false) THEN
@@ -118,10 +119,11 @@ jobs:
           SELECT conname FROM pg_constraint WHERE conname = 'prodx_roles_id_organization_unique';
           SELECT conname FROM pg_constraint WHERE conname = 'prodx_store_memberships_store_org_fk';
           SELECT conname FROM pg_constraint WHERE conname = 'prodx_user_roles_store_membership_fk';
-          SELECT count(*) = 20 FROM prodx_permissions;
+          SELECT count(*) = 21 FROM prodx_permissions;
           SELECT 1 FROM prodx_permissions WHERE permission_key = 'ai:use';
           SELECT 1 FROM prodx_permissions WHERE permission_key = 'cash.shift.movement';
           SELECT 1 FROM prodx_permissions WHERE permission_key = 'audit.read';
+SELECT 1 FROM prodx_permissions WHERE permission_key = 'audit.write';
           SQL
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           INSERT INTO prodx_organizations (id, code, name)
@@ -153,6 +155,7 @@ jobs:
           SQL
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0021_m4_sensitive_role_permissions.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0025_m4_ai_rbac_provisioning.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0034_m5_audit_write_permission.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           SELECT (
             SELECT count(*)
@@ -169,8 +172,26 @@ jobs:
             JOIN prodx_roles r ON r.id = rp.role_id AND r.organization_id = rp.organization_id
             JOIN prodx_permissions p ON p.id = rp.permission_id
             WHERE r.organization_id = '00000000-0000-0000-0000-000000000001'
+              AND r.role_key IN ('admin', 'manager')
+              AND p.permission_key = 'audit.write'
+          ) = 2;
+          SELECT (
+            SELECT count(*)
+            FROM prodx_role_permissions rp
+            JOIN prodx_roles r ON r.id = rp.role_id AND r.organization_id = rp.organization_id
+            JOIN prodx_permissions p ON p.id = rp.permission_id
+            WHERE r.organization_id = '00000000-0000-0000-0000-000000000001'
               AND r.role_key = 'cashier'
               AND p.permission_key IN ('cash.shift.movement', 'audit.read')
+          ) = 0;
+          SELECT (
+            SELECT count(*)
+            FROM prodx_role_permissions rp
+            JOIN prodx_roles r ON r.id = rp.role_id AND r.organization_id = rp.organization_id
+            JOIN prodx_permissions p ON p.id = rp.permission_id
+            WHERE r.organization_id = '00000000-0000-0000-0000-000000000001'
+              AND r.role_key = 'cashier'
+              AND p.permission_key = 'audit.write'
           ) = 0;
           SELECT (
             SELECT count(*)
@@ -227,13 +248,13 @@ jobs:
             END;
           END $$;
           SQL
-          before=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning', '0030_m5_audit_log_immutability', '0031_security_revoke_public_rls_auto_enable', '0032_security_harden_function_search_path', '0033_security_prodx_app_role');")
+          before=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning', '0030_m5_audit_log_immutability', '0031_security_revoke_public_rls_auto_enable', '0032_security_harden_function_search_path', '0033_security_prodx_app_role', '0034_m5_audit_write_permission');")
           for migration in "${migrations[@]}"; do
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration" >/dev/null
           done
           after=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning', '0030_m5_audit_log_immutability', '0031_security_revoke_public_rls_auto_enable', '0032_security_harden_function_search_path', '0033_security_prodx_app_role');")
           test "$before" = "$after"
-          test "$after" = "9"
+          test "$after" = "10"
 
       - name: Theme validation
         run: bun run theme:validate
