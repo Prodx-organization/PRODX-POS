@@ -1,5 +1,4 @@
 import type { CheckoutRequest, CheckoutResponse } from './types';
-import { orderApi as mockOrderApi } from './mockAdapter';
 
 const configuredBaseUrl = (): string | undefined => import.meta.env?.VITE_AUTH_API_BASE_URL;
 
@@ -29,9 +28,11 @@ export function createProductionOrderTransactionApi(token: string, baseUrl?: str
             const body = await response.json().catch(() => null);
             if (body) return body as CheckoutResponse;
           }
-        } catch {}
+        } catch (error: any) {
+          throw new Error(`Order checkout failed: ${error?.message || 'Network error'}`);
+        }
       }
-      return mockOrderApi.createOrder(request);
+      throw new Error('Order checkout API base URL is not configured.');
     },
   };
 }

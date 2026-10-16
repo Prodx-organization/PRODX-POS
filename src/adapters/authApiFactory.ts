@@ -9,4 +9,6 @@ import { createProductionAuthApi } from './productionAuthApi';
 
 const productionAuthApi: IAuthApi = createProductionAuthApi();
 
-export const authApi: IAuthApi = import.meta.env.DEV ? mockAuthApi : productionAuthApi;
+const isMockDisabled = typeof localStorage !== 'undefined' && localStorage.getItem('prodx_disable_mocks') === 'true';
+
+export const authApi: IAuthApi = (import.meta.env.DEV && !isMockDisabled) ? mockAuthApi : productionAuthApi;

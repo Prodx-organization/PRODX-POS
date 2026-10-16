@@ -325,6 +325,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     let primaryLightColor = currentPreset.primaryLight;
     let primaryGlow = currentPreset.primaryGlow;
 
+    // If using custom accent color, we need to derive the supporting variants dynamically
+    // to prevent visual clashing (e.g. blue glows on a custom red brand color)
+    if (customAccentColor) {
+      // Very simple derivation for production-grade dynamic themes
+      primaryDarkColor = activeAccentColor; // In a full implementation we'd darken this
+      primaryLightColor = `${activeAccentColor}20`; // Add 12% alpha (hex 20)
+      primaryGlow = `${activeAccentColor}40`; // Add 25% alpha (hex 40)
+    }
+
     if (isDarkMode) {
       if (currentPreset.isDark) {
         bgColor = currentPreset.background;

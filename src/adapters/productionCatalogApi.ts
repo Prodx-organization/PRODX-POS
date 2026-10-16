@@ -1,7 +1,7 @@
 import type { Category, Product, InventoryLedgerEntry, BulkImportItem, BulkImportMode, BulkImportResult } from '../domain/catalog';
 import type { ICatalogApi } from './types';
 import { createProductionInventoryAdjustmentApi } from './productionInventoryAdjustmentApi';
-import { catalogApi as mockCatalogApi } from './mockAdapter';
+
 
 const API_BASE_URL = import.meta.env.VITE_AUTH_API_BASE_URL;
 const baseUrl = () => {
@@ -43,7 +43,7 @@ export function createProductionCatalogReadApi(token: string): IProductionCatalo
     getCategories: async () => {
       const res = await request<readonly Category[]>('/api/v1/catalog/categories', token);
       if (res && Array.isArray(res)) return res;
-      return mockCatalogApi.getCategories('store-flagship-downtown');
+      throw new Error('Failed to load categories from production catalog API.');
     },
     getProducts: async (categoryId, search) => {
       const query = new URLSearchParams();
@@ -51,28 +51,28 @@ export function createProductionCatalogReadApi(token: string): IProductionCatalo
       if (search) query.set('search', search);
       const res = await request<readonly Product[]>(`/api/v1/catalog/products${query.toString() ? `?${query}` : ''}`, token);
       if (res && Array.isArray(res)) return res;
-      return mockCatalogApi.getProducts('store-flagship-downtown', categoryId, search);
+      throw new Error('Failed to load products from production catalog API.');
     },
     getProductByBarcode: async barcode => {
       const res = await request<Product>(`/api/v1/catalog/products/by-barcode/${encodeURIComponent(barcode)}`, token);
       if (res) return res;
-      return mockCatalogApi.getProductByBarcode('store-flagship-downtown', barcode);
+      throw new Error('Product not found or catalog API error.');
     },
     getInventoryLedger: async productId => {
       const query = productId ? `?productId=${encodeURIComponent(productId)}` : '';
       const res = await request<readonly InventoryLedgerEntry[]>(`/api/v1/catalog/inventory-ledger${query}`, token);
       if (res && Array.isArray(res)) return res;
-      return mockCatalogApi.getInventoryLedger('store-flagship-downtown', productId);
+      throw new Error('Failed to load inventory ledger from production catalog API.');
     },
     bulkImportProducts: async (storeId, items, mode, userId, notes) => {
       const res = await request<BulkImportResult>('/api/v1/catalog/import', token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items, mode, notes, idempotencyKey: `catalog-import-${crypto.randomUUID()}` }) });
       if (res) return res;
-      return mockCatalogApi.bulkImportProducts(storeId, items, mode, userId, notes);
+      throw new Error('Bulk product import failed on production catalog API.');
     },
     bulkUpdatePricing: async (storeId, productIds, priceChangeType, value, userId) => {
       const res = await request<{ products: Product[] }>('/api/v1/catalog/pricing/bulk', token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ storeId, productIds, priceChangeType, value, idempotencyKey: `catalog-price-${crypto.randomUUID()}` }) });
       if (res?.products) return res.products;
-      return mockCatalogApi.bulkUpdatePricing(storeId, productIds, priceChangeType, value, userId);
+      throw new Error('Bulk pricing update failed on production catalog API.');
     },
   };
 }

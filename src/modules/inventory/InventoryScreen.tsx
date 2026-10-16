@@ -40,6 +40,7 @@ import {
   UploadCloud,
   FileSpreadsheet,
   ClipboardList,
+  Building2,
 } from 'lucide-react';
 import { ShelfLabelPrintModal } from '../../components/inventory/ShelfLabelPrintModal';
 import { BulkInventoryUploadModal } from '../../components/inventory/BulkInventoryUploadModal';
@@ -47,6 +48,7 @@ import { LowStockThresholdModal } from '../../components/inventory/LowStockThres
 import { InventoryAiOptimizationModal } from './InventoryAiOptimizationModal';
 import { InventoryBarcodeLookupModal } from './InventoryBarcodeLookupModal';
 import { RestockNeededReportModal } from './RestockNeededReportModal';
+import { InterBranchTransferModule } from './InterBranchTransferModule';
 import { BulkImportResult } from '../../domain/catalog';
 import { generateInventoryCsv, downloadCsvFile } from '../../utils/csvExport';
 import { useBarcodeScanner } from '../../hooks/useBarcodeScanner';
@@ -73,6 +75,7 @@ export const InventoryScreen: React.FC = () => {
   const [isAiOptimizationModalOpen, setIsAiOptimizationModalOpen] = useState(false);
   const [isBarcodeLookupModalOpen, setIsBarcodeLookupModalOpen] = useState(false);
   const [isRestockReportModalOpen, setIsRestockReportModalOpen] = useState(false);
+  const [isInterBranchModalOpen, setIsInterBranchModalOpen] = useState(false);
   const [lastScannedBarcode, setLastScannedBarcode] = useState<string>('');
   const [scannedProduct, setScannedProduct] = useState<Product | null>(null);
   const [isScannerEnabled, setIsScannerEnabled] = useState<boolean>(true);

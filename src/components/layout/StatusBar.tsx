@@ -38,7 +38,9 @@ export const StatusBar: React.FC = () => {
       {/* Right items */}
       <div className="flex items-center gap-2 sm:gap-3.5 uppercase tracking-wider font-semibold">
         <span className="hidden 2xl:inline-flex items-center gap-1 text-text/60 border border-border border-crisp px-1.5 py-0.5 rounded bg-background/80">
-          <span>ADAPTER: CLIENT-MOCK DEV FOUNDATION</span>
+          <span>
+            ADAPTER: {import.meta.env.DEV ? 'CLIENT-HYBRID (DEV)' : 'PRODUCTION EDGE'}
+          </span>
         </span>
 
         <span className="hidden lg:inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">

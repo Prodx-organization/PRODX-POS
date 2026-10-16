@@ -13,6 +13,7 @@ import { useOffline } from '../../context/OfflineContext';
 import { useReceiptPrinter } from '../../context/ReceiptPrinterContext';
 import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useSettings } from '../../context/SettingsContext';
 import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
@@ -153,6 +154,7 @@ export const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> =
   title,
 }) => {
   const { session } = useAuth();
+  const { config } = useSettings();
   const productionOrderApi = createOrderTransactionApi(session?.token ?? '');
   const cart = useCart();
   const { isOnline, queueOutboxItem } = useOffline();
@@ -356,8 +358,8 @@ export const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> =
         amount: appliedMoney,
         authCode:
           cardAuthReference || `AUTH-${Math.floor(100000 + Math.random() * 900000)}`,
-        cardLastFour: '4242',
-        terminalReference: 'TRM-VERIFONE-01',
+        cardLastFour: '••••',
+        terminalReference: config.payments?.terminalId || 'TRM-EDC-01',
       });
       setCardAuthReference('');
     } else {
@@ -365,7 +367,7 @@ export const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> =
         method: 'qr_digital',
         amount: appliedMoney,
         authCode: `QR-${Date.now().toString().slice(-6)}`,
-        terminalReference: 'PROMPTPAY-GATEWAY',
+        terminalReference: 'PROMPTPAY-CONFIRMED',
       });
     }
 
@@ -400,12 +402,12 @@ export const PaymentConfirmationModal: React.FC<PaymentConfirmationModalProps> =
             : method === 'qr_digital'
             ? `QR-${Date.now().toString().slice(-6)}`
             : undefined,
-        cardLastFour: method === 'card' ? '4242' : undefined,
+        cardLastFour: method === 'card' ? '••••' : undefined,
         terminalReference:
           method === 'card'
-            ? 'TRM-VERIFONE-01'
+            ? config.payments?.terminalId || 'TRM-EDC-01'
             : method === 'qr_digital'
-            ? 'PROMPTPAY-GATEWAY'
+            ? 'PROMPTPAY-CONFIRMED'
             : undefined,
         timestamp: new Date().toISOString(),
       };

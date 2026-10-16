@@ -182,7 +182,8 @@ export function computeCartTotals(
     : 1;
 
   const adjustedNetCents = Math.round(netSubtotal.amountInCents * discountRatio);
-  const adjustedTaxCents = Math.round(totalTax.amountInCents * discountRatio);
+  // Invariant: netSubtotal + totalTax must exactly equal grandTotal to prevent 1-cent discrepancies
+  const adjustedTaxCents = grandTotal.amountInCents - adjustedNetCents;
 
   return {
     grossSubtotal: createMoney(grossSubtotal.amountInCents, currency),

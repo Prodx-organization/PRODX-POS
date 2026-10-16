@@ -49,6 +49,19 @@
     --border-hover: #334155;
     --button-radius: 12px;
     --card-radius: 16px;
+
+    /* Semantic Status Tokens */
+    --success: #10B981;
+    --success-light: rgba(16, 185, 129, 0.12);
+    --warning: #F59E0B;
+    --warning-light: rgba(245, 158, 11, 0.12);
+    --danger: #EF4444;
+    --danger-light: rgba(239, 68, 68, 0.12);
+
+    /* Chart & Extended Semantic Tokens */
+    --chart-blue: #3B82F6;
+    --chart-purple: #8B5CF6;
+    --chart-emerald: #10B981;
   }
 
   body {
@@ -434,22 +447,22 @@
 /* ========================================================================= */
 @keyframes scan-item-flash {
   0% {
-    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.45), 0 0 24px rgba(16, 185, 129, 0.35);
-    background-color: rgba(16, 185, 129, 0.18);
-    transform: scale(1.025);
+    box-shadow: 0 0 0 4px var(--success), 0 0 40px var(--success);
+    background-color: var(--success-light);
+    transform: scale(1.03);
   }
-  35% {
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35), 0 0 16px rgba(16, 185, 129, 0.2);
-    background-color: rgba(16, 185, 129, 0.12);
-    transform: scale(1.01);
+  20% {
+    box-shadow: 0 0 0 3px var(--success), 0 0 30px var(--success);
+    background-color: var(--success-light);
+    transform: scale(1.02);
   }
-  70% {
-    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2), 0 0 8px rgba(16, 185, 129, 0.1);
-    background-color: rgba(16, 185, 129, 0.05);
+  60% {
+    box-shadow: 0 0 0 1px var(--success), 0 0 15px var(--success);
+    background-color: var(--success-light);
     transform: scale(1);
   }
   100% {
-    box-shadow: none;
+    box-shadow: 0 0 0 0 transparent;
     transform: scale(1);
   }
 }
@@ -457,19 +470,19 @@
 @keyframes total-pulse-glow {
   0% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    box-shadow: 0 0 0 0 transparent;
   }
   30% {
     transform: scale(1.03);
-    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.35), 0 0 16px rgba(16, 185, 129, 0.25);
+    box-shadow: 0 0 0 4px var(--success-light), 0 0 16px var(--success-light);
   }
   60% {
     transform: scale(1.015);
-    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 0 2px var(--success-light);
   }
   100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    box-shadow: 0 0 0 0 transparent;
   }
 }
 
@@ -515,6 +528,20 @@
 
 .animate-bounce-short {
   animation: bounce-short 0.4s ease-out 2;
+}
+
+/* Premium Glow & Extra Utilities */
+.shadow-glow {
+  box-shadow: 0 0 15px var(--color-primary-glow), 0 0 30px rgba(var(--primary-color), 0.1);
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
 }
 
 /* ========================================================================= */

@@ -281,7 +281,7 @@ export const CartReceiptPreviewModal: React.FC<CartReceiptPreviewModalProps> = (
               <div className="text-[10px] text-text/60">{currentStore.address || '123 POS Road, Bangkok'}</div>
               <div className="text-[10px] text-text/60">Tel: {currentStore.phone || '02-123-4567'}</div>
               <div className="text-[10px] text-text/60">Tax ID: {(currentStore as any).taxId || '0105561000123'}</div>
-              <div className="inline-block px-2 py-0.5 mt-2 bg-orange-100 text-orange-700 font-sans font-bold text-[9px] rounded uppercase tracking-wider animate-pulse">
+              <div className="inline-block px-2 py-0.5 mt-2 bg-primary/10 text-primary font-sans font-bold text-[9px] rounded uppercase tracking-wider animate-pulse">
                 {language === 'th' ? 'ใบร่างจำลองก่อนขาย' : 'DRAFT ESTIMATE'}
               </div>
             </div>

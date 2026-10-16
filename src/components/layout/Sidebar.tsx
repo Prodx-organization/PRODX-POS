@@ -13,6 +13,8 @@ import {
   X,
   Shield,
   Lock,
+  ChefHat,
+  Zap,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useShift } from '../../context/ShiftContext';
@@ -26,11 +28,13 @@ import { RbacGuard, useRbac } from '../auth/RbacGuard';
 export type NavRoute =
   | 'pos'
   | 'dashboard'
+  | 'kds'
   | 'orders'
   | 'inventory'
   | 'shift'
   | 'customers'
   | 'audit'
+  | 'infrastructure'
   | 'settings';
 
 export interface SidebarProps {
@@ -70,6 +74,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRoute, onNavigate, onCl
       shortcut: 'F2',
     },
     {
+      id: 'kds',
+      label: (t.nav as any).kds || (language === 'th' ? 'จอแสดงในครัว (KDS)' : 'Kitchen Display'),
+      icon: ChefHat,
+      color: 'amber',
+      shortcut: 'F10',
+    },
+    {
       id: 'orders',
       label: t.nav.orders,
       icon: ReceiptText,
@@ -105,6 +116,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRoute, onNavigate, onCl
       shortcut: 'F7',
     },
     {
+      id: 'infrastructure',
+      label: language === 'th' ? 'ระบบ AI และอุปกรณ์ (Antigravity)' : 'Antigravity AI & PnP',
+      icon: Zap,
+      color: 'indigo',
+    },
+    {
       id: 'settings',
       label: t.nav.settings,
       icon: Settings,
@@ -127,7 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRoute, onNavigate, onCl
 
   return (
     <>
-      <aside className="w-[320px] min-w-[320px] max-w-[320px] h-full min-h-full bg-card border-r border-border text-text flex flex-col justify-between shrink-0 select-none">
+      <aside className="w-[280px] min-w-[280px] max-w-[280px] h-full min-h-full bg-card border-r border-border text-text flex flex-col justify-between shrink-0 select-none">
         {/* ส่วนบน: โลโก้ และ รายการเมนู */}
         <div className="flex flex-col min-h-0 flex-1">
           <div className="h-16 px-4 flex items-center justify-between border-b border-border shrink-0">
@@ -216,7 +233,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRoute, onNavigate, onCl
                   </div>
                   <div className="text-[11px] font-medium text-text/60 flex items-center justify-between gap-2">
                     <span className="shrink-0">{t.shift.expectedInDrawer}:</span>
-                    <span className="font-mono font-bold text-text truncate text-right">
+                    <span className="font-mono font-bold text-text truncate text-right tabular-nums">
                       {formatMoney(currentShift.expectedCashInDrawer)}
                     </span>
                   </div>

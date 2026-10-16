@@ -15,6 +15,7 @@ import {
   Store,
   UserRound,
   Wifi,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -138,13 +139,28 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
+  const [isPinMode, setIsPinMode] = useState(true);
+  const [pin, setPin] = useState('');
+
+  const handlePinInput = (digit: string) => {
+    if (pin.length < 6) setPin(prev => prev + digit);
+  };
+
+  const handlePinClear = () => setPin('');
+  const handlePinDelete = () => setPin(prev => prev.slice(0, -1));
+
   const submit = async (event?: React.FormEvent) => {
     event?.preventDefault();
     if (isLoading) return;
 
-    if (!terminalReady || !identity.trim() || !secret) {
-      setTerminalOpen(true);
-      addToast({ title: copy.setup, message: copy.required, type: 'error' });
+    const finalIdentity = isPinMode ? pin : identity.trim();
+    const finalSecret = isPinMode ? pin : secret;
+
+    if (!terminalReady || !finalIdentity || !finalSecret) {
+      if (!isPinMode) {
+        setTerminalOpen(true);
+        addToast({ title: copy.setup, message: copy.required, type: 'error' });
+      }
       return;
     }
     try {
@@ -152,12 +168,13 @@ export const LoginScreen: React.FC = () => {
         organizationSlug: organizationSlug.trim(),
         storeCode: storeCode.trim(),
         registerId: registerId.trim(),
-        emailOrPin: identity.trim(),
-        passwordOrPin: secret,
+        emailOrPin: finalIdentity,
+        passwordOrPin: finalSecret,
       });
       persistTerminal();
     } catch {
       setSecret('');
+      setPin('');
       addToast({ title: copy.title, message: copy.failed, type: 'error' });
     }
   };
@@ -169,7 +186,7 @@ export const LoginScreen: React.FC = () => {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_20%,rgba(255,107,26,.16),transparent_22%),radial-gradient(circle_at_76%_78%,rgba(16,91,145,.28),transparent_38%),linear-gradient(135deg,#06101c,#091a2b_52%,#030913)]" />
           <div className="absolute inset-0 opacity-[0.055]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.8) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.8) 1px,transparent 1px)', backgroundSize: '48px 48px' }} />
           <div className="absolute -left-24 top-1/2 h-72 w-72 rounded-full bg-cyan-500/10 blur-[100px]" />
-          <div className="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-orange-500/10 blur-[110px]" />
+          <div className="absolute right-0 top-1/3 h-80 w-80 rounded-full bg-primary/10 blur-[110px]" />
 
           <div className="relative z-10 flex min-h-[100svh] w-full flex-col px-8 py-8 xl:px-14 xl:py-10">
             <header className="flex items-start justify-between">
@@ -327,29 +344,111 @@ export const LoginScreen: React.FC = () => {
                 </div>
               )}
 
-              <form onSubmit={submit}>
-                <label className="block">
-                  <span className="mb-2 block text-xs font-black text-slate-700">{copy.identity}</span>
-                  <span className="relative block">
-                    <UserRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 stroke-[1.6]" />
-                    <input value={identity} onChange={(event) => setIdentity(event.target.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={256} placeholder={copy.identityPlaceholder} className="h-14 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-900 outline-none transition-all duration-300 placeholder:text-slate-300 hover:border-slate-300 focus:border-[#ff6b1a] focus:ring-4 focus:ring-[#ff6b1a]/10" />
-                  </span>
-                </label>
-
-                <label className="mt-5 block">
-                  <span className="mb-2 block text-xs font-black text-slate-700">{copy.secretPassword}</span>
-                  <span className="relative block">
-                    <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 stroke-[1.6]" />
-                    <input value={secret} onChange={(event) => setSecret(event.target.value)} type={showSecret ? 'text' : 'password'} autoComplete="current-password" maxLength={256} className="h-14 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-12 text-sm font-medium outline-none transition-all duration-300 placeholder:text-slate-300 hover:border-slate-300 focus:border-[#ff6b1a] focus:ring-4 focus:ring-[#ff6b1a]/10" />
-                    <button type="button" onClick={() => setShowSecret((value) => !value)} className="absolute right-1 top-1 flex h-12 w-12 items-center justify-center rounded-lg text-slate-400 transition-all duration-300 hover:bg-slate-50 hover:text-slate-700 active:scale-[0.98]" aria-label={showSecret ? 'Hide password' : 'Show password'}>{showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
-                  </span>
-                </label>
-
-                <button type="submit" disabled={!canSubmit || isLoading} className="group mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#ff6b1a] px-5 text-sm font-black text-white shadow-[0_12px_28px_rgba(255,107,26,.22)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#eb5b0c] hover:shadow-[0_18px_35px_rgba(255,107,26,.26)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#ff6b1a]/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none">
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />}
-                  {isLoading ? copy.signingIn : copy.signIn}
+              <div className="mb-6 flex p-1 bg-slate-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => { setIsPinMode(true); setPin(''); }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${isPinMode ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  {isThai ? 'เข้าด้วยรหัส PIN' : 'PIN Access'}
                 </button>
-              </form>
+                <button
+                  type="button"
+                  onClick={() => { setIsPinMode(false); setPin(''); }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${!isPinMode ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  {isThai ? 'เข้าด้วยอีเมล' : 'Email Login'}
+                </button>
+              </div>
+
+              {isPinMode ? (
+                <div className="space-y-6">
+                  <div className="flex justify-center gap-3">
+                    {[0, 1, 2, 3, 4, 5].map((i) => (
+                      <div
+                        key={i}
+                        className={`w-10 h-14 sm:w-12 sm:h-16 rounded-xl border-2 flex items-center justify-center transition-all duration-200 ${
+                          pin.length > i 
+                            ? 'border-[#ff6b1a] bg-[#ff6b1a]/5 text-[#ff6b1a]' 
+                            : 'border-slate-200 bg-white'
+                        }`}
+                      >
+                        {pin.length > i ? (
+                          <div className="w-2.5 h-2.5 rounded-full bg-current" />
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 max-w-[320px] mx-auto">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
+                      <button
+                        key={digit}
+                        type="button"
+                        onClick={() => handlePinInput(digit.toString())}
+                        className="h-16 sm:h-20 rounded-2xl bg-slate-50 border border-slate-200 text-xl font-black text-slate-900 hover:bg-slate-100 hover:border-slate-300 active:scale-95 transition-all flex items-center justify-center"
+                      >
+                        {digit}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handlePinClear}
+                      className="h-16 sm:h-20 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 text-xs font-bold hover:bg-rose-100 active:scale-95 transition-all flex items-center justify-center uppercase tracking-wider"
+                    >
+                      {isThai ? 'ล้าง' : 'Clear'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePinInput('0')}
+                      className="h-16 sm:h-20 rounded-2xl bg-slate-50 border border-slate-200 text-xl font-black text-slate-900 hover:bg-slate-100 hover:border-slate-300 active:scale-95 transition-all flex items-center justify-center"
+                    >
+                      0
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePinDelete}
+                      className="h-16 sm:h-20 rounded-2xl bg-slate-50 border border-slate-200 text-slate-900 hover:bg-slate-100 hover:border-slate-300 active:scale-95 transition-all flex items-center justify-center"
+                    >
+                      <X className="h-6 w-6 stroke-[2.5]" />
+                    </button>
+                  </div>
+
+                  <button 
+                    type="button"
+                    onClick={() => submit()}
+                    disabled={pin.length < 4 || isLoading}
+                    className="group flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#ff6b1a] px-5 text-sm font-black text-white shadow-[0_12px_28px_rgba(255,107,26,.22)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#eb5b0c] hover:shadow-[0_18px_35px_rgba(255,107,26,.26)] active:scale-[0.98] disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed mt-4"
+                  >
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                    {isLoading ? copy.signingIn : copy.signIn}
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={submit} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <label className="block">
+                    <span className="mb-2 block text-xs font-black text-slate-700">{copy.identity}</span>
+                    <span className="relative block">
+                      <UserRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 stroke-[1.6]" />
+                      <input value={identity} onChange={(event) => setIdentity(event.target.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={256} placeholder={copy.identityPlaceholder} className="h-14 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium text-slate-900 outline-none transition-all duration-300 placeholder:text-slate-300 hover:border-slate-300 focus:border-[#ff6b1a] focus:ring-4 focus:ring-[#ff6b1a]/10" />
+                    </span>
+                  </label>
+
+                  <label className="mt-5 block">
+                    <span className="mb-2 block text-xs font-black text-slate-700">{copy.secretPassword}</span>
+                    <span className="relative block">
+                      <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 stroke-[1.6]" />
+                      <input value={secret} onChange={(event) => setSecret(event.target.value)} type={showSecret ? 'text' : 'password'} autoComplete="current-password" maxLength={256} className="h-14 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-12 text-sm font-medium outline-none transition-all duration-300 placeholder:text-slate-300 hover:border-slate-300 focus:border-[#ff6b1a] focus:ring-4 focus:ring-[#ff6b1a]/10" />
+                      <button type="button" onClick={() => setShowSecret((value) => !value)} className="absolute right-1 top-1 flex h-12 w-12 items-center justify-center rounded-lg text-slate-400 transition-all duration-300 hover:bg-slate-50 hover:text-slate-700 active:scale-[0.98]" aria-label={showSecret ? 'Hide password' : 'Show password'}>{showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
+                    </span>
+                  </label>
+
+                  <button type="submit" disabled={!canSubmit || isLoading} className="group mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#ff6b1a] px-5 text-sm font-black text-white shadow-[0_12px_28px_rgba(255,107,26,.22)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#eb5b0c] hover:shadow-[0_18px_35px_rgba(255,107,26,.26)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#ff6b1a]/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none">
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />}
+                    {isLoading ? copy.signingIn : copy.signIn}
+                  </button>
+                </form>
+              )}
 
               <div className="mt-6 rounded-2xl bg-slate-50 p-4">
                 <div className="flex items-start gap-3">

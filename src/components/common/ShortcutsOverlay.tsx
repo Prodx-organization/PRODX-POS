@@ -130,6 +130,16 @@ export const ShortcutsOverlay: React.FC<ShortcutsOverlayProps> = ({
         descTh: 'ตั้งค่าเครื่องพิมพ์ใบเสร็จ ธีม อัตราภาษี และสกุลเงิน',
         route: 'settings',
       },
+      {
+        id: 'F10',
+        category: 'nav',
+        keyDisplay: ['F10'],
+        labelEn: 'Kitchen Display (KDS)',
+        labelTh: 'จอแสดงออเดอร์ในครัว (KDS)',
+        descEn: 'Track order preparation tickets & kitchen status',
+        descTh: 'ติดตามตั๋วรายการอาหาร กำลังปรุง และพร้อมเสิร์ฟ',
+        route: 'kds',
+      },
 
       // Global & Action Shortcuts
       {

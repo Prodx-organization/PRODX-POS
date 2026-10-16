@@ -62,7 +62,7 @@ export const ManagerFinancialKPIs: React.FC<ManagerFinancialKPIsProps> = ({
               {isLoading ? (
                 <Skeleton className="h-9 w-32 mt-2" />
               ) : (
-                <div className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-text">
+                <div className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-text border-b-2 border-primary/5 pb-1 w-fit tabular-nums">
                   {formatMoney(metrics.netSales)}
                 </div>
               )}
@@ -103,7 +103,7 @@ export const ManagerFinancialKPIs: React.FC<ManagerFinancialKPIsProps> = ({
               {isLoading ? (
                 <Skeleton className="h-9 w-24 mt-2" />
               ) : (
-                <div className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-text">
+                <div className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-text tabular-nums">
                   {metrics.ordersCount}{' '}
                   <span className="text-xs font-sans font-medium text-text/50">
                     {language === 'th' ? 'บิล' : 'bills'}
@@ -113,7 +113,7 @@ export const ManagerFinancialKPIs: React.FC<ManagerFinancialKPIsProps> = ({
             </div>
             <div className="mt-3 pt-3 border-t border-border text-[11px] text-text/70 font-medium flex items-center justify-between">
               <span>{t.dashboard.avgBasket}:</span>
-              <span className="font-mono font-bold text-text">
+              <span className="font-mono font-bold text-text tabular-nums">
                 {formatMoney(metrics.avgOrderValue)}
               </span>
             </div>
@@ -133,7 +133,7 @@ export const ManagerFinancialKPIs: React.FC<ManagerFinancialKPIsProps> = ({
               {isLoading ? (
                 <Skeleton className="h-9 w-32 mt-2" />
               ) : currentShift ? (
-                <div className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-text">
+                <div className="mt-2 text-2xl sm:text-3xl font-black font-mono tracking-tight text-text tabular-nums">
                   {formatMoney(currentShift.expectedCashInDrawer)}
                 </div>
               ) : (
@@ -176,7 +176,7 @@ export const ManagerFinancialKPIs: React.FC<ManagerFinancialKPIsProps> = ({
             </div>
             <div className="mt-3 pt-3 border-t border-border text-[11px] text-text/70 flex items-center justify-between">
               <span>{language === 'th' ? 'รอซิงก์ออฟไลน์:' : 'Offline Outbox:'}</span>
-              <Badge variant={pendingCount > 0 ? 'warning' : 'neutral'} size="sm">
+              <Badge variant={pendingCount > 0 ? 'warning' : 'neutral'} size="sm" className="tabular-nums">
                 {pendingCount} {t.common.pending}
               </Badge>
             </div>

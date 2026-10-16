@@ -10,6 +10,10 @@ export interface AppConfiguration {
   hardware: {
     keyboardFocusCapture: boolean;
   };
+  payments: {
+    promptPayId: string;
+    terminalId: string;
+  };
 }
 
 const DEFAULT_CONFIG: AppConfiguration = {
@@ -23,6 +27,10 @@ const DEFAULT_CONFIG: AppConfiguration = {
   },
   hardware: {
     keyboardFocusCapture: true,
+  },
+  payments: {
+    promptPayId: '0812345678', // Default simulation ID
+    terminalId: 'TRM-VERIFONE-01',
   }
 };
 
@@ -56,6 +64,7 @@ class ConfigPersistenceManager {
           branding: { ...DEFAULT_CONFIG.branding, ...parsed.branding },
           theme: { ...DEFAULT_CONFIG.theme, ...parsed.theme },
           hardware: { ...DEFAULT_CONFIG.hardware, ...parsed.hardware },
+          payments: { ...DEFAULT_CONFIG.payments, ...parsed.payments },
         };
       }
     } catch (e) {
@@ -71,12 +80,14 @@ class ConfigPersistenceManager {
     branding?: Partial<AppConfiguration['branding']>;
     theme?: Partial<AppConfiguration['theme']>;
     hardware?: Partial<AppConfiguration['hardware']>;
+    payments?: Partial<AppConfiguration['payments']>;
   }) {
     const current = this.getConfig();
     const nextConfig: AppConfiguration = {
       branding: { ...current.branding, ...updates.branding },
       theme: { ...current.theme, ...updates.theme },
       hardware: { ...current.hardware, ...updates.hardware },
+      payments: { ...current.payments, ...updates.payments },
     };
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(nextConfig));
     return nextConfig;

@@ -66,7 +66,7 @@ export const ReceiptPaperPreview: React.FC<ReceiptPaperPreviewProps> = ({
             onClick={() => setViewMode('paper')}
             className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ${
               viewMode === 'paper'
-                ? 'bg-white dark:bg-white/10 text-orange-600 dark:text-orange-400 shadow-2xs font-bold'
+                ? 'bg-white dark:bg-white/10 text-primary dark:text-orange-400 shadow-2xs font-bold'
                 : 'text-text/70 dark:text-white/60 hover:text-text'
             }`}
           >
@@ -78,7 +78,7 @@ export const ReceiptPaperPreview: React.FC<ReceiptPaperPreviewProps> = ({
             onClick={() => setViewMode('raw_text')}
             className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ${
               viewMode === 'raw_text'
-                ? 'bg-white dark:bg-white/10 text-orange-600 dark:text-orange-400 shadow-2xs font-bold'
+                ? 'bg-white dark:bg-white/10 text-primary dark:text-orange-400 shadow-2xs font-bold'
                 : 'text-text/70 dark:text-white/60 hover:text-text'
             }`}
           >
@@ -90,7 +90,7 @@ export const ReceiptPaperPreview: React.FC<ReceiptPaperPreviewProps> = ({
             onClick={() => setViewMode('hex_dump')}
             className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ${
               viewMode === 'hex_dump'
-                ? 'bg-white dark:bg-white/10 text-orange-600 dark:text-orange-400 shadow-2xs font-bold'
+                ? 'bg-white dark:bg-white/10 text-primary dark:text-orange-400 shadow-2xs font-bold'
                 : 'text-text/70 dark:text-white/60 hover:text-text'
             }`}
           >

@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   Tag,
   ArrowRight,
+  Smartphone,
 } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '../../../components/common/Card';
 import { Badge } from '../../../components/common/Badge';
@@ -799,6 +800,120 @@ export const AppearanceSettingsTab: React.FC<AppearanceSettingsTabProps> = ({
                 ? 'รูปภาพนี้จะแสดงบนจอฝั่งลูกค้าขณะไม่มีการสแกนสินค้าเพื่อโปรโมตแคมเปญ'
                 : 'Displayed on customer screen when idle to advertise special promotions.'}
             </p>
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Live Multi-Display Simulation (Enterprise Grade) */}
+      <Card className="border border-border/80 shadow-lg rounded-2xl overflow-hidden bg-[#07111f] text-white">
+        <CardHeader className="bg-white/5 border-b border-white/10 py-5 px-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-primary text-white shadow-glow">
+              <Monitor className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-black tracking-tight">
+                {language === 'th' ? 'จำลองการแสดงผลข้ามอุปกรณ์ (Live Multi-Display Simulation)' : 'Live Multi-Display Simulation'}
+              </h3>
+              <p className="text-xs text-white/50 mt-0.5">
+                {language === 'th' ? 'ตรวจสอบสไตล์และแบรนด์ของคุณบนหน้าจอ POS ทุกรูปแบบ' : 'Audit your brand and theme harmony across all hardware form factors.'}
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardBody className="p-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            {/* 1. Desktop POS Mockup */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-white/40 mb-1">
+                <Monitor className="h-3 w-3" />
+                <span>Stationary Desktop POS</span>
+              </div>
+              <div className="aspect-video w-full rounded-2xl border-4 border-[#1e293b] bg-[#0f172a] relative overflow-hidden shadow-2xl group">
+                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+                {/* Mock Desktop UI */}
+                <div className="absolute inset-0 flex flex-col scale-[0.3] origin-top-left w-[333%] h-[333%] pointer-events-none">
+                   <div className="h-20 w-full border-b border-white/10 flex items-center px-8" style={{ backgroundColor: currentPreset.card }}>
+                      <div className="w-12 h-12 rounded-xl" style={{ backgroundColor: currentPreset.primary }} />
+                      <div className="ml-4 h-6 w-64 rounded bg-white/10" />
+                      <div className="ml-auto flex gap-4">
+                         <div className="w-40 h-10 rounded-xl bg-white/5 border border-white/10" />
+                         <div className="w-12 h-12 rounded-xl bg-primary/20" />
+                      </div>
+                   </div>
+                   <div className="flex-1 flex p-8 gap-8">
+                      <div className="w-24 h-full rounded-2xl bg-white/5 border border-white/10" />
+                      <div className="flex-1 space-y-8">
+                         <div className="grid grid-cols-4 gap-6">
+                            {[1,2,3,4].map(i => <div key={i} className="h-40 rounded-3xl" style={{ backgroundColor: currentPreset.card, border: `1px solid ${currentPreset.border}` }} />)}
+                         </div>
+                         <div className="h-96 rounded-3xl" style={{ backgroundColor: currentPreset.card, border: `1px solid ${currentPreset.border}` }} />
+                      </div>
+                   </div>
+                </div>
+                <div className="absolute bottom-0 inset-x-0 h-1 bg-[#1e293b]" />
+              </div>
+              <div className="text-center text-[10px] font-bold text-white/30">1920 x 1080 Terminal</div>
+            </div>
+
+            {/* 2. Tablet / iPad Mockup */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-white/40 mb-1">
+                <Tv className="h-3 w-3" />
+                <span>Mobile Tablet POS</span>
+              </div>
+              <div className="aspect-[4/3] w-full rounded-[2.5rem] border-8 border-[#1e293b] bg-[#0f172a] relative overflow-hidden shadow-2xl">
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
+                {/* Mock Tablet UI */}
+                <div className="absolute inset-0 flex flex-col scale-[0.4] origin-top-left w-[250%] h-[250%] pointer-events-none">
+                   <div className="h-24 w-full flex items-center px-10 gap-6" style={{ backgroundColor: currentPreset.card }}>
+                      <div className="w-16 h-16 rounded-2xl" style={{ backgroundColor: currentPreset.primary }} />
+                      <div className="flex-1 h-8 rounded-full bg-white/10" />
+                      <div className="w-16 h-16 rounded-2xl bg-primary/20" />
+                   </div>
+                   <div className="p-10 grid grid-cols-2 gap-8">
+                      <div className="h-80 rounded-[3rem]" style={{ backgroundColor: currentPreset.card, border: `2px solid ${currentPreset.border}` }} />
+                      <div className="h-80 rounded-[3rem]" style={{ backgroundColor: currentPreset.card, border: `2px solid ${currentPreset.border}` }} />
+                      <div className="h-80 rounded-[3rem] col-span-2" style={{ backgroundColor: currentPreset.primary }} />
+                   </div>
+                </div>
+                {/* Home indicator */}
+                <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-32 h-1 rounded-full bg-white/20" />
+              </div>
+              <div className="text-center text-[10px] font-bold text-white/30">10.5" Retina Display</div>
+            </div>
+
+            {/* 3. Smartphone Mockup */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-white/40 mb-1">
+                <Smartphone className="h-3 w-3" />
+                <span>Quick Admin Mobile</span>
+              </div>
+              <div className="aspect-[9/19] w-[180px] mx-auto rounded-[3rem] border-[10px] border-[#1e293b] bg-[#0f172a] relative overflow-hidden shadow-2xl">
+                <div className="absolute top-0 inset-x-0 h-7 flex justify-center items-center">
+                   <div className="w-20 h-4 bg-[#1e293b] rounded-b-2xl" />
+                </div>
+                {/* Mock Mobile UI */}
+                <div className="absolute inset-0 pt-8 flex flex-col pointer-events-none">
+                   <div className="p-5 space-y-4">
+                      <div className="w-12 h-12 rounded-2xl mx-auto shadow-lg" style={{ backgroundColor: currentPreset.primary }} />
+                      <div className="h-4 w-3/4 bg-white/20 rounded-full mx-auto" />
+                      <div className="space-y-3 pt-4">
+                         {[1,2,3,4].map(i => (
+                            <div key={i} className="h-14 rounded-2xl flex items-center px-4 gap-3" style={{ backgroundColor: currentPreset.card, border: `1px solid ${currentPreset.border}` }}>
+                               <div className="w-6 h-6 rounded-lg bg-white/5" />
+                               <div className="flex-1 h-3 rounded-full bg-white/10" />
+                            </div>
+                         ))}
+                      </div>
+                      <div className="mt-8 h-12 w-full rounded-2xl shadow-glow" style={{ backgroundColor: currentPreset.primary }} />
+                   </div>
+                </div>
+                {/* Home indicator */}
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-16 h-1 rounded-full bg-white/20" />
+              </div>
+              <div className="text-center text-[10px] font-bold text-white/30">6.7" OLED Smartphone</div>
+            </div>
           </div>
         </CardBody>
       </Card>

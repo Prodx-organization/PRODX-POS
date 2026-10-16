@@ -762,7 +762,7 @@ export const GlobalSearchInput: React.FC<GlobalSearchInputProps> = ({
                     VIP: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30',
                     Gold: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
                     Silver: 'bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/30',
-                    Bronze: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30',
+                    Bronze: 'bg-primary/10 text-primary dark:text-orange-400 border-primary/30',
                   };
 
                   return (

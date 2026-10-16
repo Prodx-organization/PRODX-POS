@@ -231,31 +231,43 @@ export const PosScreen: React.FC = () => {
 
     if (codes.length === 0) {
       setIsBulkAdding(false);
+      addToast({
+        title: language === 'th' ? 'ไม่มีข้อมูลบาร์โค้ด' : 'No Barcodes Found',
+        message: language === 'th' ? 'กรุณาระบุรหัสบาร์โค้ดอย่างน้อย 1 รายการ' : 'Please provide at least one valid barcode entry.',
+        type: 'warning',
+      });
       return;
     }
+
+    // 1. Resolve all local products first
+    const itemsToProcess = codes.map(code => {
+      const localProd = products.find(
+        (p) =>
+          p.barcode.toLowerCase() === code.toLowerCase() ||
+          p.sku.toLowerCase() === code.toLowerCase()
+      );
+      return { code, localProd };
+    });
+
+    // 2. For items not found locally, fetch concurrently
+    const results = await Promise.all(itemsToProcess.map(async ({ code, localProd }) => {
+      if (localProd) return { prod: localProd, code };
+      
+      try {
+        const remoteProd = await catalogApi!.getProductByBarcode(code);
+        return { prod: remoteProd || null, code };
+      } catch (err) {
+        console.error('[BulkAdd] Error loading barcode:', code, err);
+        return { prod: null, code };
+      }
+    }));
 
     const addedList: Product[] = [];
     const notFoundList: string[] = [];
     const outOfStockList: Product[] = [];
 
-    for (const code of codes) {
-      let prod = products.find(
-        (p) =>
-          p.barcode.toLowerCase() === code.toLowerCase() ||
-          p.sku.toLowerCase() === code.toLowerCase()
-      );
-
-      if (!prod) {
-        try {
-          const remoteProd = await catalogApi!.getProductByBarcode(code);
-          if (remoteProd) {
-            prod = remoteProd;
-          }
-        } catch (err) {
-          console.error('[BulkAdd] Error loading barcode:', code, err);
-        }
-      }
-
+    // 3. Process results synchronously to maintain cart order (mostly) and avoid race conditions in addItem state
+    for (const { prod, code } of results) {
       if (prod) {
         if (prod.currentStock <= 0) {
           outOfStockList.push(prod);
@@ -308,12 +320,14 @@ export const PosScreen: React.FC = () => {
     }
   };
 
+  const deferredSearchQuery = React.useDeferredValue(searchQuery);
+
   // Filter products by selected category and search string
   const filteredProducts = useMemo(() => {
+    const q = deferredSearchQuery.toLowerCase().trim();
     return products.filter((p) => {
       const matchesCategory =
         selectedCategory === 'cat-all' || p.categoryId === selectedCategory;
-      const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
         p.name.toLowerCase().includes(q) ||
@@ -321,7 +335,7 @@ export const PosScreen: React.FC = () => {
         p.barcode.includes(q);
       return matchesCategory && matchesSearch;
     });
-  }, [products, selectedCategory, searchQuery]);
+  }, [products, selectedCategory, deferredSearchQuery]);
 
   // Reset focus when filtered products change
   useEffect(() => {
@@ -458,7 +472,7 @@ export const PosScreen: React.FC = () => {
                   setIsAiModalOpen(true);
                 }}
                 title={language === 'th' ? 'ผู้ช่วย AI แคชเชียร์ (แนะนำสินค้า & อัพเซลล์)' : 'AI Cashier Assistant & Upselling'}
-                className="h-10 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-all shrink-0 active:scale-95 shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                className="h-10 px-3 rounded-lg bg-[var(--chart-purple)] hover:brightness-110 text-white font-bold text-xs transition-all shrink-0 active:scale-95 shadow-2xs flex items-center gap-1.5 cursor-pointer"
               >
                 <Sparkles className="h-4 w-4 text-yellow-300 animate-pulse" />
                 <span className="hidden sm:inline font-bold whitespace-nowrap">

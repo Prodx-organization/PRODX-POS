@@ -596,6 +596,8 @@ export const SettingsScreen: React.FC = () => {
       branchName: localStorage.getItem('prodx_pos_branch_name') || 'สาขาหลัก (Headquarters)',
       receiptHeaderMsg: localStorage.getItem('prodx_pos_receipt_header_msg') || 'ยินดีต้อนรับสู่ PRODX Store',
       receiptFooterMsg: localStorage.getItem('prodx_pos_receipt_footer_msg') || 'ขอบคุณที่ใช้บริการ / สินค้าซื้อแล้วไม่รับเปลี่ยนคืน',
+      promptPayId: localStorage.getItem('prodx_pos_promptpay_id') || '0812345678',
+      terminalId: localStorage.getItem('prodx_pos_terminal_id') || 'TRM-EDC-01',
     };
   }, [session?.currentStore]);
 
@@ -724,6 +726,8 @@ export const SettingsScreen: React.FC = () => {
       localStorage.setItem('prodx_pos_branch_name', storeForm.branchName);
       localStorage.setItem('prodx_pos_receipt_header_msg', storeForm.receiptHeaderMsg);
       localStorage.setItem('prodx_pos_receipt_footer_msg', storeForm.receiptFooterMsg);
+      localStorage.setItem('prodx_pos_promptpay_id', storeForm.promptPayId);
+      localStorage.setItem('prodx_pos_terminal_id', storeForm.terminalId);
 
       localStorage.setItem('prodx_pos_tax_rate_bps', String(taxForm.defaultTaxRateBps));
       localStorage.setItem('prodx_pos_tax_type', taxForm.taxCalculationType);

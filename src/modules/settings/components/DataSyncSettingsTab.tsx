@@ -345,6 +345,64 @@ export const DataSyncSettingsTab: React.FC = () => {
         </CardBody>
       </Card>
 
+      {/* 3. Adapter Strategy & Mock Data Toggle */}
+      <Card className="border border-border/80 shadow-sm rounded-lg overflow-hidden">
+        <CardHeader className="bg-card/50 border-b border-border/60 py-3.5 px-5">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-md bg-rose-500/10 text-rose-500">
+              <Zap className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-text">
+                {language === 'th' ? 'โหมดข้อมูลและอแดปเตอร์ (Data Adapter Strategy)' : 'Data Adapter Strategy'}
+              </h3>
+              <p className="text-[11px] text-text/50">
+                {language === 'th'
+                  ? 'เลือกระหว่างข้อมูลจำลอง (Mock) และข้อมูลจริงจากโปรดักชั่น API'
+                  : 'Toggle between local in-memory mocks and live production API services.'}
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardBody className="p-5 space-y-4">
+          <div className="p-4 rounded-lg border border-border/80 bg-card/60 flex items-center justify-between">
+            <div>
+              <div className="text-xs font-bold text-text">
+                {language === 'th' ? 'ปิดใช้งานข้อมูลจำลอง (Disable Mock Adapters)' : 'Disable Mock Adapters'}
+              </div>
+              <div className="text-[11px] text-text/50 mt-0.5">
+                {language === 'th'
+                  ? 'บังคับให้ระบบใช้เฉพาะ Production API เท่านั้น (ต้องการการเชื่อมต่อเซิร์ฟเวอร์)'
+                  : 'Force system to bypass all mocks and use production network adapters.'}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const current = localStorage.getItem('prodx_disable_mocks') === 'true';
+                localStorage.setItem('prodx_disable_mocks', (!current).toString());
+                addToast({
+                  title: language === 'th' ? 'เปลี่ยนโหมดอแดปเตอร์แล้ว' : 'Adapter Strategy Updated',
+                  message: language === 'th' ? 'กรุณารีโหลดหน้าจอเพื่อใช้การตั้งค่าใหม่' : 'Please reload the application to apply changes.',
+                  type: 'info',
+                });
+                setTimeout(() => window.location.reload(), 1500);
+              }}
+              className={`w-11 h-6 shrink-0 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
+                localStorage.getItem('prodx_disable_mocks') === 'true' ? 'bg-rose-500' : 'bg-border dark:bg-background'
+              }`}
+            >
+              <div
+                className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
+                  localStorage.getItem('prodx_disable_mocks') === 'true' ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </CardBody>
+      </Card>
+
       {/* Local IndexedDB Storage Inspector */}
       <Card className="border border-border/80 shadow-sm rounded-lg overflow-hidden">
         <CardHeader className="bg-card/50 border-b border-border/60 py-3.5 px-5">

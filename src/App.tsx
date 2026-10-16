@@ -31,10 +31,13 @@ import { ShiftScreen } from './modules/shift/ShiftScreen';
 import { CustomersScreen } from './modules/customers/CustomersScreen';
 import { AuditScreen } from './modules/audit/AuditScreen';
 import { SettingsScreen } from './modules/settings/SettingsScreen';
+import { KitchenDisplayScreen } from './modules/kds/KitchenDisplayScreen';
 import { ReceiptValidationPortal } from './components/receipt/ReceiptValidationPortal';
 import { ShortcutsOverlay } from './components/common/ShortcutsOverlay';
 import { DevPerformanceOverlay } from './components/dev/DevPerformanceOverlay';
 import { RbacGuard } from './components/auth/RbacGuard';
+import { InfrastructureDashboard } from './components/admin/InfrastructureDashboard';
+import { FrontendAssistant } from './components/ai/FrontendAssistant';
 
 const MainApplication: React.FC = () => {
   const { session } = useAuth();
@@ -91,6 +94,9 @@ const MainApplication: React.FC = () => {
       } else if (e.key === 'F8') {
         e.preventDefault();
         setCurrentRoute('settings');
+      } else if (e.key === 'F10') {
+        e.preventDefault();
+        setCurrentRoute('kds');
       }
     };
 
@@ -124,6 +130,11 @@ const MainApplication: React.FC = () => {
             >
               <DashboardScreen onNavigate={setCurrentRoute} />
             </RbacGuard>
+          </ErrorBoundary>
+        )}
+        {currentRoute === 'kds' && (
+          <ErrorBoundary moduleName="Kitchen Display System (KDS)">
+            <KitchenDisplayScreen />
           </ErrorBoundary>
         )}
         {currentRoute === 'orders' && (
@@ -165,6 +176,18 @@ const MainApplication: React.FC = () => {
             </RbacGuard>
           </ErrorBoundary>
         )}
+        {currentRoute === 'infrastructure' && (
+          <ErrorBoundary moduleName="Antigravity AI & Plug & Play Infrastructure">
+            <RbacGuard
+              module="settings"
+              allowedRoles={['manager', 'admin']}
+              hideMode="denied-card"
+              onRedirectToPos={() => setCurrentRoute('pos')}
+            >
+              <InfrastructureDashboard />
+            </RbacGuard>
+          </ErrorBoundary>
+        )}
         {currentRoute === 'settings' && (
           <ErrorBoundary moduleName="System & Hardware Settings">
             <RbacGuard
@@ -191,6 +214,9 @@ const MainApplication: React.FC = () => {
 
       {/* Hidden Developer HUD Overlay for Real-Time FPS, DB Latency & Memory (Ctrl+Shift+D) */}
       <DevPerformanceOverlay />
+
+      {/* Gemini AI Front-End Assistant Widget */}
+      <FrontendAssistant />
     </>
   );
 };
@@ -207,6 +233,28 @@ export default function App() {
     (window.location.search.includes('validate_receipt=true') ||
       window.location.search.includes('receipt=') ||
       window.location.hash.includes('validate-receipt'));
+
+  const isKdsMode =
+    typeof window !== 'undefined' &&
+    (window.location.search.includes('mode=kds') ||
+      window.location.search.includes('display=kds') ||
+      window.location.hash.includes('kds'));
+
+  if (isKdsMode) {
+    return (
+      <GlobalErrorRecoveryProvider>
+        <ErrorBoundary isGlobal moduleName="PRODX Kitchen Display System (KDS)">
+          <AuthProvider>
+            <ThemeProvider>
+              <LanguageProvider>
+                <KitchenDisplayScreen />
+              </LanguageProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </ErrorBoundary>
+      </GlobalErrorRecoveryProvider>
+    );
+  }
 
   if (isReceiptValidationMode) {
     return (

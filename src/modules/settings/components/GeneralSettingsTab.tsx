@@ -1,5 +1,5 @@
 import React from 'react';
-import { Store, Globe, MapPin, Phone, Clock, FileText, Check, DollarSign, Building2, Printer } from 'lucide-react';
+import { Store, Globe, MapPin, Phone, Clock, FileText, Check, DollarSign, Building2, Printer, CreditCard } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '../../../components/common/Card';
 import { Badge } from '../../../components/common/Badge';
 import { useLanguage } from '../../../context/LanguageContext';
@@ -517,6 +517,72 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
                   </button>
                 );
               })}
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+      {/* 3. Financial & Payment Terminals Configuration */}
+      <Card className="border border-border/80 shadow-sm rounded-lg overflow-hidden">
+        <CardHeader className="bg-card/50 border-b border-border/60 py-3.5 px-5">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="p-1.5 rounded-md bg-primary/10 text-primary shrink-0">
+              <DollarSign className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-bold text-text truncate">
+                {language === 'th' ? 'การตั้งค่าช่องทางชำระเงินและเครื่องรูดบัตร (Payments & Terminals)' : 'Financial & Payment Terminals'}
+              </h3>
+              <p className="text-[11px] text-text/50 truncate">
+                {language === 'th' ? 'จัดการรหัส PromptPay ID และหมายเลขเครื่องรูดบัตร EDC ประจำร้าน' : 'Manage PromptPay ID and EDC terminal identification for this register.'}
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardBody className="p-5 space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* PromptPay ID */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-text/80 uppercase tracking-wide">
+                {language === 'th' ? 'หมายเลข PromptPay (Phone / Tax ID)' : 'PromptPay ID'}
+              </label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text/40 group-focus-within:text-primary transition-colors">
+                  <Phone className="h-3.5 w-3.5" />
+                </div>
+                <input
+                  type="text"
+                  value={formData.promptPayId}
+                  onChange={(e) => onChangeField('promptPayId', e.target.value)}
+                  placeholder="e.g. 0812345678"
+                  className="w-full h-10 pl-9 pr-3.5 rounded-xl border border-border bg-background text-xs font-mono font-bold text-text focus:outline-hidden focus:ring-2 focus:ring-primary/20 transition shadow-2xs"
+                />
+              </div>
+              <p className="text-[10px] text-text/40">
+                {language === 'th' ? 'หมายเลขนี้จะใช้สำหรับสร้าง QR Code รับเงินอัตโนมัติ' : 'This ID is used to generate dynamic payment QR codes for customers.'}
+              </p>
+            </div>
+
+            {/* EDC Terminal Reference */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-text/80 uppercase tracking-wide">
+                {language === 'th' ? 'รหัสอ้างอิงเครื่องรูดบัตร (Terminal ID)' : 'EDC Terminal ID'}
+              </label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text/40 group-focus-within:text-primary transition-colors">
+                  <CreditCard className="h-3.5 w-3.5" />
+                </div>
+                <input
+                  type="text"
+                  value={formData.terminalId}
+                  onChange={(e) => onChangeField('terminalId', e.target.value)}
+                  placeholder="e.g. TRM-EDC-01"
+                  className="w-full h-10 pl-9 pr-3.5 rounded-xl border border-border bg-background text-xs font-mono font-bold text-text focus:outline-hidden focus:ring-2 focus:ring-primary/20 transition shadow-2xs"
+                />
+              </div>
+              <p className="text-[10px] text-text/40">
+                {language === 'th' ? 'ชื่อหรือรหัสประจำเครื่อง EDC สำหรับบันทึกในใบเสร็จ' : 'Hardware identifier recorded on transactions for terminal reconciliation.'}
+              </p>
             </div>
           </div>
         </CardBody>

@@ -550,7 +550,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         category: 'actions',
         title: t.commandPalette.actions.switchLangTitle,
         description: t.commandPalette.actions.switchLangDesc,
-        icon: <Globe className="h-4 w-4 text-orange-500" />,
+        icon: <Globe className="h-4 w-4 text-primary" />,
         badge: `${language.toUpperCase()}`,
         keywords: 'language thai english chinese japanese locale translate ภาษา สลับภาษา ไทย อังกฤษ 中文 日本語',
         onExecute: () => {
@@ -564,7 +564,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         category: 'actions',
         title: t.commandPalette.actions.roleAdminTitle,
         description: t.commandPalette.actions.roleAdminDesc,
-        icon: <Shield className="h-4 w-4 text-orange-500" />,
+        icon: <Shield className="h-4 w-4 text-primary" />,
         badge: session?.currentUser.role === 'admin' ? 'Active Role' : undefined,
         keywords: 'role rbac admin administrator alex vance สิทธิ์ ผู้ดูแลระบบ แอดมิน',
         onExecute: () => {
@@ -893,7 +893,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         return 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600';
       case 'Bronze':
       default:
-        return 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-300 border border-orange-200 dark:border-orange-500/30';
+        return 'bg-primary/10 text-orange-800 dark:bg-primary/20 dark:text-orange-300 border border-primary/30 dark:border-primary/30';
     }
   };
 
@@ -950,7 +950,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       >
         {/* Search Header */}
         <div className="p-3.5 sm:p-4 border-b border-border border-crisp bg-slate-50/80 dark:bg-slate-900/60 flex items-center gap-3 shrink-0">
-          <div className="p-2 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 shrink-0">
+          <div className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
             <Search className="h-5 w-5" />
           </div>
 
@@ -1015,7 +1015,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-150 active:scale-95 cursor-pointer flex items-center gap-1.5 ${
                   isActive
-                    ? 'bg-orange-600 text-white shadow-2xs'
+                    ? 'bg-primary text-white shadow-2xs'
                     : 'bg-background dark:bg-white/5 text-text/70 hover:bg-zinc-200 dark:hover:bg-white/10 hover:text-text'
                 }`}
               >
@@ -1041,7 +1041,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         >
           {filteredCommands.length === 0 ? (
             <div className="py-14 px-4 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-orange-500/10 text-orange-500 mx-auto flex items-center justify-center mb-3">
+              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary mx-auto flex items-center justify-center mb-3">
                 <Search className="h-6 w-6" />
               </div>
               <h3 className="text-sm font-bold text-text">
@@ -1086,7 +1086,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                           onMouseEnter={() => setSelectedIndex(originalIndex)}
                           className={`group p-2.5 sm:p-3 rounded-xl transition-all duration-150 active:scale-[0.99] cursor-pointer flex items-center justify-between border ${
                             isSelected
-                              ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/30 shadow-2xs'
+                              ? 'bg-primary/10 border-primary/30 shadow-2xs'
                               : 'bg-transparent border-transparent hover:bg-background/70 dark:hover:bg-white/5'
                           }`}
                         >
@@ -1106,7 +1106,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                                 <span
                                   className={`text-xs sm:text-sm font-bold truncate ${
                                     isSelected
-                                      ? 'text-orange-700 dark:text-orange-300'
+                                      ? 'text-primary'
                                       : 'text-text'
                                   }`}
                                 >
@@ -1145,8 +1145,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                             <div
                               className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
                                 isSelected
-                                  ? 'bg-orange-600 text-white shadow-2xs'
-                                  : 'bg-background dark:bg-white/10 text-text/70 group-hover:bg-orange-100 dark:group-hover:bg-orange-500/20 group-hover:text-orange-700 dark:group-hover:text-orange-300'
+                                  ? 'bg-primary text-white shadow-2xs'
+                                  : 'bg-background dark:bg-white/10 text-text/70 group-hover:bg-primary/20 group-hover:text-primary'
                               }`}
                             >
                               <span>+ {t.commandPalette.addToCart}</span>
@@ -1170,7 +1170,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                           onMouseEnter={() => setSelectedIndex(originalIndex)}
                           className={`group p-2.5 sm:p-3 rounded-xl transition-all duration-150 active:scale-[0.99] cursor-pointer flex items-center justify-between border ${
                             isSelected
-                              ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/30 shadow-2xs'
+                              ? 'bg-primary/10 dark:bg-primary/10 border-primary/30 dark:border-primary/30 shadow-2xs'
                               : 'bg-transparent border-transparent hover:bg-background/70 dark:hover:bg-white/5'
                           }`}
                         >
@@ -1184,7 +1184,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                                 <span
                                   className={`text-xs sm:text-sm font-bold truncate ${
                                     isSelected
-                                      ? 'text-orange-700 dark:text-orange-300'
+                                      ? 'text-primary'
                                       : 'text-text'
                                   }`}
                                 >
@@ -1230,8 +1230,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                             <div
                               className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
                                 isSelected
-                                  ? 'bg-orange-600 text-white shadow-2xs'
-                                  : 'bg-background dark:bg-white/10 text-text/70 group-hover:bg-orange-100 dark:group-hover:bg-orange-500/20 group-hover:text-orange-700 dark:group-hover:text-orange-300'
+                                  ? 'bg-primary text-white shadow-2xs'
+                                  : 'bg-background dark:bg-white/10 text-text/70 group-hover:bg-primary/20 group-hover:text-primary'
                               }`}
                             >
                               <span>{t.commandPalette.attachCustomer}</span>
@@ -1265,7 +1265,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                           onMouseEnter={() => setSelectedIndex(originalIndex)}
                           className={`group p-2.5 sm:p-3 rounded-xl transition-all duration-150 active:scale-[0.99] cursor-pointer flex items-center justify-between border ${
                             isSelected
-                              ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/30 shadow-2xs'
+                              ? 'bg-primary/10 dark:bg-primary/10 border-primary/30 dark:border-primary/30 shadow-2xs'
                               : 'bg-transparent border-transparent hover:bg-background/70 dark:hover:bg-white/5'
                           }`}
                         >
@@ -1279,7 +1279,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                                 <span
                                   className={`text-xs sm:text-sm font-mono font-bold truncate ${
                                     isSelected
-                                      ? 'text-orange-700 dark:text-orange-300'
+                                      ? 'text-primary dark:text-orange-300'
                                       : 'text-text'
                                   }`}
                                 >
@@ -1311,8 +1311,8 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                             <div
                               className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
                                 isSelected
-                                  ? 'bg-orange-600 text-white shadow-2xs'
-                                  : 'bg-background dark:bg-white/10 text-text/70 group-hover:bg-orange-100 dark:group-hover:bg-orange-500/20 group-hover:text-orange-700 dark:group-hover:text-orange-300'
+                                  ? 'bg-primary text-white shadow-2xs'
+                                  : 'bg-background dark:bg-white/10 text-text/70 group-hover:bg-primary/20 group-hover:text-primary'
                               }`}
                             >
                               <span>{t.commandPalette.inspectOrder}</span>
@@ -1336,7 +1336,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                           onMouseEnter={() => setSelectedIndex(originalIndex)}
                           className={`group p-2.5 sm:p-3 rounded-xl transition-all duration-150 active:scale-[0.99] cursor-pointer flex items-center justify-between border ${
                             isSelected
-                              ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/30 shadow-2xs'
+                              ? 'bg-primary/10 dark:bg-primary/10 border-primary/30 dark:border-primary/30 shadow-2xs'
                               : 'bg-transparent border-transparent hover:bg-background/70 dark:hover:bg-white/5'
                           }`}
                         >
@@ -1344,7 +1344,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                             <div
                               className={`p-2 rounded-lg shrink-0 transition-colors ${
                                 isSelected
-                                  ? 'bg-orange-600 text-white'
+                                  ? 'bg-primary text-white'
                                   : 'bg-background dark:bg-white/10 text-text/70'
                               }`}
                             >
@@ -1356,7 +1356,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                                 <span
                                   className={`text-xs sm:text-sm font-bold ${
                                     isSelected
-                                      ? 'text-orange-700 dark:text-orange-300'
+                                      ? 'text-primary dark:text-orange-300'
                                       : 'text-text'
                                   }`}
                                 >
@@ -1384,7 +1384,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                             <div
                               className={`p-1.5 rounded-lg transition-all ${
                                 isSelected
-                                  ? 'text-orange-600 dark:text-orange-400'
+                                  ? 'text-primary dark:text-orange-400'
                                   : 'text-text/50 group-hover:text-text'
                               }`}
                             >
@@ -1410,7 +1410,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                             act.disabled ? 'opacity-40 cursor-not-allowed' : ''
                           } ${
                             isSelected
-                              ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/30 shadow-2xs'
+                              ? 'bg-primary/10 dark:bg-primary/10 border-primary/30 dark:border-primary/30 shadow-2xs'
                               : 'bg-transparent border-transparent hover:bg-background/70 dark:hover:bg-white/5'
                           }`}
                         >
@@ -1418,7 +1418,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                             <div
                               className={`p-2 rounded-lg shrink-0 transition-colors ${
                                 isSelected
-                                  ? 'bg-orange-600 text-white'
+                                  ? 'bg-primary text-white'
                                   : 'bg-background dark:bg-white/10 text-text/80'
                               }`}
                             >
@@ -1430,7 +1430,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                                 <span
                                   className={`text-xs sm:text-sm font-bold ${
                                     isSelected
-                                      ? 'text-orange-700 dark:text-orange-300'
+                                      ? 'text-primary dark:text-orange-300'
                                       : 'text-text'
                                   }`}
                                 >
@@ -1462,7 +1462,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                             <div
                               className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
                                 isSelected
-                                  ? 'bg-orange-600 text-white shadow-2xs'
+                                  ? 'bg-primary text-white shadow-2xs'
                                   : 'text-text/50 group-hover:text-text'
                               }`}
                             >

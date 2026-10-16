@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Customer } from '../../domain/order';
 import { Modal } from '../../components/common/Modal';
 import { SearchInput } from '../../components/common/SearchInput';
@@ -6,41 +6,7 @@ import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { useLanguage } from '../../context/LanguageContext';
 import { UserCheck, Star, UserPlus } from 'lucide-react';
-
-const SEED_CUSTOMERS: Customer[] = [
-  {
-    id: 'cust-01',
-    name: 'Elena Rostova',
-    phone: '+66 81 234 5671',
-    email: 'elena.r@example.com',
-    loyaltyTier: 'VIP',
-    loyaltyPoints: 420,
-  },
-  {
-    id: 'cust-02',
-    name: 'Marcus Chen',
-    phone: '+66 89 876 5432',
-    email: 'marcus.c@example.com',
-    loyaltyTier: 'Gold',
-    loyaltyPoints: 215,
-  },
-  {
-    id: 'cust-03',
-    name: 'Sophia Williams',
-    phone: '+66 86 555 1234',
-    email: 'sophia.w@example.com',
-    loyaltyTier: 'Silver',
-    loyaltyPoints: 85,
-  },
-  {
-    id: 'cust-04',
-    name: 'David Miller',
-    phone: '+66 82 333 4444',
-    email: 'david.m@example.com',
-    loyaltyTier: 'Bronze',
-    loyaltyPoints: 20,
-  },
-];
+import { customersService } from '../../services/customersService';
 
 export interface CustomerSelectModalProps {
   isOpen: boolean;
@@ -56,9 +22,16 @@ export const CustomerSelectModal: React.FC<CustomerSelectModalProps> = ({
   onSelectCustomer,
 }) => {
   const [search, setSearch] = useState('');
+  const [customersList, setCustomersList] = useState<Customer[]>(() => customersService.getCustomers());
   const { t, language } = useLanguage();
 
-  const filtered = SEED_CUSTOMERS.filter(
+  useEffect(() => {
+    if (isOpen) {
+      setCustomersList(customersService.getCustomers());
+    }
+  }, [isOpen]);
+
+  const filtered = customersList.filter(
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.phone.includes(search) ||

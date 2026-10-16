@@ -41,6 +41,8 @@ export interface StoreProfileFormState {
   branchName: string;
   receiptHeaderMsg: string;
   receiptFooterMsg: string;
+  promptPayId: string;
+  terminalId: string;
 }
 
 export interface TaxAccountingFormState {

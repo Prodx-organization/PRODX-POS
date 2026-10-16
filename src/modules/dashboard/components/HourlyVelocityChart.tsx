@@ -541,8 +541,8 @@ export const HourlyVelocityChart: React.FC<HourlyVelocityChartProps> = ({
                 >
                   <defs>
                     <linearGradient id="chartLineGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.25} />
-                      <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.0} />
+                      <stop offset="0%" stopColor="var(--primary-color)" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="var(--primary-color)" stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
 
@@ -590,7 +590,7 @@ export const HourlyVelocityChart: React.FC<HourlyVelocityChartProps> = ({
                           ? peakPoint.units
                           : peakPoint.orders
                       }
-                      stroke="#10B981"
+                      stroke="var(--success)"
                       strokeDasharray="4 4"
                       strokeOpacity={0.4}
                     />
@@ -600,18 +600,18 @@ export const HourlyVelocityChart: React.FC<HourlyVelocityChartProps> = ({
                     type="monotone"
                     dataKey={activeMetricKey}
                     name={activeMetricLabel}
-                    stroke="#3B82F6"
+                    stroke="var(--primary-color)"
                     strokeWidth={2.5}
                     dot={{
                       r: 4,
-                      fill: 'var(--card-color, #0F172A)',
-                      stroke: '#3B82F6',
+                      fill: 'var(--card-color)',
+                      stroke: 'var(--primary-color)',
                       strokeWidth: 2,
                     }}
                     activeDot={{
                       r: 6,
-                      fill: '#3B82F6',
-                      stroke: '#FFFFFF',
+                      fill: 'var(--primary-color)',
+                      stroke: 'var(--text-color)',
                       strokeWidth: 2,
                     }}
                     animationDuration={600}
@@ -659,11 +659,11 @@ export const HourlyVelocityChart: React.FC<HourlyVelocityChartProps> = ({
                     type="monotone"
                     dataKey="priorMonthSales"
                     name={momMetrics.priorMonthName}
-                    stroke="#8B5CF6"
+                    stroke="var(--chart-purple)"
                     strokeWidth={2}
                     strokeDasharray="4 4"
                     dot={false}
-                    activeDot={{ r: 5, fill: '#8B5CF6' }}
+                    activeDot={{ r: 5, fill: 'var(--chart-purple)' }}
                     animationDuration={600}
                   />
 
@@ -672,18 +672,18 @@ export const HourlyVelocityChart: React.FC<HourlyVelocityChartProps> = ({
                     type="monotone"
                     dataKey="currentMonthSales"
                     name={momMetrics.currentMonthName}
-                    stroke="#3B82F6"
+                    stroke="var(--primary-color)"
                     strokeWidth={2.5}
                     dot={{
                       r: 3.5,
-                      fill: 'var(--card-color, #0F172A)',
-                      stroke: '#3B82F6',
+                      fill: 'var(--card-color)',
+                      stroke: 'var(--primary-color)',
                       strokeWidth: 2,
                     }}
                     activeDot={{
                       r: 6,
-                      fill: '#3B82F6',
-                      stroke: '#FFFFFF',
+                      fill: 'var(--primary-color)',
+                      stroke: 'var(--text-color)',
                       strokeWidth: 2,
                     }}
                     animationDuration={600}

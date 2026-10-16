@@ -106,15 +106,20 @@ export const TopNav: React.FC<TopNavProps> = ({
           <button
             type="button"
             onClick={onOpenMobileMenu}
-            className="lg:hidden p-2 sm:p-2.5 min-h-[36px] sm:min-h-[44px] min-w-[36px] sm:min-w-[44px] rounded-xl text-text/70 hover:text-text hover:bg-background/80 transition-all duration-150 cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
+            className="lg:hidden p-2 min-h-[44px] min-w-[44px] rounded-xl text-text/70 hover:text-text hover:bg-background/80 transition-all duration-150 cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
             aria-label="Open navigation menu"
           >
             <Menu className="h-5 w-5" />
           </button>
 
-          {/* Desktop Brand Logo */}
-          <div className="hidden sm:flex items-center shrink-0 pr-1 sm:pr-2">
+          {/* Brand Logo - Hide on very small screens to save space */}
+          <div className="hidden min-[400px]:flex items-center shrink-0 pr-1 sm:pr-2">
             <ProdxLogo variant="horizontal" size="sm" showTagline={false} />
+          </div>
+
+          {/* Desktop Brand Logo fallback for very small screens */}
+          <div className="flex min-[400px]:hidden items-center shrink-0 pr-1">
+             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-black text-xs">P.</div>
           </div>
 
           {/* Divider on larger screens */}
@@ -130,10 +135,10 @@ export const TopNav: React.FC<TopNavProps> = ({
                 setIsLangMenuOpen(false);
                 setIsUserMenuOpen(false);
               }}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 min-h-[36px] sm:min-h-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background text-xs font-bold text-text transition-all duration-150 cursor-pointer active:scale-95"
+              className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 min-h-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background text-xs font-bold text-text transition-all duration-150 cursor-pointer active:scale-95"
             >
               <StoreIcon className="h-3.5 w-3.5 text-text/60 shrink-0" />
-              <span className="max-w-[70px] min-[380px]:max-w-[95px] sm:max-w-[130px] md:max-w-[170px] lg:max-w-[200px] truncate">
+              <span className="max-w-[60px] min-[360px]:max-w-[85px] sm:max-w-[130px] md:max-w-[170px] lg:max-w-[200px] truncate">
                 {session.currentStore.name}
               </span>
               <ChevronDown className="h-3.5 w-3.5 text-text/50 shrink-0" />
@@ -200,12 +205,12 @@ export const TopNav: React.FC<TopNavProps> = ({
           <button
             type="button"
             onClick={onOpenCommandPalette}
-            className="flex items-center justify-center p-2 sm:px-2.5 sm:py-2 min-h-[36px] sm:min-h-[44px] min-w-[36px] sm:min-w-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background text-text/70 hover:text-text text-xs font-semibold transition-all duration-150 cursor-pointer active:scale-95 shrink-0"
+            className="flex items-center justify-center p-2 min-h-[44px] min-w-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background text-text/70 hover:text-text text-xs font-semibold transition-all duration-150 cursor-pointer active:scale-95 shrink-0"
             title="Search Products, Customers, Orders (Ctrl+K / ⌘K)"
             aria-label="Search Products, Customers, Orders (Ctrl+K)"
           >
-            <Search className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-text/60" />
-            <span className="hidden sm:inline font-mono text-[10px] bg-card px-1.5 py-0.5 rounded border border-border/60">
+            <Search className="h-4 w-4 text-text/60" />
+            <span className="hidden sm:inline-flex ml-1.5 font-mono text-[10px] bg-card px-1.5 py-0.5 rounded border border-border/60">
               Ctrl+K
             </span>
           </button>
@@ -383,7 +388,7 @@ export const TopNav: React.FC<TopNavProps> = ({
                 setIsCurrencyMenuOpen(false);
                 setIsLangMenuOpen(false);
               }}
-              className="flex items-center justify-center gap-1.5 sm:gap-2 p-1 sm:pl-2.5 sm:pr-2 py-1 sm:py-1.5 min-h-[36px] sm:min-h-[44px] min-w-[36px] sm:min-w-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background transition-all duration-150 cursor-pointer active:scale-95 shrink-0"
+              className="flex items-center justify-center gap-1.5 sm:gap-2 p-1.5 min-h-[44px] min-w-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background transition-all duration-150 cursor-pointer active:scale-95 shrink-0"
             >
               <div className="flex flex-col items-end hidden xl:flex">
                 <span className="text-xs font-bold text-text leading-tight">{session.currentUser.name}</span>
@@ -391,7 +396,7 @@ export const TopNav: React.FC<TopNavProps> = ({
               </div>
               {/* User Profile Avatar with Online Status Indicator Dot */}
               <div className="relative shrink-0">
-                <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-xs font-bold text-white shadow-xs">
+                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-[11px] font-bold text-white shadow-xs">
                   {session.currentUser.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
                 </div>
                 <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">

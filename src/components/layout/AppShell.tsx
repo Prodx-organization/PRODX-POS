@@ -45,7 +45,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       <BackgroundLayer />
 
       {/* Desktop Persistent Sidebar */}
-      <div className="hidden lg:block h-full shrink-0 relative z-10 w-[320px] max-w-full overflow-x-hidden">
+      <div className="hidden lg:block h-full shrink-0 relative z-10 w-[280px] border-r border-border bg-card">
         <Sidebar currentRoute={currentRoute} onNavigate={onNavigate} />
       </div>
 
@@ -55,10 +55,10 @@ export const AppShell: React.FC<AppShellProps> = ({
         onClose={() => setIsMobileMenuOpen(false)}
         title="PRODX POS Navigation"
         side="left"
-        width="w-[320px] max-w-full"
+        width="w-[280px]"
         noPadding={true}
       >
-        <div className="h-full flex flex-col overflow-y-auto overflow-x-hidden no-scrollbar w-[320px] max-w-full">
+        <div className="h-full flex flex-col overflow-y-auto no-scrollbar w-full">
           <Sidebar
             currentRoute={currentRoute}
             onNavigate={onNavigate}
@@ -68,7 +68,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       </Drawer>
 
       {/* Main Workspace Area */}
-      <div className="flex-1 flex flex-col min-w-0 w-full max-w-full h-full overflow-hidden overflow-x-hidden relative z-10">
+      <div className="flex-1 flex flex-col min-w-0 h-full relative z-10">
         {/* Top Navigation */}
         <TopNav
           currentRoute={currentRoute}

@@ -13,6 +13,8 @@ import {
   Store,
   Layers,
   ArrowLeft,
+  ChefHat,
+  Zap,
 } from 'lucide-react';
 import { NavRoute } from './Sidebar';
 import { useBreadcrumb, BreadcrumbLevel } from '../../context/BreadcrumbContext';
@@ -37,6 +39,11 @@ const ROUTE_META: Record<NavRoute, RouteMeta> = {
     id: 'pos',
     label: { th: 'ขายหน้าร้าน (POS)', en: 'POS Register' },
     icon: ShoppingCart,
+  },
+  kds: {
+    id: 'kds',
+    label: { th: 'จอแสดงในครัว (KDS)', en: 'Kitchen Display' },
+    icon: ChefHat,
   },
   inventory: {
     id: 'inventory',
@@ -73,6 +80,11 @@ const ROUTE_META: Record<NavRoute, RouteMeta> = {
     label: { th: 'ประวัติความปลอดภัย', en: 'Audit Logs' },
     icon: ShieldCheck,
   },
+  infrastructure: {
+    id: 'infrastructure',
+    label: { th: 'ระบบ AI และอุปกรณ์', en: 'Antigravity AI & PnP' },
+    icon: Zap,
+  },
 };
 
 export const GlobalBreadcrumb: React.FC<GlobalBreadcrumbProps> = ({
@@ -100,7 +112,7 @@ export const GlobalBreadcrumb: React.FC<GlobalBreadcrumbProps> = ({
   return (
     <div
       aria-label="Breadcrumb navigation"
-      className={`bg-card/90 backdrop-blur-md border-b border-border/60 px-3 sm:px-6 py-1.5 flex items-center justify-between text-xs min-w-0 w-full select-none shadow-2xs ${className}`}
+      className={`bg-card/90 backdrop-blur-md border-b border-border/60 px-3 sm:px-6 py-1 sm:py-1.5 flex items-center justify-between text-xs min-w-0 w-full select-none shadow-2xs ${className}`}
     >
       {/* Left: Interactive Breadcrumb Path Trail */}
       <nav className="flex items-center gap-1 sm:gap-1.5 min-w-0 overflow-x-auto no-scrollbar py-0.5">

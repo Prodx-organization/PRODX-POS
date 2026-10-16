@@ -43,6 +43,15 @@ export const MODULE_ACCESS_RULES: Record<NavRoute, ModuleRule> = {
     descriptionTh: 'การคิดเงินหน้าร้าน สแกนบาร์โค้ด และออกใบเสร็จ',
     isSensitiveFinancial: false,
   },
+  kds: {
+    allowedRoles: ['cashier', 'manager', 'admin'],
+    requiredPermissions: ['pos:checkout'],
+    featureNameEn: 'Kitchen Display System (KDS)',
+    featureNameTh: 'ระบบจอแสดงรายการในครัว (KDS)',
+    descriptionEn: 'Order preparation tickets, cooking status and dispatch.',
+    descriptionTh: 'จัดการออเดอร์ในครัว เวลารอ และสถานะพร้อมเสิร์ฟ',
+    isSensitiveFinancial: false,
+  },
   orders: {
     allowedRoles: ['cashier', 'manager', 'admin'],
     featureNameEn: 'Orders & Receipts Journal',
@@ -104,6 +113,15 @@ export const MODULE_ACCESS_RULES: Record<NavRoute, ModuleRule> = {
     descriptionEn: 'Fiscal tax rates, security policies, hardware peripherals, and store setup.',
     descriptionTh: 'กำหนดอัตราภาษี นโยบายความปลอดภัย อุปกรณ์ต่อพ่วง และการตั้งค่าสาขา',
     isSensitiveFinancial: true,
+  },
+  infrastructure: {
+    allowedRoles: ['manager', 'admin'],
+    requiredPermissions: ['settings:manage'],
+    featureNameEn: 'Antigravity AI & Plug & Play Infrastructure',
+    featureNameTh: 'ระบบ AI และอุปกรณ์ฮาร์ดแวร์ (Antigravity)',
+    descriptionEn: 'Backend infrastructure supervisor, 24/7 automated self-healing, and Plug & Play device drivers.',
+    descriptionTh: 'ระบบดูแลโครงสร้างพื้นฐาน AI อัตโนมัติ 24/7 และจัดการไดรเวอร์อุปกรณ์ Plug & Play',
+    isSensitiveFinancial: false,
   },
 };
 
