@@ -40,9 +40,12 @@ export const createAuditReadService = (db: SqlQueryExecutor) => ({
 
 // Never accept client-origin copies of server-authoritative financial,
 // inventory, shift, or refund events through this supplemental write endpoint.
-const allowedClientAuditActions = new Set([
-  'user_login', 'user_logout', 'order_checkout_queued_offline',
-]);
+const clientAuditSeverity: Record<string, 'info' | 'warn'> = {
+  user_login: 'info',
+  user_logout: 'info',
+  order_checkout_queued_offline: 'warn',
+};
+const allowedClientAuditActions = new Set(Object.keys(clientAuditSeverity));
 
 export type AuditWriteInput = {
   organizationId: string;
@@ -61,9 +64,9 @@ export const createAuditWriteService = (db: TransactionalSqlExecutor) => ({
     if (typeof input.action !== 'string' || !allowedClientAuditActions.has(input.action)) {
       throw new AuditValidationError('Unsupported audit action.');
     }
-    if (input.severity !== 'info' && input.severity !== 'warn' && input.severity !== 'critical') {
-      throw new AuditValidationError('Audit severity must be info, warn, or critical.');
-    }
+    // Severity is policy-derived, not client-controlled; supplemental client
+    // events are never allowed to label themselves critical.
+    const severity = clientAuditSeverity[input.action];
     if (!input.details || typeof input.details !== 'object' || Array.isArray(input.details)) {
       throw new AuditValidationError('Audit details must be a JSON object.');
     }
@@ -83,7 +86,7 @@ export const createAuditWriteService = (db: TransactionalSqlExecutor) => ({
            (id, organization_id, store_id, register_id, user_id, action, severity, details)
          VALUES ($1, $2, $3, NULL, $4, $5, $6, $7::jsonb)
          RETURNING id`,
-        [crypto.randomUUID(), input.organizationId, input.storeId, input.userId, input.action, input.severity, detailsJson],
+        [crypto.randomUUID(), input.organizationId, input.storeId, input.userId, input.action, severity, detailsJson],
       );
       const id = inserted.rows[0]?.id;
       if (typeof id !== 'string') throw new Error('Audit write did not return a persisted record identifier.');
