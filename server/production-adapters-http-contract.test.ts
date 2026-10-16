@@ -81,8 +81,20 @@ test('production refund adapter forwards idempotency and supervisor authorizatio
 });
 
 
-test('production inventory adapter reuses an idempotency key across failed retries and rotates it after success', async () => {
+test('production inventory adapter persists retry keys until success and rotates them after success', async () => {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const stored = new Map<string, string>();
+  const originalWindow = (globalThis as unknown as { window?: unknown }).window;
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      localStorage: {
+        getItem: (key: string) => stored.get(key) ?? null,
+        setItem: (key: string, value: string) => { stored.set(key, value); },
+        removeItem: (key: string) => { stored.delete(key); },
+      },
+    },
+  });
   let attempt = 0;
   globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
     calls.push({ url: String(url), init });
@@ -101,16 +113,23 @@ test('production inventory adapter reuses an idempotency key across failed retri
     }), { status: 201, headers: { 'Content-Type': 'application/json' } });
   }) as typeof fetch;
 
-  const api = createProductionInventoryAdjustmentApi('token-inventory', BASE_URL);
-  const adjust = () => api.adjustStock('store-1', 'product-1', 5, 'purchase_received', 'user-1', 'PO-123');
-  await assert.rejects(adjust(), /simulated lost response/);
-  await adjust();
-  await adjust();
+  try {
+    const api = createProductionInventoryAdjustmentApi('token-inventory', BASE_URL);
+    const adjust = () => api.adjustStock('store-1', 'product-1', 5, 'purchase_received', 'user-1', 'PO-123');
+    await assert.rejects(adjust(), /simulated lost response/);
+    assert.equal(stored.size, 1, 'a failed request must retain its durable retry key');
+    await adjust();
+    assert.equal(stored.size, 0, 'a confirmed response must clear the durable retry key');
+    await adjust();
 
-  const keys = calls.map((call) => JSON.parse(String(call.init?.body)).idempotencyKey as string);
-  assert.equal(calls.length, 3);
-  assert.equal(calls[0].url, BASE_URL + '/api/v1/inventory/adjustments');
-  assert.equal(keys[0], keys[1], 'a retry must reuse the original idempotency key');
-  assert.notEqual(keys[1], keys[2], 'a later intentional operation after success must receive a new key');
-  assert.equal((calls[0].init?.headers as Record<string, string>).Authorization, 'Bearer token-inventory');
+    const keys = calls.map((call) => JSON.parse(String(call.init?.body)).idempotencyKey as string);
+    assert.equal(calls.length, 3);
+    assert.equal(calls[0].url, BASE_URL + '/api/v1/inventory/adjustments');
+    assert.equal(keys[0], keys[1], 'a retry must reuse the original idempotency key');
+    assert.notEqual(keys[1], keys[2], 'a later intentional operation after success must receive a new key');
+    assert.equal((calls[0].init?.headers as Record<string, string>).Authorization, 'Bearer token-inventory');
+  } finally {
+    if (originalWindow === undefined) delete (globalThis as unknown as { window?: unknown }).window;
+    else Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+  }
 });
