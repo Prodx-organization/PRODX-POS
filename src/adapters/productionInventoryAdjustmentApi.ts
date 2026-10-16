@@ -7,14 +7,52 @@ const baseUrl = (apiBaseUrl: string | undefined = API_BASE_URL) => {
 };
 
 const retryKeys = new Map<string, string>();
-const idempotencyKeyFor = (signature: string, prefix: string): string => {
+
+const idempotencyStorageKey = async (signature: string): Promise<string> => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(signature));
+  const fingerprint = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `prodx:inventory-adjustment:idempotency:${fingerprint}`;
+};
+
+const idempotencyKeyFor = async (signature: string, prefix: string): Promise<string> => {
   const existing = retryKeys.get(signature);
   if (existing) return existing;
+
+  // Production browsers persist the operation key without storing the request
+  // signature (which may contain notes or other user-entered data).
+  if (typeof window !== 'undefined') {
+    try {
+      const storageKey = await idempotencyStorageKey(signature);
+      const persisted = window.localStorage.getItem(storageKey);
+      if (persisted) {
+        retryKeys.set(signature, persisted);
+        return persisted;
+      }
+      const key = `${prefix}:${crypto.randomUUID()}`;
+      window.localStorage.setItem(storageKey, key);
+      retryKeys.set(signature, key);
+      return key;
+    } catch {
+      throw new Error('Persistent browser storage is required to safely retry production inventory adjustments.');
+    }
+  }
+
+  // Node-based contract tests use the in-memory fallback; production browsers
+  // take the durable path above.
   const key = `${prefix}:${crypto.randomUUID()}`;
   retryKeys.set(signature, key);
   return key;
 };
-const clearIdempotencyKey = (signature: string): void => { retryKeys.delete(signature); };
+
+const clearIdempotencyKey = async (signature: string): Promise<void> => {
+  retryKeys.delete(signature);
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(await idempotencyStorageKey(signature));
+  } catch {
+    throw new Error('Inventory adjustment was accepted, but its retry key could not be cleared from persistent storage.');
+  }
+};
 
 type ServerEntry = { id: string; store_id: string; product_id: string; quantity_delta: number; resulting_stock: number; reason: StockMovementReason; reference_id: string; performed_by_user_id: string; created_at: string };
 const mapEntry = (e: ServerEntry): InventoryLedgerEntry => {
@@ -39,16 +77,16 @@ export function createProductionInventoryAdjustmentApi(token: string, apiBaseUrl
   return {
     adjustStock: async (storeId: string, productId: string, quantityDelta: number, reason: StockMovementReason, userId: string, notes?: string) => {
       const signature = JSON.stringify({ storeId, productIds: [productId], quantityDelta, reason, notes: notes ?? null, userId });
-      const idempotencyKey = idempotencyKeyFor(signature, 'inventory-adjust');
+      const idempotencyKey = await idempotencyKeyFor(signature, 'inventory-adjust');
       const payload = await postAdjustment(token, { storeId, productIds: [productId], quantityDelta, reason, notes, performedByUserId: userId, idempotencyKey }, apiBaseUrl) as { entries?: unknown };
       if (!Array.isArray(payload?.entries) || payload.entries.length !== 1) throw new Error('Production inventory API returned no authoritative adjustment entry.');
       const entry = mapEntry(payload.entries[0] as ServerEntry);
-      clearIdempotencyKey(signature);
+      await clearIdempotencyKey(signature);
       return entry;
     },
     bulkAdjustStock: async (storeId: string, productIds: readonly string[], quantityDelta: number, reason: StockMovementReason, userId: string, notes?: string) => {
       const signature = JSON.stringify({ storeId, productIds: [...productIds].sort(), quantityDelta, reason, notes: notes ?? null, userId });
-      const idempotencyKey = idempotencyKeyFor(signature, 'inventory-bulk-adjust');
+      const idempotencyKey = await idempotencyKeyFor(signature, 'inventory-bulk-adjust');
       const payload = await postAdjustment(token, { storeId, productIds, quantityDelta, reason, notes, performedByUserId: userId, idempotencyKey }, apiBaseUrl) as { entries?: unknown };
       if (!Array.isArray(payload?.entries)) throw new Error('Production inventory API returned no authoritative bulk adjustment entries.');
       const entries = payload.entries.map(entry => mapEntry(entry as ServerEntry));
