@@ -6,6 +6,16 @@ const baseUrl = () => {
   return API_BASE_URL.replace(/\/$/, '');
 };
 
+const retryKeys = new Map<string, string>();
+const idempotencyKeyFor = (signature: string, prefix: string): string => {
+  const existing = retryKeys.get(signature);
+  if (existing) return existing;
+  const key = `${prefix}:${crypto.randomUUID()}`;
+  retryKeys.set(signature, key);
+  return key;
+};
+const clearIdempotencyKey = (signature: string): void => { retryKeys.delete(signature); };
+
 type ServerEntry = { id: string; store_id: string; product_id: string; quantity_delta: number; resulting_stock: number; reason: StockMovementReason; reference_id: string; performed_by_user_id: string; created_at: string };
 const mapEntry = (e: ServerEntry): InventoryLedgerEntry => {
   if (!e || typeof e !== 'object' || typeof e.id !== 'string' || typeof e.product_id !== 'string') {
@@ -28,14 +38,22 @@ async function postAdjustment(token: string, payload: Record<string, unknown>): 
 export function createProductionInventoryAdjustmentApi(token: string) {
   return {
     adjustStock: async (storeId: string, productId: string, quantityDelta: number, reason: StockMovementReason, userId: string, notes?: string) => {
-      const payload = await postAdjustment(token, { storeId, productIds: [productId], quantityDelta, reason, notes, performedByUserId: userId, idempotencyKey: `inventory-adjust:${crypto.randomUUID()}` }) as { entries?: unknown };
+      const signature = JSON.stringify({ storeId, productIds: [productId], quantityDelta, reason, notes: notes ?? null, userId });
+      const idempotencyKey = idempotencyKeyFor(signature, 'inventory-adjust');
+      const payload = await postAdjustment(token, { storeId, productIds: [productId], quantityDelta, reason, notes, performedByUserId: userId, idempotencyKey }) as { entries?: unknown };
       if (!Array.isArray(payload?.entries) || payload.entries.length !== 1) throw new Error('Production inventory API returned no authoritative adjustment entry.');
-      return mapEntry(payload.entries[0] as ServerEntry);
+      const entry = mapEntry(payload.entries[0] as ServerEntry);
+      clearIdempotencyKey(signature);
+      return entry;
     },
     bulkAdjustStock: async (storeId: string, productIds: readonly string[], quantityDelta: number, reason: StockMovementReason, userId: string, notes?: string) => {
-      const payload = await postAdjustment(token, { storeId, productIds, quantityDelta, reason, notes, performedByUserId: userId, idempotencyKey: `inventory-bulk-adjust:${crypto.randomUUID()}` }) as { entries?: unknown };
+      const signature = JSON.stringify({ storeId, productIds: [...productIds].sort(), quantityDelta, reason, notes: notes ?? null, userId });
+      const idempotencyKey = idempotencyKeyFor(signature, 'inventory-bulk-adjust');
+      const payload = await postAdjustment(token, { storeId, productIds, quantityDelta, reason, notes, performedByUserId: userId, idempotencyKey }) as { entries?: unknown };
       if (!Array.isArray(payload?.entries)) throw new Error('Production inventory API returned no authoritative bulk adjustment entries.');
-      return payload.entries.map(entry => mapEntry(entry as ServerEntry));
+      const entries = payload.entries.map(entry => mapEntry(entry as ServerEntry));
+      clearIdempotencyKey(signature);
+      return entries;
     },
   };
 }
