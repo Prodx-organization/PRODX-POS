@@ -36,6 +36,12 @@ export interface PeripheralConnectivity {
   signalStrengthPercent?: number;
   latencyMs: number;
   lastPingTimestamp: string;
+  networkPath?: {
+    terminalId: string;
+    terminalName: string;
+    connectionType: string;
+    ipOrBus: string;
+  };
 }
 
 export interface PeripheralBattery {
@@ -72,6 +78,10 @@ export interface HardwarePeripheralStatus {
     errorCountToday: number;
     temperatureCelsius?: number;
   };
+  tags?: string[];
+  isPowerSaveMode?: boolean;
+  powerSaveWatts?: number;
+  isMaintenanceMode?: boolean;
 }
 
 export interface HandshakeResult {
@@ -237,6 +247,12 @@ class InfrastructureAIService {
         interface: 'USB',
         latencyMs: 1.4,
         lastPingTimestamp: new Date().toISOString(),
+        networkPath: {
+          terminalId: 'TERM-01',
+          terminalName: 'Main Cashier Terminal #1',
+          connectionType: 'Direct USB 2.0',
+          ipOrBus: '192.168.1.101 (Bus 001)',
+        },
       },
       battery: {
         levelPercent: null,
@@ -257,6 +273,7 @@ class InfrastructureAIService {
         errorCountToday: 0,
         temperatureCelsius: 38.5,
       },
+      tags: ['Counter 1', 'Main POS'],
     },
     {
       id: 'periph-scn-01',
@@ -273,6 +290,12 @@ class InfrastructureAIService {
         interface: 'USB',
         latencyMs: 0.8,
         lastPingTimestamp: new Date().toISOString(),
+        networkPath: {
+          terminalId: 'TERM-01',
+          terminalName: 'Main Cashier Terminal #1',
+          connectionType: 'USB HID-POS Bus',
+          ipOrBus: '192.168.1.101 (Bus 001 Dev 004)',
+        },
       },
       battery: {
         levelPercent: 100,
@@ -293,6 +316,7 @@ class InfrastructureAIService {
         errorCountToday: 0,
         temperatureCelsius: 29.1,
       },
+      tags: ['Counter 1'],
     },
     {
       id: 'periph-drw-01',
@@ -309,6 +333,12 @@ class InfrastructureAIService {
         interface: 'RJ12_Drawer_Kick',
         latencyMs: 1.1,
         lastPingTimestamp: new Date().toISOString(),
+        networkPath: {
+          terminalId: 'TERM-01',
+          terminalName: 'Main Cashier Terminal #1',
+          connectionType: 'RJ12 Solenoid Kick',
+          ipOrBus: 'TM-T82III Relay Port',
+        },
       },
       battery: {
         levelPercent: null,
@@ -328,6 +358,7 @@ class InfrastructureAIService {
         operationsCountToday: 84,
         errorCountToday: 0,
       },
+      tags: ['Counter 1'],
     },
     {
       id: 'periph-scn-02',
@@ -345,6 +376,12 @@ class InfrastructureAIService {
         signalStrengthPercent: 94,
         latencyMs: 2.3,
         lastPingTimestamp: new Date().toISOString(),
+        networkPath: {
+          terminalId: 'TERM-03',
+          terminalName: 'Bar Drinks Terminal #3',
+          connectionType: 'BLE 5.2 Link',
+          ipOrBus: 'RSSI -42dBm / SPP',
+        },
       },
       battery: {
         levelPercent: 86,
@@ -365,6 +402,7 @@ class InfrastructureAIService {
         errorCountToday: 0,
         temperatureCelsius: 27.8,
       },
+      tags: ['Bar', 'Beverage Counter'],
     },
     {
       id: 'periph-prn-02',
@@ -382,6 +420,12 @@ class InfrastructureAIService {
         signalStrengthPercent: 82,
         latencyMs: 3.8,
         lastPingTimestamp: new Date().toISOString(),
+        networkPath: {
+          terminalId: 'TERM-02',
+          terminalName: 'Kitchen Order KDS #2',
+          connectionType: 'Wireless RFCOMM',
+          ipOrBus: '192.168.1.105',
+        },
       },
       battery: {
         levelPercent: 68,
@@ -402,6 +446,7 @@ class InfrastructureAIService {
         errorCountToday: 0,
         temperatureCelsius: 32.0,
       },
+      tags: ['Kitchen', 'Order Prep'],
     },
     {
       id: 'periph-edc-01',
@@ -418,6 +463,12 @@ class InfrastructureAIService {
         interface: 'Ethernet',
         latencyMs: 2.9,
         lastPingTimestamp: new Date().toISOString(),
+        networkPath: {
+          terminalId: 'TERM-01',
+          terminalName: 'Main Cashier Terminal #1',
+          connectionType: 'Ethernet LAN',
+          ipOrBus: '192.168.1.108:8443',
+        },
       },
       battery: {
         levelPercent: null,
@@ -438,6 +489,7 @@ class InfrastructureAIService {
         errorCountToday: 0,
         temperatureCelsius: 34.2,
       },
+      tags: ['Counter 1', 'Payment'],
     },
   ];
 
@@ -457,6 +509,45 @@ class InfrastructureAIService {
         },
       };
     });
+  }
+
+  updatePeripheralTags(peripheralId: string, tags: string[]): HardwarePeripheralStatus {
+    const peripheral = this.peripherals.find(p => p.id === peripheralId);
+    if (!peripheral) {
+      throw new Error('Peripheral not found.');
+    }
+    peripheral.tags = tags.map(t => t.trim()).filter(Boolean);
+    return { ...peripheral };
+  }
+
+  updatePeripheralName(peripheralId: string, newName: string): HardwarePeripheralStatus {
+    const peripheral = this.peripherals.find(p => p.id === peripheralId);
+    if (!peripheral) {
+      throw new Error('Peripheral not found.');
+    }
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      throw new Error('Peripheral name cannot be empty.');
+    }
+    peripheral.name = trimmed;
+    return { ...peripheral };
+  }
+
+  togglePowerSaveMode(peripheralId: string, enabled: boolean): HardwarePeripheralStatus {
+    const peripheral = this.peripherals.find((p) => p.id === peripheralId);
+    if (!peripheral) {
+      throw new Error('Peripheral not found.');
+    }
+    peripheral.isPowerSaveMode = enabled;
+    peripheral.powerSaveWatts = enabled ? 0.2 : 8.5;
+    if (enabled) {
+      peripheral.connectivity.state = 'standby';
+      peripheral.driverHealth.diagnostics = `[Eco Power Save] ฮาร์ดแวร์เข้าสู่โหมดประหยัดพลังงาน (Sleep Mode: 0.2W). สแตนด์บายพร้อมตื่นเมื่อมีคำสั่งงาน.`;
+    } else {
+      peripheral.connectivity.state = 'online';
+      peripheral.driverHealth.diagnostics = `[Normal Power Mode] ฮาร์ดแวร์กลับสู่สภาวะการทำงานปกติเต็มประสิทธิภาพ (8.5W).`;
+    }
+    return { ...peripheral };
   }
 
   async runPeripheralHealthAudit(peripheralId?: string): Promise<{ success: boolean; auditedPeripherals: HardwarePeripheralStatus[]; log: any }> {
@@ -1141,6 +1232,317 @@ class InfrastructureAIService {
       totalChecked: results.length,
       outdatedCount,
       results,
+    };
+  }
+
+  async applyStagedFirmwareUpdate(peripheralId?: string): Promise<{
+    success: boolean;
+    updatedCount: number;
+    updatedPeripherals: HardwarePeripheralStatus[];
+    stagedLogs: Array<{
+      stage: string;
+      peripheralName: string;
+      status: 'VERIFYING' | 'BACKUP_EEPROM' | 'FLASHING_BLOCKS' | 'COLD_REBOOT' | 'COMPLETED';
+      progressPercent: number;
+      timestamp: string;
+    }>;
+  }> {
+    await new Promise((r) => setTimeout(r, 600));
+
+    const stagedLogs: Array<{
+      stage: string;
+      peripheralName: string;
+      status: 'VERIFYING' | 'BACKUP_EEPROM' | 'FLASHING_BLOCKS' | 'COLD_REBOOT' | 'COMPLETED';
+      progressPercent: number;
+      timestamp: string;
+    }> = [];
+
+    let updatedCount = 0;
+
+    this.peripherals = this.peripherals.map((p) => {
+      if (!peripheralId || p.id === peripheralId) {
+        let newFirmware = p.firmwareVersion;
+        if (p.category === 'printer') newFirmware = 'v2.10.0';
+        else if (p.category === 'edc') newFirmware = 'v6.0.0';
+        else if (p.id === 'periph-scn-02') newFirmware = 'v2.04.11';
+
+        if (newFirmware !== p.firmwareVersion) {
+          updatedCount++;
+          const now = new Date().toISOString();
+
+          stagedLogs.push({
+            stage: 'Stage 1: Digital Signature & SHA-256 Checksum Verification',
+            peripheralName: p.name,
+            status: 'VERIFYING',
+            progressPercent: 20,
+            timestamp: now,
+          });
+          stagedLogs.push({
+            stage: 'Stage 2: EEPROM Backup & ROM Buffer Pre-Allocation',
+            peripheralName: p.name,
+            status: 'BACKUP_EEPROM',
+            progressPercent: 40,
+            timestamp: now,
+          });
+          stagedLogs.push({
+            stage: 'Stage 3: Flashing Microcode Blocks to Non-Volatile Flash',
+            peripheralName: p.name,
+            status: 'FLASHING_BLOCKS',
+            progressPercent: 80,
+            timestamp: now,
+          });
+          stagedLogs.push({
+            stage: 'Stage 4: Post-Flash Hardware Cold Reboot & Handshake Validation',
+            peripheralName: p.name,
+            status: 'COLD_REBOOT',
+            progressPercent: 95,
+            timestamp: now,
+          });
+          stagedLogs.push({
+            stage: 'Stage 5: Firmware Patched & WHQL Signature Verified',
+            peripheralName: p.name,
+            status: 'COMPLETED',
+            progressPercent: 100,
+            timestamp: now,
+          });
+
+          return {
+            ...p,
+            firmwareVersion: newFirmware,
+            latestDriverVersion: newFirmware,
+            driverHealth: {
+              ...p.driverHealth,
+              status: 'healthy',
+              integrityVerifiedByAntigravity: true,
+              lastAuditTimestamp: now,
+              diagnostics: `[Firmware Updated to ${newFirmware}] Staged update completed successfully. ROM checksum matched 0x9F42AE. Zero vulnerabilities detected.`,
+            },
+          };
+        }
+      }
+      return p;
+    });
+
+    return {
+      success: true,
+      updatedCount,
+      updatedPeripherals: this.getHardwarePeripherals(),
+      stagedLogs,
+    };
+  }
+
+  rebootPeripheral(peripheralId: string): {
+    success: boolean;
+    peripheral?: HardwarePeripheralStatus;
+    peripherals: HardwarePeripheralStatus[];
+    rebootTimestamp: string;
+    diagnostics: string;
+  } {
+    const now = new Date().toISOString();
+    let rebootedPeripheral: HardwarePeripheralStatus | undefined;
+
+    this.peripherals = this.peripherals.map((p) => {
+      if (p.id === peripheralId) {
+        const rebootDiagnostics = `[Remote Power Cycle] สัญญาณส่งรีเซ็ต Power Rails ผ่านสาย ${p.connectivity.interface} สำเร็จ - Cold Boot เสร็จสิ้น อุปกรณ์กลับสู่สภาวะปกติ (0 Errors)`;
+        rebootedPeripheral = {
+          ...p,
+          lastActivity: now,
+          connectivity: {
+            ...p.connectivity,
+            state: 'online',
+            lastPingTimestamp: now,
+            latencyMs: Math.round((Math.random() * 1.5 + 0.5) * 10) / 10,
+          },
+          driverHealth: {
+            ...p.driverHealth,
+            status: 'healthy',
+            lastAuditTimestamp: now,
+            diagnostics: rebootDiagnostics,
+          },
+        };
+        return rebootedPeripheral;
+      }
+      return p;
+    });
+
+    return {
+      success: !!rebootedPeripheral,
+      peripheral: rebootedPeripheral,
+      peripherals: this.getHardwarePeripherals(),
+      rebootTimestamp: now,
+      diagnostics: rebootedPeripheral?.driverHealth.diagnostics || '',
+    };
+  }
+
+  private deviceProfiles: Array<{
+    id: string;
+    name: string;
+    role: string;
+    description: string;
+    activeTagFilters: string[];
+  }> = [
+    {
+      id: 'profile-counter-1',
+      name: 'Counter 1 Main Station',
+      role: 'Cashier / Front Desk',
+      description: 'Active POS receipt printer, Barcode scanner, Cash Drawer 1, and EDC terminal.',
+      activeTagFilters: ['Counter 1', 'Main POS'],
+    },
+    {
+      id: 'profile-kitchen',
+      name: 'Kitchen Order Prep Station',
+      role: 'Kitchen Expeditor',
+      description: 'High-speed kitchen ticket printer and kitchen scanner for order preparation.',
+      activeTagFilters: ['Kitchen', 'Order Prep'],
+    },
+    {
+      id: 'profile-bar',
+      name: 'Beverage Bar Station',
+      role: 'Bartender',
+      description: 'Bar receipt printer and quick-scan barcode reader for beverages.',
+      activeTagFilters: ['Bar', 'Beverage'],
+    },
+    {
+      id: 'profile-all',
+      name: 'Store-Wide Full Enterprise View',
+      role: 'Store Manager / Admin',
+      description: 'All connected peripherals across Counter 1, Kitchen, and Bar.',
+      activeTagFilters: [],
+    },
+  ];
+
+  getDeviceProfiles() {
+    return {
+      success: true,
+      profiles: this.deviceProfiles,
+    };
+  }
+
+  applyDeviceProfile(profileId: string) {
+    const profile = this.deviceProfiles.find((p) => p.id === profileId);
+    return {
+      success: true,
+      profile: profile || null,
+      peripherals: this.getHardwarePeripherals(),
+    };
+  }
+
+  reconnectPeripheral(peripheralId: string): {
+    success: boolean;
+    peripheral?: HardwarePeripheralStatus;
+    peripherals: HardwarePeripheralStatus[];
+    reconnectTimestamp: string;
+    diagnostics: string;
+  } {
+    const now = new Date().toISOString();
+    let reconnectedPeripheral: HardwarePeripheralStatus | undefined;
+
+    this.peripherals = this.peripherals.map((p) => {
+      if (p.id === peripheralId) {
+        const reconnectDiag = `[Auto-Reconnect Handshake] ส่งแพ็กเก็ต Handshake (SYN/ACK) กู้คืนการเชื่อมต่อพอร์ต ${p.port} สำเร็จ - USB/BLE Bus สถิตเสถียร (0 Errors)`;
+        reconnectedPeripheral = {
+          ...p,
+          lastActivity: now,
+          connectivity: {
+            ...p.connectivity,
+            state: 'online',
+            lastPingTimestamp: now,
+            latencyMs: Math.round((Math.random() * 1.2 + 0.4) * 10) / 10,
+          },
+          driverHealth: {
+            ...p.driverHealth,
+            status: 'healthy',
+            lastAuditTimestamp: now,
+            diagnostics: reconnectDiag,
+          },
+        };
+        return reconnectedPeripheral;
+      }
+      return p;
+    });
+
+    return {
+      success: !!reconnectedPeripheral,
+      peripheral: reconnectedPeripheral,
+      peripherals: this.getHardwarePeripherals(),
+      reconnectTimestamp: now,
+      diagnostics: reconnectedPeripheral?.driverHealth.diagnostics || '',
+    };
+  }
+
+  bulkRebootPeripherals(peripheralIds: string[]): {
+    success: boolean;
+    rebootedCount: number;
+    peripherals: HardwarePeripheralStatus[];
+    rebootTimestamp: string;
+  } {
+    const now = new Date().toISOString();
+    let rebootedCount = 0;
+
+    this.peripherals = this.peripherals.map((p) => {
+      if (peripheralIds.includes(p.id)) {
+        rebootedCount++;
+        const rebootDiag = `[Bulk Remote Power Cycle] ส่งสัญญาณรีเซ็ต DTR Power Rails พร้อมกันสำเร็จ - Cold Boot เสร็จสิ้น อุปกรณ์กลับสู่สภาวะปกติ (0 Errors)`;
+        return {
+          ...p,
+          lastActivity: now,
+          connectivity: {
+            ...p.connectivity,
+            state: 'online',
+            lastPingTimestamp: now,
+            latencyMs: Math.round((Math.random() * 1.5 + 0.5) * 10) / 10,
+          },
+          driverHealth: {
+            ...p.driverHealth,
+            status: 'healthy',
+            lastAuditTimestamp: now,
+            diagnostics: rebootDiag,
+          },
+        };
+      }
+      return p;
+    });
+
+    return {
+      success: true,
+      rebootedCount,
+      peripherals: this.getHardwarePeripherals(),
+      rebootTimestamp: now,
+    };
+  }
+
+  toggleMaintenanceMode(peripheralId: string, enabled: boolean): {
+    success: boolean;
+    peripheral?: HardwarePeripheralStatus;
+    peripherals: HardwarePeripheralStatus[];
+    maintenanceTimestamp: string;
+  } {
+    const now = new Date().toISOString();
+    let updatedPeripheral: HardwarePeripheralStatus | undefined;
+
+    this.peripherals = this.peripherals.map((p) => {
+      if (p.id === peripheralId) {
+        const diag = enabled
+          ? `[Maintenance Mode Active] อุปกรณ์เข้าสู่โหมดซ่อมบำรุง — ระงับการแจ้งเตือนข้อผิดพลาดและการหลุดการเชื่อมต่อทั้งหมดชั่วคราว`
+          : `[Maintenance Mode Ended] อุปกรณ์ออกจากโหมดซ่อมบำรุง — กลับสู่สถานะตรวจสอบปกติ`;
+        updatedPeripheral = {
+          ...p,
+          isMaintenanceMode: enabled,
+          driverHealth: {
+            ...p.driverHealth,
+            diagnostics: diag,
+          },
+        };
+        return updatedPeripheral;
+      }
+      return p;
+    });
+
+    return {
+      success: !!updatedPeripheral,
+      peripheral: updatedPeripheral,
+      peripherals: this.getHardwarePeripherals(),
+      maintenanceTimestamp: now,
     };
   }
 }

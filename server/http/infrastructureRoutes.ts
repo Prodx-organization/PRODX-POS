@@ -89,6 +89,97 @@ export function registerInfrastructureRoutes(app: Express) {
     }
   });
 
+  // Staged firmware update routine for outdated peripherals
+  app.post('/api/v1/infrastructure/firmware-update/staged', async (req: Request, res: Response) => {
+    try {
+      const { peripheralId } = req.body || {};
+      const result = await infrastructureAiService.applyStagedFirmwareUpdate(peripheralId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Staged firmware update routine failed' });
+    }
+  });
+
+  // Remote power cycle / reboot peripheral
+  app.post('/api/v1/infrastructure/hardware-peripherals/reboot', (req: Request, res: Response) => {
+    try {
+      const { peripheralId } = req.body || {};
+      if (!peripheralId) {
+        return res.status(400).json({ success: false, error: 'peripheralId is required' });
+      }
+      const result = infrastructureAiService.rebootPeripheral(peripheralId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Remote reboot failed' });
+    }
+  });
+
+  // Get device profiles for store roles
+  app.get('/api/v1/infrastructure/device-profiles', (_req: Request, res: Response) => {
+    try {
+      const result = infrastructureAiService.getDeviceProfiles();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Failed to fetch device profiles' });
+    }
+  });
+
+  // Apply device profile configuration
+  app.post('/api/v1/infrastructure/device-profiles/apply', (req: Request, res: Response) => {
+    try {
+      const { profileId } = req.body || {};
+      if (!profileId) {
+        return res.status(400).json({ success: false, error: 'profileId is required' });
+      }
+      const result = infrastructureAiService.applyDeviceProfile(profileId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Failed to apply device profile' });
+    }
+  });
+
+  // Automated reconnect / handshake recovery for offline peripheral
+  app.post('/api/v1/infrastructure/hardware-peripherals/reconnect', (req: Request, res: Response) => {
+    try {
+      const { peripheralId } = req.body || {};
+      if (!peripheralId) {
+        return res.status(400).json({ success: false, error: 'peripheralId is required' });
+      }
+      const result = infrastructureAiService.reconnectPeripheral(peripheralId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Automated reconnect failed' });
+    }
+  });
+
+  // Bulk reboot selected peripherals simultaneously
+  app.post('/api/v1/infrastructure/hardware-peripherals/bulk-reboot', (req: Request, res: Response) => {
+    try {
+      const { peripheralIds } = req.body || {};
+      if (!Array.isArray(peripheralIds) || peripheralIds.length === 0) {
+        return res.status(400).json({ success: false, error: 'peripheralIds array is required' });
+      }
+      const result = infrastructureAiService.bulkRebootPeripherals(peripheralIds);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Bulk remote reboot failed' });
+    }
+  });
+
+  // Toggle maintenance mode for a peripheral
+  app.post('/api/v1/infrastructure/hardware-peripherals/maintenance-mode', (req: Request, res: Response) => {
+    try {
+      const { peripheralId, enabled } = req.body || {};
+      if (!peripheralId) {
+        return res.status(400).json({ success: false, error: 'peripheralId is required' });
+      }
+      const result = infrastructureAiService.toggleMaintenanceMode(peripheralId, !!enabled);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Failed to toggle maintenance mode' });
+    }
+  });
+
   // Apply critical firmware / security patch
   app.post('/api/v1/infrastructure/apply-patch', (req: Request, res: Response) => {
     try {
@@ -144,6 +235,48 @@ export function registerInfrastructureRoutes(app: Express) {
       res.json({ success: true, data: peripherals });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message || 'Failed to fetch hardware peripherals' });
+    }
+  });
+
+  // Update physical location tags for a peripheral
+  app.post('/api/v1/infrastructure/hardware-peripherals/tags', (req: Request, res: Response) => {
+    try {
+      const { peripheralId, tags } = req.body || {};
+      if (!peripheralId || !Array.isArray(tags)) {
+        return res.status(400).json({ success: false, error: 'peripheralId and tags array are required' });
+      }
+      const updated = infrastructureAiService.updatePeripheralTags(peripheralId, tags);
+      res.json({ success: true, data: updated, peripherals: infrastructureAiService.getHardwarePeripherals() });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Failed to update peripheral tags' });
+    }
+  });
+
+  // Rename peripheral label
+  app.post('/api/v1/infrastructure/hardware-peripherals/rename', (req: Request, res: Response) => {
+    try {
+      const { peripheralId, name } = req.body || {};
+      if (!peripheralId || !name) {
+        return res.status(400).json({ success: false, error: 'peripheralId and name are required' });
+      }
+      const updated = infrastructureAiService.updatePeripheralName(peripheralId, name);
+      res.json({ success: true, data: updated, peripherals: infrastructureAiService.getHardwarePeripherals() });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Failed to rename peripheral' });
+    }
+  });
+
+  // Toggle Power Save (Eco Sleep) mode for a peripheral
+  app.post('/api/v1/infrastructure/hardware-peripherals/powersave', (req: Request, res: Response) => {
+    try {
+      const { peripheralId, enabled } = req.body || {};
+      if (!peripheralId || typeof enabled !== 'boolean') {
+        return res.status(400).json({ success: false, error: 'peripheralId and boolean enabled parameter are required' });
+      }
+      const updated = infrastructureAiService.togglePowerSaveMode(peripheralId, enabled);
+      res.json({ success: true, data: updated, peripherals: infrastructureAiService.getHardwarePeripherals() });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message || 'Failed to toggle power save mode' });
     }
   });
 

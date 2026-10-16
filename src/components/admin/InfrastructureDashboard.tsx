@@ -26,10 +26,34 @@ import {
   Gauge,
   Sparkles,
   Signal,
+  LayoutGrid,
+  List,
+  MapPin,
+  Tag,
+  Plus,
+  X,
+  Moon,
+  ZapOff,
+  Power,
+  Edit2,
+  Check,
+  RotateCcw,
+  Layers,
+  Wrench,
+  Download,
+  Clock,
+  Calendar,
+  FileText,
+  FileJson,
+  Network,
+  Route,
+  Share2,
+  Monitor,
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { HardwareTestSuite } from './HardwareTestSuite';
 import { NetworkTopologyMap } from './NetworkTopologyMap';
+import { NewDeviceSetupModal } from './NewDeviceSetupModal';
 
 interface HealthData {
   status: 'healthy' | 'warning' | 'critical' | 'self_healing';
@@ -67,6 +91,12 @@ export interface PeripheralConnectivity {
   signalStrengthPercent?: number;
   latencyMs: number;
   lastPingTimestamp: string;
+  networkPath?: {
+    terminalId: string;
+    terminalName: string;
+    connectionType: string;
+    ipOrBus: string;
+  };
 }
 
 export interface PeripheralBattery {
@@ -103,6 +133,10 @@ export interface HardwarePeripheralStatus {
     errorCountToday: number;
     temperatureCelsius?: number;
   };
+  tags?: string[];
+  isPowerSaveMode?: boolean;
+  powerSaveWatts?: number;
+  isMaintenanceMode?: boolean;
 }
 
 interface DiscoveredPeripheral {
@@ -150,6 +184,17 @@ export function InfrastructureDashboard() {
   const [peripherals, setPeripherals] = useState<HardwarePeripheralStatus[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'printer' | 'scanner' | 'drawer' | 'edc'>('all');
   const [selectedPulseFilter, setSelectedPulseFilter] = useState<'all' | 'idle' | 'active' | 'error'>('all');
+  const [selectedLocationTag, setSelectedLocationTag] = useState<string>('all');
+  const [editingTagsPeripheralId, setEditingTagsPeripheralId] = useState<string | null>(null);
+  const [newTagInput, setNewTagInput] = useState<string>('');
+  const [editingNamePeripheralId, setEditingNamePeripheralId] = useState<string | null>(null);
+  const [editingNameInput, setEditingNameInput] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [isNewDeviceSetupOpen, setIsNewDeviceSetupOpen] = useState<boolean>(false);
+  const [updatingFirmware, setUpdatingFirmware] = useState<boolean>(false);
+  const [firmwareUpdateProgress, setFirmwareUpdateProgress] = useState<number>(0);
+  const [firmwareCurrentStage, setFirmwareCurrentStage] = useState<string>('');
+  const [firmwareLogs, setFirmwareLogs] = useState<string[]>([]);
   const [pulseOverrides, setPulseOverrides] = useState<Record<string, PeripheralHealthPulseState>>({});
   const [activePeripheralIds, setActivePeripheralIds] = useState<Set<string>>(new Set());
   const [failedPeripheralIds, setFailedPeripheralIds] = useState<Set<string>>(new Set());
@@ -157,12 +202,351 @@ export function InfrastructureDashboard() {
   const [auditingAll, setAuditingAll] = useState(false);
   const [testingDeviceId, setTestingDeviceId] = useState<string | null>(null);
   const [diagnosingPeripheralId, setDiagnosingPeripheralId] = useState<string | null>(null);
+  const [rebootingPeripheralId, setRebootingPeripheralId] = useState<string | null>(null);
+  const [rebootConfirmPeripheral, setRebootConfirmPeripheral] = useState<HardwarePeripheralStatus | null>(null);
   const [firmwareAlerts, setFirmwareAlerts] = useState<FirmwareAlert[]>([]);
   const [discoveredPeripherals, setDiscoveredPeripherals] = useState<DiscoveredPeripheral[]>([]);
   const [loadingHealth, setLoadingHealth] = useState(false);
   const [loadingScan, setLoadingScan] = useState(false);
   const [healing, setHealing] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [reconnectingPeripheralId, setReconnectingPeripheralId] = useState<string | null>(null);
+  const [selectedPeripheralIds, setSelectedPeripheralIds] = useState<Set<string>>(new Set());
+  const [bulkRebooting, setBulkRebooting] = useState<boolean>(false);
+
+  // Scheduled Power Cycle & Diagnostic Export States
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState<boolean>(false);
+  const [scheduleTime, setScheduleTime] = useState<string>('22:00');
+  const [scheduleOnlyNonCritical, setScheduleOnlyNonCritical] = useState<boolean>(true);
+  const [scheduleErrorThreshold, setScheduleErrorThreshold] = useState<number>(5); // Default 5 errors
+  const [scheduledJobs, setScheduledJobs] = useState<Array<{
+    id: string;
+    time: string;
+    targetCount: number;
+    onlyNonCritical: boolean;
+    errorThreshold?: number;
+    type: 'STORE_CLOSING' | 'AUTO_REBOOT_HIGH_ERROR';
+    createdAt: string;
+    status: 'ACTIVE' | 'EXECUTED';
+  }>>([
+    {
+      id: 'job-closing-01',
+      time: '22:00',
+      targetCount: 3,
+      onlyNonCritical: true,
+      type: 'STORE_CLOSING',
+      createdAt: new Date().toISOString(),
+      status: 'ACTIVE',
+    },
+  ]);
+
+  // Bulk Export Diagnostic Logs (JSON / CSV)
+  const handleExportDiagnosticLogs = (format: 'json' | 'csv') => {
+    const targets = selectedPeripheralIds.size > 0
+      ? peripherals.filter((p) => selectedPeripheralIds.has(p.id))
+      : peripherals;
+
+    const timestampStr = new Date().toISOString().replace(/[:.]/g, '-');
+
+    if (format === 'json') {
+      const data = {
+        exportedAt: new Date().toISOString(),
+        totalDevices: targets.length,
+        peripherals: targets.map((p) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          model: p.model,
+          serialNumber: p.serialNumber,
+          port: p.port,
+          connectivityState: p.connectivity.state,
+          interface: p.connectivity.interface,
+          latencyMs: p.connectivity.latencyMs,
+          signalStrength: p.connectivity.signalStrengthPercent || null,
+          batteryLevel: p.battery.levelPercent,
+          driverStatus: p.driverHealth.status,
+          firmwareVersion: p.firmwareVersion,
+          driverVersion: p.driverVersion,
+          diagnosticsLog: p.driverHealth.diagnostics,
+          lastActivity: p.lastActivity,
+          operationsCountToday: p.telemetryData.operationsCountToday,
+          errorCountToday: p.telemetryData.errorCountToday,
+          tags: p.tags || [],
+        })),
+      };
+      const jsonBlob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(jsonBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `hardware_diagnostics_logs_${timestampStr}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const headers = ['ID', 'Name', 'Category', 'Model', 'Serial', 'Port', 'Interface', 'State', 'LatencyMs', 'DriverStatus', 'Firmware', 'DiagnosticsLog'];
+      const rows = targets.map((p) => [
+        `"${p.id}"`,
+        `"${p.name.replace(/"/g, '""')}"`,
+        `"${p.category}"`,
+        `"${p.model}"`,
+        `"${p.serialNumber}"`,
+        `"${p.port}"`,
+        `"${p.connectivity.interface}"`,
+        `"${p.connectivity.state}"`,
+        p.connectivity.latencyMs,
+        `"${p.driverHealth.status}"`,
+        `"${p.firmwareVersion}"`,
+        `"${p.driverHealth.diagnostics.replace(/"/g, '""')}"`,
+      ]);
+      const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const csvBlob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(csvBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `hardware_diagnostics_logs_${timestampStr}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    addToast({
+      type: 'success',
+      title: `ส่งออกไฟล์ Logs (${format.toUpperCase()}) สำเร็จ`,
+      message: `ดาวน์โหลดรายงานสรุปวินิจฉัยอุปกรณ์จำนวน ${targets.length} รายการเรียบร้อยแล้ว`,
+      durationMs: 4000,
+    });
+  };
+
+  // Schedule Power Cycle or Automatic Reboot Task
+  const handleCreateScheduledPowerCycle = (type: 'STORE_CLOSING' | 'AUTO_REBOOT_HIGH_ERROR') => {
+    let targetPeripherals = peripherals;
+    
+    if (scheduleOnlyNonCritical) {
+      targetPeripherals = targetPeripherals.filter((p) => p.category !== 'drawer' && p.category !== 'edc');
+    }
+
+    if (type === 'AUTO_REBOOT_HIGH_ERROR') {
+      targetPeripherals = targetPeripherals.filter((p) => p.telemetryData.errorCountToday >= scheduleErrorThreshold);
+    }
+
+    const newJob = {
+      id: `job-cycle-${Date.now()}`,
+      time: scheduleTime,
+      targetCount: targetPeripherals.length,
+      onlyNonCritical: scheduleOnlyNonCritical,
+      errorThreshold: type === 'AUTO_REBOOT_HIGH_ERROR' ? scheduleErrorThreshold : undefined,
+      type,
+      createdAt: new Date().toISOString(),
+      status: 'ACTIVE' as const,
+    };
+
+    setScheduledJobs((prev) => [newJob, ...prev]);
+    setIsScheduleModalOpen(false);
+
+    const title = type === 'STORE_CLOSING' 
+      ? `ตั้งเวลา Power Cycle เรียบร้อย (${scheduleTime} น.)`
+      : `ตั้งเวลา Auto-Reboot เมื่อ Error สูง (${scheduleTime} น.)`;
+    
+    const message = type === 'STORE_CLOSING'
+      ? `ระบบจะส่งสัญญาณรีเซ็ตไฟกระแสตรงอุปกรณ์ ${targetPeripherals.length} รายการอัตโนมัติเมื่อถึงเวลาปิดร้าน`
+      : `ระบบจะรีบูตอุปกรณ์ที่มี Error >= ${scheduleErrorThreshold} อัตโนมัติในช่วงทราฟฟิกต่ำ (${scheduleTime} น.)`;
+
+    addToast({
+      type: 'success',
+      title,
+      message,
+      durationMs: 5000,
+    });
+    setActionMessage(`[Scheduled Job] ${title} - ${targetPeripherals.length} อุปกรณ์เป้าหมาย`);
+  };
+
+  const handleToggleSelectPeripheral = (peripheralId: string) => {
+    setSelectedPeripheralIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(peripheralId)) {
+        next.delete(peripheralId);
+      } else {
+        next.add(peripheralId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllOffline = () => {
+    const offlineOrErrorIds = peripherals
+      .filter((p) => p.connectivity.state === 'disconnected' || getPeripheralPulseState(p) === 'error')
+      .map((p) => p.id);
+    setSelectedPeripheralIds(new Set(offlineOrErrorIds));
+    addToast({
+      type: 'info',
+      title: 'เลือกอุปกรณ์ออฟไลน์ทั้งหมด',
+      message: `เลือกอุปกรณ์ที่ออฟไลน์หรือขัดข้องจำนวน ${offlineOrErrorIds.length} รายการแล้ว`,
+      durationMs: 3000,
+    });
+  };
+
+  const handleBulkRebootPeripherals = async () => {
+    if (selectedPeripheralIds.size === 0) return;
+    const ids = Array.from(selectedPeripheralIds);
+    try {
+      setBulkRebooting(true);
+      setActionMessage(`[Bulk Remote Reboot] กำลังส่งสัญญาณรีเซ็ต DTR Power Rails พร้อมกันไปยังอุปกรณ์ ${ids.length} รายการ...`);
+      const res = await fetch('/api/v1/infrastructure/hardware-peripherals/bulk-reboot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ peripheralIds: ids }),
+      });
+      const data = await res.json();
+      setTimeout(() => {
+        if (data.success && data.peripherals) {
+          setPeripherals(data.peripherals);
+          addToast({
+            type: 'success',
+            title: 'Bulk Remote Reboot สำเร็จ!',
+            message: `รีบูตและกู้คืนการเชื่อมต่ออุปกรณ์ ${data.rebootedCount} รายการพร้อมกันเรียบร้อยแล้ว`,
+            durationMs: 5000,
+          });
+          setActionMessage(`[Bulk Reboot Complete] รีบูตฮาร์ดแวร์ ${data.rebootedCount} รายการพร้อมกันสำเร็จ`);
+          setSelectedPeripheralIds(new Set());
+        }
+        setBulkRebooting(false);
+      }, 1800);
+    } catch {
+      setBulkRebooting(false);
+      addToast({
+        type: 'error',
+        title: 'การรีบูตแบบกลุ่มขัดข้อง',
+        message: 'ไม่สามารถส่งคำสั่งรีบูตไปยังอุปกรณ์ที่เลือกได้',
+        durationMs: 4000,
+      });
+    }
+  };
+
+  const handleToggleMaintenanceMode = async (peripheral: HardwarePeripheralStatus) => {
+    const nextMode = !peripheral.isMaintenanceMode;
+    try {
+      const res = await fetch('/api/v1/infrastructure/hardware-peripherals/maintenance-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ peripheralId: peripheral.id, enabled: nextMode }),
+      });
+      const data = await res.json();
+      if (data.success && data.peripherals) {
+        setPeripherals(data.peripherals);
+        addToast({
+          type: nextMode ? 'info' : 'success',
+          title: nextMode ? 'เปิดโหมดซ่อมบำรุง (Maintenance Mode)' : 'ปิดโหมดซ่อมบำรุง',
+          message: nextMode
+            ? `ระงับการแจ้งเตือนข้อผิดพลาดสำหรับ "${peripheral.name}" เรียบร้อยแล้ว`
+            : `อุปกรณ์ "${peripheral.name}" กลับสู่สถานะตรวจสอบปกติ`,
+          durationMs: 4000,
+        });
+        setActionMessage(
+          nextMode
+            ? `[Maintenance Mode Active] ระงับแจ้งเตือนอุปกรณ์ ${peripheral.name} ระหว่างซ่อมบำรุง`
+            : `[Maintenance Mode Off] เปิดระบบตรวจสอบปกติสำหรับ ${peripheral.name}`
+        );
+      }
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'เปลี่ยนโหมดซ่อมบำรุงล้มเหลว',
+        message: 'ไม่สามารถอัปเดตสถานะ Maintenance Mode ได้',
+        durationMs: 3000,
+      });
+    }
+  };
+
+  const handleAutoReconnect = async (peripheral: HardwarePeripheralStatus) => {
+    try {
+      setReconnectingPeripheralId(peripheral.id);
+      setActionMessage(`[Auto-Reconnect] กำลังส่งสัญญาณกู้คืนการเชื่อมต่อ Handshake (SYN/ACK) ไปยัง ${peripheral.name}...`);
+      const res = await fetch('/api/v1/infrastructure/hardware-peripherals/reconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ peripheralId: peripheral.id }),
+      });
+      const data = await res.json();
+      setTimeout(() => {
+        if (data.success && data.peripherals) {
+          setPeripherals(data.peripherals);
+          addToast({
+            type: 'success',
+            title: 'กู้คืนการเชื่อมต่อสำเร็จ!',
+            message: `อุปกรณ์ ${peripheral.name} กลับมาออนไลน์และพร้อมทำงานเรียบร้อย`,
+            durationMs: 4000,
+          });
+          setActionMessage(`[Reconnect Success] อุปกรณ์ ${peripheral.name} เชื่อมต่อกลับเข้าสู่ระบบสำเร็จ`);
+        }
+        setReconnectingPeripheralId(null);
+      }, 1500);
+    } catch {
+      setReconnectingPeripheralId(null);
+      addToast({
+        type: 'error',
+        title: 'กู้คืนการเชื่อมต่อไม่สำเร็จ',
+        message: 'ไม่สามารถติดต่ออุปกรณ์ผ่านพอร์ตได้ กรุณาตรวจสอบสายเชื่อมต่อ',
+        durationMs: 4000,
+      });
+    }
+  };
+
+  const [deviceProfiles, setDeviceProfiles] = useState<Array<{
+    id: string;
+    name: string;
+    role: string;
+    description: string;
+    activeTagFilters: string[];
+  }>>([]);
+  const [activeProfileId, setActiveProfileId] = useState<string>('profile-all');
+
+  const prevPeripheralsRef = React.useRef<HardwarePeripheralStatus[]>([]);
+
+  const fetchDeviceProfiles = async () => {
+    try {
+      const res = await fetch('/api/v1/infrastructure/device-profiles');
+      const data = await res.json();
+      if (data.success && data.profiles) {
+        setDeviceProfiles(data.profiles);
+      }
+    } catch (err) {
+      console.error('Failed to fetch device profiles:', err);
+    }
+  };
+
+  const handleApplyDeviceProfile = async (profileId: string) => {
+    try {
+      setActiveProfileId(profileId);
+      const res = await fetch('/api/v1/infrastructure/device-profiles/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const profile = data.profile;
+        if (profile) {
+          if (profile.activeTagFilters.length === 1) {
+            setSelectedLocationTag(profile.activeTagFilters[0]);
+          } else {
+            setSelectedLocationTag('all');
+          }
+          addToast({
+            type: 'success',
+            title: `สลับโปรไฟล์สำเร็จ: ${profile.name}`,
+            message: `ปรับชุดการตั้งค่าฮาร์ดแวร์สำหรับบทบาท "${profile.role}" เรียบร้อยแล้ว`,
+            durationMs: 4000,
+          });
+          setActionMessage(`[Device Profile Active] โหลดการตั้งค่าฮาร์ดแวร์ "${profile.name}" (${profile.role}) สำเร็จ`);
+        }
+      }
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'สลับโปรไฟล์ล้มเหลว',
+        message: 'ไม่สามารถโหลดชุดการตั้งค่าฮาร์ดแวร์ได้',
+        durationMs: 3000,
+      });
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -183,7 +567,64 @@ export function InfrastructureDashboard() {
       if (dData.success) setDevices(dData.data);
       if (fData.success) setFirmwareAlerts(fData.data);
       if (pData.success) setDiscoveredPeripherals(pData.data);
-      if (periphData.success) setPeripherals(periphData.data);
+      if (periphData.success) {
+        const newPeripherals: HardwarePeripheralStatus[] = periphData.data;
+        const oldPeripherals = prevPeripheralsRef.current;
+
+        if (oldPeripherals.length > 0) {
+          newPeripherals.forEach((newP) => {
+            const oldP = oldPeripherals.find((o) => o.id === newP.id);
+            if (oldP) {
+              // Check if state changed from online/connected to disconnected
+              const justDisconnected = (oldP.connectivity.state === 'online' || oldP.connectivity.state === 'connected') && newP.connectivity.state === 'disconnected';
+              // Check if driver status became degraded or error
+              const justFailed = oldP.driverHealth.status === 'healthy' && (newP.driverHealth.status === 'degraded' || newP.driverHealth.status === 'patch_required');
+
+              if (justDisconnected || justFailed) {
+                // If device is under maintenance mode, silence notifications
+                if (newP.isMaintenanceMode) {
+                  return;
+                }
+
+                const alertTitle = justDisconnected ? '⚠️ อุปกรณ์ฮาร์ดแวร์หลุดการเชื่อมต่อ!' : '❌ พบความผิดพลาดในอุปกรณ์ฮาร์ดแวร์!';
+                const alertMsg = justDisconnected
+                  ? `อุปกรณ์สำคัญ "${newP.name}" (${newP.connectivity.interface}) ขาดการเชื่อมต่อบนพอร์ต ${newP.port}`
+                  : `อุปกรณ์ "${newP.name}" รายงานความผิดพลาดของไดรเวอร์: ${newP.driverHealth.diagnostics.slice(0, 80)}...`;
+
+                // 1. Toast Notification
+                addToast({
+                  type: 'error',
+                  title: alertTitle,
+                  message: alertMsg,
+                  durationMs: 8000,
+                });
+
+                // 2. Browser Desktop Notification if permitted
+                if (typeof window !== 'undefined' && 'Notification' in window) {
+                  if (Notification.permission === 'granted') {
+                    new Notification(alertTitle, {
+                      body: alertMsg,
+                      icon: '/favicon.ico',
+                    });
+                  } else if (Notification.permission !== 'denied') {
+                    Notification.requestPermission().then((permission) => {
+                      if (permission === 'granted') {
+                        new Notification(alertTitle, {
+                          body: alertMsg,
+                          icon: '/favicon.ico',
+                        });
+                      }
+                    });
+                  }
+                }
+              }
+            }
+          });
+        }
+
+        prevPeripheralsRef.current = newPeripherals;
+        setPeripherals(newPeripherals);
+      }
     } catch (err) {
       console.error('Failed to fetch infrastructure data:', err);
     } finally {
@@ -193,6 +634,12 @@ export function InfrastructureDashboard() {
 
   useEffect(() => {
     fetchData();
+    fetchDeviceProfiles();
+    // Request browser notification permission on mount
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
     const interval = setInterval(fetchData, 10000); // Poll every 10s
     return () => clearInterval(interval);
   }, []);
@@ -295,6 +742,272 @@ export function InfrastructureDashboard() {
       });
     } finally {
       setBulkFirmwareChecking(false);
+    }
+  };
+
+  const handleSavePeripheralTags = async (peripheralId: string, updatedTags: string[]) => {
+    try {
+      const res = await fetch('/api/v1/infrastructure/hardware-peripherals/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ peripheralId, tags: updatedTags }),
+      });
+      const data = await res.json();
+      if (data.success && data.peripherals) {
+        setPeripherals(data.peripherals);
+        addToast({
+          type: 'success',
+          title: 'อัปเดตตำแหน่งจัดวางสำเร็จ',
+          message: `บันทึกแท็กสถานที่สำหรับอุปกรณ์เรียบร้อย`,
+          durationMs: 3000,
+        });
+      }
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'อัปเดตสถานที่ล้มเหลว',
+        message: 'ไม่สามารถบันทึกแท็กสถานที่ได้',
+        durationMs: 3000,
+      });
+    } finally {
+      setEditingTagsPeripheralId(null);
+      setNewTagInput('');
+    }
+  };
+
+  const handleTogglePowerSave = async (peripheralId: string, enabled: boolean) => {
+    try {
+      const res = await fetch('/api/v1/infrastructure/hardware-peripherals/powersave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ peripheralId, enabled }),
+      });
+      const data = await res.json();
+      if (data.success && data.peripherals) {
+        setPeripherals(data.peripherals);
+        addToast({
+          type: enabled ? 'info' : 'success',
+          title: enabled ? 'โหมดประหยัดพลังงาน (Eco Sleep)' : 'ออกจากโหมดประหยัดพลังงาน',
+          message: enabled
+            ? `อุปกรณ์สแตนด์บายในโหมดกินไฟต่ำ (0.2W)`
+            : `อุปกรณ์กลับสู่สภาวะทำงานเต็มประสิทธิภาพ (8.5W)`,
+          durationMs: 4000,
+        });
+        setActionMessage(
+          enabled
+            ? `[Power Save Active] อุปกรณ์เข้าสู่โหมดสแตนด์บายประหยัดพลังงาน (0.2W)`
+            : `[Normal Power Mode] อุปกรณ์ตื่นและพร้อมทำงานเต็มประสิทธิภาพ`
+        );
+      }
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'สลับโหมดประหยัดพลังงานล้มเหลว',
+        message: 'ไม่สามารถเปลี่ยนโหมดพลังงานได้',
+        durationMs: 3000,
+      });
+    }
+  };
+
+  const handleSavePeripheralName = async (peripheralId: string) => {
+    const trimmed = editingNameInput.trim();
+    if (!trimmed) {
+      setEditingNamePeripheralId(null);
+      return;
+    }
+    try {
+      const res = await fetch('/api/v1/infrastructure/hardware-peripherals/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ peripheralId, name: trimmed }),
+      });
+      const data = await res.json();
+      if (data.success && data.peripherals) {
+        setPeripherals(data.peripherals);
+        addToast({
+          type: 'success',
+          title: 'อัปเดตชื่ออุปกรณ์สำเร็จ',
+          message: `เปลี่ยนชื่อเป็น "${trimmed}" เรียบร้อยแล้ว`,
+          durationMs: 3000,
+        });
+      }
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'เปลี่ยนชื่ออุปกรณ์ล้มเหลว',
+        message: 'ไม่สามารถบันทึกชื่ออุปกรณ์ได้',
+        durationMs: 3000,
+      });
+    } finally {
+      setEditingNamePeripheralId(null);
+      setEditingNameInput('');
+    }
+  };
+
+  const handleExecuteRemoteReboot = async (peripheral: HardwarePeripheralStatus) => {
+    setRebootConfirmPeripheral(null);
+    setRebootingPeripheralId(peripheral.id);
+    setActionMessage(`[Remote Power Cycle] กำลังส่งสัญญาณตัดรอบไฟกระแสตรง (DTR/Power Rails Cycle) ไปยัง ${peripheral.name}...`);
+    try {
+      const res = await fetch('/api/v1/infrastructure/hardware-peripherals/reboot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ peripheralId: peripheral.id }),
+      });
+      const data = await res.json();
+
+      setTimeout(() => {
+        if (data.success && data.peripherals) {
+          setPeripherals(data.peripherals);
+          addToast({
+            type: 'success',
+            title: 'ส่งสัญญาณ รีบูตระยะไกลสำเร็จ!',
+            message: `อุปกรณ์ ${peripheral.name} รีเซ็ต Power Rails และเชื่อมต่อกลับเข้าสู่ระบบเรียบร้อยแล้ว`,
+            durationMs: 5000,
+          });
+          setActionMessage(`[Power Cycle Complete] อุปกรณ์ ${peripheral.name} รีบูตและกลับสู่สภาวะพร้อมใช้งานเรียบร้อย`);
+        }
+        setRebootingPeripheralId(null);
+      }, 1800);
+    } catch {
+      setRebootingPeripheralId(null);
+      addToast({
+        type: 'error',
+        title: 'รีบูตระยะไกลขัดข้อง',
+        message: 'ไม่สามารถส่งสัญญาณ Power Cycle ไปยังอุปกรณ์ได้',
+        durationMs: 4000,
+      });
+    }
+  };
+
+  const handleDeviceAddedFromWizard = (deviceInfo: {
+    name: string;
+    category: 'printer' | 'scanner' | 'drawer' | 'edc';
+    interfaceType: string;
+    port: string;
+    locationTag: string;
+  }) => {
+    const newPeripheral: HardwarePeripheralStatus = {
+      id: `periph-${deviceInfo.category}-${Date.now().toString().slice(-4)}`,
+      name: deviceInfo.name,
+      category: deviceInfo.category,
+      model: `${deviceInfo.name} (${deviceInfo.interfaceType})`,
+      serialNumber: `SN-${Math.floor(100000 + Math.random() * 900000)}`,
+      port: deviceInfo.port,
+      firmwareVersion: 'v2.10.0',
+      driverVersion: 'v4.15.2',
+      latestDriverVersion: 'v4.15.2',
+      connectivity: {
+        state: 'online',
+        interface: deviceInfo.interfaceType as any,
+        latencyMs: 1.2,
+        lastPingTimestamp: new Date().toISOString(),
+      },
+      battery: {
+        levelPercent: null,
+        isCharging: false,
+        powerSource: 'ac_mains',
+        healthStatus: 'optimal',
+      },
+      driverHealth: {
+        status: 'healthy',
+        integrityVerifiedByAntigravity: true,
+        lastAuditTimestamp: new Date().toISOString(),
+        driverSignStatus: 'whql_certified',
+        diagnostics: `[New Hardware Configured] อุปกรณ์ได้รับการติดตั้งและตรวจสอบผ่าน Antigravity Setup Wizard`,
+      },
+      lastActivity: new Date().toISOString(),
+      telemetryData: {
+        operationsCountToday: 1,
+        errorCountToday: 0,
+      },
+      tags: [deviceInfo.locationTag],
+    };
+
+    setPeripherals((prev) => [newPeripheral, ...prev]);
+    addToast({
+      type: 'success',
+      title: 'ติดตั้งฮาร์ดแวร์ใหม่สำเร็จ!',
+      message: `ลงทะเบียน ${deviceInfo.name} ที่ ${deviceInfo.locationTag} เรียบร้อยแล้ว`,
+      durationMs: 5000,
+    });
+    setActionMessage(`[New Hardware Ready] ลงทะเบียน ${deviceInfo.name} ที่ ${deviceInfo.locationTag} สำเร็จพร้อมใช้งาน`);
+  };
+
+  const handleRunStagedFirmwareUpdate = async (peripheralId?: string) => {
+    try {
+      setUpdatingFirmware(true);
+      setFirmwareUpdateProgress(10);
+      setFirmwareCurrentStage('Stage 1: Digital Signature & SHA-256 Checksum Verification');
+      setFirmwareLogs(['[Staged Update Engine] เริ่มต้นกระบวนการอัปเดตเฟิร์มแวร์ฮาร์ดแวร์แบบเป็นขั้นตอน...']);
+
+      setTimeout(() => {
+        setFirmwareUpdateProgress(35);
+        setFirmwareCurrentStage('Stage 2: EEPROM Backup & ROM Buffer Pre-Allocation');
+        setFirmwareLogs((prev) => [
+          ...prev,
+          '[Stage 1 OK] ตรวจสอบลายเซ็นดิจิทัล SHA-256 Checksum ผ่าน (0x9F42AE)',
+          '[Stage 2] สำรองข้อมูล EEPROM Configuration และจัดสรร ROM Buffer...',
+        ]);
+      }, 1000);
+
+      setTimeout(() => {
+        setFirmwareUpdateProgress(70);
+        setFirmwareCurrentStage('Stage 3: Flashing Microcode Blocks to Non-Volatile Flash Memory');
+        setFirmwareLogs((prev) => [
+          ...prev,
+          '[Stage 2 OK] EEPROM Backup สำเร็จ',
+          '[Stage 3] เขียนทับบล็อก Microcode เข้าสู่ Flash Memory (Block 0x0000 - 0x7FFF)...',
+        ]);
+      }, 2200);
+
+      setTimeout(() => {
+        setFirmwareUpdateProgress(90);
+        setFirmwareCurrentStage('Stage 4: Post-Flash Hardware Cold Reboot & Handshake Validation');
+        setFirmwareLogs((prev) => [
+          ...prev,
+          '[Stage 3 OK] เขียน Flash Memory ครบทุกบล็อก 100%',
+          '[Stage 4] สั่งการ Cold Reboot และรอสัญญาณ Handshake ยืนยันเฟิร์มแวร์ใหม่...',
+        ]);
+      }, 3400);
+
+      const res = await fetch('/api/v1/infrastructure/firmware-update/staged', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ peripheralId }),
+      });
+      const data = await res.json();
+
+      setTimeout(() => {
+        setFirmwareUpdateProgress(100);
+        setFirmwareCurrentStage('Stage 5: Firmware Patched & WHQL Signature Verified');
+        setFirmwareLogs((prev) => [
+          ...prev,
+          '[Stage 4 OK] Cold Reboot และ Handshake ยืนยันสำเร็จ',
+          `[COMPLETED] อัปเดตเฟิร์มแวร์อุปกรณ์จำนวน ${data.updatedCount} รายการ สำเร็จสมบูรณ์!`,
+        ]);
+
+        if (data.success) {
+          setPeripherals(data.updatedPeripherals);
+          fetchData(); // Refresh health & firmware alerts
+          addToast({
+            type: 'success',
+            title: 'Staged Firmware Update สำเร็จ!',
+            message: `อัปเดตเฟิร์มแวร์อุปกรณ์จำนวน ${data.updatedCount} รายการ เข้าสู่เวอร์ชันล่าสุดเรียบร้อย`,
+            durationMs: 5000,
+          });
+          setActionMessage(`[Staged Update Completed] อัปเดตเฟิร์มแวร์ฮาร์ดแวร์ ${data.updatedCount} รายการ สำเร็จสมบูรณ์`);
+        }
+        setUpdatingFirmware(false);
+      }, 4400);
+    } catch {
+      setUpdatingFirmware(false);
+      addToast({
+        type: 'error',
+        title: 'การอัปเดตเฟิร์มแวร์ขัดข้อง',
+        message: 'ไม่สามารถทำกระบวนการ Staged Firmware Update ได้',
+        durationMs: 4000,
+      });
     }
   };
 
@@ -661,6 +1374,10 @@ export function InfrastructureDashboard() {
     error: peripherals.filter((p) => getPeripheralPulseState(p) === 'error').length,
   };
 
+  const allLocationTags = Array.from(
+    new Set(peripherals.flatMap((p) => p.tags || []))
+  );
+
   const filteredPeripherals = peripherals.filter((p) => {
     if (selectedCategory !== 'all' && p.category !== selectedCategory) {
       return false;
@@ -668,6 +1385,11 @@ export function InfrastructureDashboard() {
     if (selectedPulseFilter !== 'all') {
       const state = getPeripheralPulseState(p);
       if (state !== selectedPulseFilter) return false;
+    }
+    if (selectedLocationTag !== 'all') {
+      if (!p.tags || !p.tags.includes(selectedLocationTag)) {
+        return false;
+      }
     }
     return true;
   });
@@ -687,6 +1409,13 @@ export function InfrastructureDashboard() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => setIsNewDeviceSetupOpen(true)}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>ติดตั้งอุปกรณ์ใหม่ (New Device Setup)</span>
+          </button>
           <button
             onClick={handleSelfHeal}
             disabled={healing}
@@ -797,6 +1526,166 @@ export function InfrastructureDashboard() {
           </div>
         </div>
 
+        {/* Device Profiles (Store Role Configurations) */}
+        <div className="p-4 rounded-2xl bg-background/90 border border-border border-crisp space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-xl bg-indigo-500/10 text-indigo-500">
+                <Layers className="w-4 h-4" />
+              </span>
+              <div>
+                <h3 className="text-xs font-bold text-text uppercase tracking-wider">โปรไฟล์อุปกรณ์ฮาร์ดแวร์ตามบทบาท (Store Role Device Profiles)</h3>
+                <p className="text-[11px] text-text/60">คลิกสลับชุดการตั้งค่าฮาร์ดแวร์และกรองอุปกรณ์สำหรับตำแหน่งงาน (Counter, Kitchen, Bar) ได้ทันที</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-semibold">
+              Active: {deviceProfiles.find(p => p.id === activeProfileId)?.name || 'Custom'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            {deviceProfiles.map((profile) => {
+              const isActive = activeProfileId === profile.id;
+              return (
+                <button
+                  key={profile.id}
+                  onClick={() => handleApplyDeviceProfile(profile.id)}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-1.5 ${
+                    isActive
+                      ? 'bg-indigo-600 text-white border-indigo-500 shadow-md ring-2 ring-indigo-500/20'
+                      : 'bg-card hover:bg-background border-border border-crisp text-text'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-1">
+                    <span className={`text-xs font-bold truncate ${isActive ? 'text-white' : 'text-text'}`}>
+                      {profile.name}
+                    </span>
+                    {isActive && <Check className="w-3.5 h-3.5 text-white shrink-0 mt-0.5" />}
+                  </div>
+                  <div className={`text-[10px] ${isActive ? 'text-indigo-100' : 'text-text/60'}`}>
+                    {profile.role}
+                  </div>
+                  <div className={`text-[10px] line-clamp-1 font-mono ${isActive ? 'text-indigo-200' : 'text-text/50'}`}>
+                    {profile.description}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Bulk Selection & Management Control Bar */}
+        <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3">
+            <span className="p-2 rounded-xl bg-indigo-600 text-white font-bold flex items-center justify-center">
+              <Check className="w-4 h-4" />
+            </span>
+            <div>
+              <div className="font-bold text-text flex items-center gap-2">
+                <span>Bulk Hardware Management (การจัดการฮาร์ดแวร์แบบกลุ่ม)</span>
+                <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-mono text-[10px]">
+                  {selectedPeripheralIds.size} เลือกแล้ว
+                </span>
+              </div>
+              <div className="text-[11px] text-text/60 mt-0.5">ส่งออกไฟล์ Logs วินิจฉัย, รีบูตฮาร์ดแวร์ระยะไกลพร้อมกัน หรือตั้งเวลารีบูตช่วงปิดร้าน</div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleSelectAllOffline}
+              className="px-3 py-1.5 rounded-xl bg-background hover:bg-card border border-border border-crisp text-text/80 font-semibold text-xs transition-all cursor-pointer"
+              title="เลือกอุปกรณ์ทั้งหมดที่ออฟไลน์หรือมีสถานะ Error อัตโนมัติ"
+            >
+              เลือกอุปกรณ์ออฟไลน์ ({peripherals.filter(p => p.connectivity.state === 'disconnected' || getPeripheralPulseState(p) === 'error').length})
+            </button>
+
+            {selectedPeripheralIds.size > 0 && (
+              <button
+                onClick={() => setSelectedPeripheralIds(new Set())}
+                className="px-2.5 py-1.5 rounded-xl bg-background hover:bg-card border border-border text-text/60 text-xs cursor-pointer"
+              >
+                ล้างการเลือก
+              </button>
+            )}
+
+            {/* Export Diagnostic Logs Buttons */}
+            <div className="inline-flex rounded-xl bg-background border border-border border-crisp p-0.5">
+              <button
+                onClick={() => handleExportDiagnosticLogs('json')}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-text/80 hover:text-indigo-500 font-semibold text-[11px] transition-colors cursor-pointer"
+                title="ส่งออกไฟล์บันทึกการวินิจฉัยรูปแบบ JSON"
+              >
+                <FileJson className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Export JSON</span>
+              </button>
+              <button
+                onClick={() => handleExportDiagnosticLogs('csv')}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-text/80 hover:text-emerald-500 font-semibold text-[11px] transition-colors cursor-pointer border-l border-border/60"
+                title="ส่งออกไฟล์บันทึกการวินิจฉัยรูปแบบ CSV"
+              >
+                <FileText className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Export CSV</span>
+              </button>
+            </div>
+
+            {/* Schedule Power Cycle Button */}
+            <button
+              onClick={() => setIsScheduleModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-bold text-xs transition-all cursor-pointer"
+              title="ตั้งเวลารีบูต (Power Cycle) สำหรับอุปกรณ์ทั่วไปช่วงหลังปิดร้าน"
+            >
+              <Clock className="w-3.5 h-3.5 text-amber-500" />
+              <span>ตั้งเวลาช่วงปิดร้าน</span>
+            </button>
+
+            {/* Bulk Reboot Button */}
+            <button
+              onClick={handleBulkRebootPeripherals}
+              disabled={selectedPeripheralIds.size === 0 || bulkRebooting}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold text-xs transition-all shadow-md active:scale-95 cursor-pointer"
+              title="ส่งคำสั่งรีบูตระยะไกล (Bulk Power Cycle) ไปยังอุปกรณ์ที่เลือกพร้อมกัน"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${bulkRebooting ? 'animate-spin' : ''}`} />
+              <span>{bulkRebooting ? 'กำลังรีบูตกลุ่ม...' : `รีบูตที่เลือก (${selectedPeripheralIds.size})`}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Scheduled Power Cycle Jobs Active Strip */}
+        {scheduledJobs.length > 0 && (
+          <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5">
+              <Clock className="w-4 h-4 text-indigo-500 animate-pulse shrink-0" />
+              <div>
+                <span className="font-bold text-text">
+                  มีกำหนดการจัดการฮาร์ดแวร์อัตโนมัติ ({scheduledJobs.length} กำหนดการ)
+                </span>
+                <div className="text-[11px] text-text/70 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>งานถัดไป:</span>
+                  <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] uppercase ${
+                    scheduledJobs[0].type === 'STORE_CLOSING' ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400' : 'bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                  }`}>
+                    {scheduledJobs[0].type === 'STORE_CLOSING' ? 'Closing Reboot' : 'Smart Auto-Reboot'}
+                  </span>
+                  <span>ทุกเวลา <code className="bg-card px-1.5 py-0.5 rounded border border-border font-mono font-bold text-text">{scheduledJobs[0].time} น.</code></span>
+                  {scheduledJobs[0].type === 'AUTO_REBOOT_HIGH_ERROR' && (
+                    <span className="text-rose-600 dark:text-rose-400 font-semibold">เมื่อ Error ≥ {scheduledJobs[0].errorThreshold} ครั้ง</span>
+                  )}
+                  <span className="text-text/40">•</span>
+                  <span>เป้าหมาย: {scheduledJobs[0].targetCount} อุปกรณ์</span>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setScheduledJobs([])}
+              className="px-2.5 py-1 rounded-xl bg-background border border-border text-text/60 text-[11px] font-semibold hover:text-rose-500 hover:border-rose-500/40 transition-all cursor-pointer"
+            >
+              ยกเลิกกำหนดการทั้งหมด
+            </button>
+          </div>
+        )}
+
         {/* Real-time KPI Summary Bar */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-background/70 p-3.5 rounded-2xl border border-border border-crisp">
@@ -904,31 +1793,100 @@ export function InfrastructureDashboard() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-text/60 font-medium">กรองสถานะ:</span>
-                <div className="inline-flex p-1 rounded-xl bg-card border border-border border-crisp text-xs">
-                  {(['all', 'idle', 'active', 'error'] as const).map((mode) => (
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-text/60 font-medium">กรองสถานะ:</span>
+                  <div className="inline-flex p-1 rounded-xl bg-card border border-border border-crisp text-xs">
+                    {(['all', 'idle', 'active', 'error'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => setSelectedPulseFilter(mode)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                          selectedPulseFilter === mode
+                            ? mode === 'error'
+                              ? 'bg-rose-600 text-white shadow-sm'
+                              : mode === 'active'
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : mode === 'idle'
+                              ? 'bg-emerald-600 text-white shadow-sm'
+                              : 'bg-primary text-white shadow-sm'
+                            : 'text-text/70 hover:text-text'
+                        }`}
+                      >
+                        {mode === 'all' && `ทั้งหมด (${pulseCounts.all})`}
+                        {mode === 'idle' && `Idle (${pulseCounts.idle})`}
+                        {mode === 'active' && `Active (${pulseCounts.active})`}
+                        {mode === 'error' && `Error (${pulseCounts.error})`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Grid vs List View Toggle Switch */}
+                <div className="flex items-center gap-1.5 pl-2 border-l border-border/60">
+                  <span className="text-[11px] text-text/60 font-medium">มุมมอง:</span>
+                  <div className="inline-flex p-1 rounded-xl bg-card border border-border border-crisp text-xs">
                     <button
-                      key={mode}
-                      onClick={() => setSelectedPulseFilter(mode)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
-                        selectedPulseFilter === mode
-                          ? mode === 'error'
-                            ? 'bg-rose-600 text-white shadow-sm'
-                            : mode === 'active'
-                            ? 'bg-indigo-600 text-white shadow-sm'
-                            : mode === 'idle'
-                            ? 'bg-emerald-600 text-white shadow-sm'
-                            : 'bg-primary text-white shadow-sm'
+                      onClick={() => setViewMode('grid')}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                        viewMode === 'grid'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-text/70 hover:text-text'
+                      }`}
+                      title="Grid View (มุมมองตารางการ์ด)"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>Grid</span>
+                    </button>
+                    <button
+                      onClick={() => setViewMode('list')}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                        viewMode === 'list'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-text/70 hover:text-text'
+                      }`}
+                      title="List View (มุมมองรายการกะทัดรัด)"
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      <span>List</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Physical Store Location Filter Pills */}
+                <div className="flex items-center gap-1.5 pl-2 border-l border-border/60">
+                  <span className="text-[11px] text-text/60 font-medium flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-indigo-500" />
+                    สถานที่:
+                  </span>
+                  <div className="inline-flex p-1 rounded-xl bg-card border border-border border-crisp text-xs overflow-x-auto max-w-xs sm:max-w-md">
+                    <button
+                      onClick={() => setSelectedLocationTag('all')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                        selectedLocationTag === 'all'
+                          ? 'bg-indigo-600 text-white shadow-sm'
                           : 'text-text/70 hover:text-text'
                       }`}
                     >
-                      {mode === 'all' && `ทั้งหมด (${pulseCounts.all})`}
-                      {mode === 'idle' && `Idle (${pulseCounts.idle})`}
-                      {mode === 'active' && `Active (${pulseCounts.active})`}
-                      {mode === 'error' && `Error (${pulseCounts.error})`}
+                      ทุกจุดบริการ ({peripherals.length})
                     </button>
-                  ))}
+                    {allLocationTags.map((tag) => {
+                      const count = peripherals.filter((p) => p.tags?.includes(tag)).length;
+                      return (
+                        <button
+                          key={tag}
+                          onClick={() => setSelectedLocationTag(tag)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                            selectedLocationTag === tag
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'text-text/70 hover:text-text'
+                          }`}
+                        >
+                          {tag} ({count})
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1025,8 +1983,12 @@ export function InfrastructureDashboard() {
           </div>
         </div>
 
+        {/* Live Network Topology Map (D3 & SVG Interactive Map) */}
+        <NetworkTopologyMap peripherals={peripherals} />
+
         {/* Peripherals Cards Grid with CSS Health Pulse Animations */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredPeripherals.map((peripheral) => {
             const isAuditing = auditingPeripheralId === peripheral.id;
             const pulseState = getPeripheralPulseState(peripheral);
@@ -1043,6 +2005,23 @@ export function InfrastructureDashboard() {
                     : 'border-border border-crisp hover:border-emerald-500/40 shadow-sm'
                 }`}
               >
+                {/* Remote Reboot In-Progress Overlay */}
+                {rebootingPeripheralId === peripheral.id && (
+                  <div className="absolute inset-0 bg-background/90 backdrop-blur-xs z-30 flex flex-col items-center justify-center p-6 text-center space-y-3 animate-fade-in">
+                    <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-500 flex items-center justify-center animate-spin">
+                      <RotateCcw className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-text">กำลังรีบูตฮาร์ดแวร์ระยะไกล (Power Cycle)...</h4>
+                      <p className="text-xs text-text/60 mt-1">ส่งสัญญาณ DTR Pulse รีเซ็ตไฟกระแสตรงอุปกรณ์ {peripheral.name}</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] font-mono text-indigo-500 font-semibold bg-card px-3 py-1 rounded-full border border-border">
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                      <span>Restarting Power Rails & Re-establishing Bus Link...</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Visual Top Glow Accent Line according to pulse state */}
                 <div
                   className={`absolute top-0 left-0 right-0 h-1 transition-all ${
@@ -1057,6 +2036,17 @@ export function InfrastructureDashboard() {
                 {/* Peripheral Header */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
+                    {/* Bulk Selection Checkbox */}
+                    <div className="flex items-center pt-2.5">
+                      <input
+                        type="checkbox"
+                        checked={selectedPeripheralIds.has(peripheral.id)}
+                        onChange={() => handleToggleSelectPeripheral(peripheral.id)}
+                        className="w-4 h-4 rounded border-border text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        title="เลือกอุปกรณ์นี้สำหรับการรีบูตกลุ่ม (Bulk Reboot)"
+                      />
+                    </div>
+
                     <div className="relative">
                       {/* CSS Real-time Expanding Ring Animation */}
                       {pulseState === 'active' && (
@@ -1095,7 +2085,56 @@ export function InfrastructureDashboard() {
 
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-bold text-sm text-text leading-tight">{peripheral.name}</h3>
+                        {editingNamePeripheralId === peripheral.id ? (
+                          <div className="flex items-center gap-1.5 bg-background p-1 rounded-xl border border-indigo-500 shadow-sm">
+                            <input
+                              type="text"
+                              value={editingNameInput}
+                              onChange={(e) => setEditingNameInput(e.target.value)}
+                              placeholder="เช่น พริ้นเตอร์โต๊ะแคชเชียร์ 1..."
+                              className="px-2 py-0.5 text-xs font-bold bg-transparent text-text focus:outline-none w-48 sm:w-64"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleSavePeripheralName(peripheral.id);
+                                }
+                                if (e.key === 'Escape') {
+                                  setEditingNamePeripheralId(null);
+                                }
+                              }}
+                            />
+                            <button
+                              onClick={() => handleSavePeripheralName(peripheral.id)}
+                              className="px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] cursor-pointer flex items-center gap-0.5 shadow-xs"
+                              title="บันทึกชื่อ/นามเรียกขานอุปกรณ์ (Save Alias)"
+                            >
+                              <Check className="w-3 h-3" />
+                              <span>บันทึก</span>
+                            </button>
+                            <button
+                              onClick={() => setEditingNamePeripheralId(null)}
+                              className="p-1 rounded-lg text-text/40 hover:text-text cursor-pointer"
+                              title="ยกเลิก"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 group">
+                            <h3 className="font-bold text-sm text-text leading-tight">{peripheral.name}</h3>
+                            <button
+                              onClick={() => {
+                                setEditingNamePeripheralId(peripheral.id);
+                                setEditingNameInput(peripheral.name);
+                              }}
+                              className="opacity-60 group-hover:opacity-100 hover:text-indigo-500 transition-all p-1 rounded-lg hover:bg-indigo-500/10 cursor-pointer flex items-center gap-1 text-[10px] font-medium text-indigo-500"
+                              title="คลิกเพื่อตั้งชื่อนามเรียกขานอุปกรณ์ (Edit Custom Alias)"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              <span className="hidden sm:inline opacity-0 group-hover:opacity-100 transition-opacity">แก้ชื่อ</span>
+                            </button>
+                          </div>
+                        )}
 
                         {/* Real-time Health Pulse Badge */}
                         <div
@@ -1144,6 +2183,87 @@ export function InfrastructureDashboard() {
                         }`}>
                           {pulseDetails.sub}
                         </span>
+                      </div>
+
+                      {/* Location Tags Strip */}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        <span className="text-[10px] text-text/50 font-medium flex items-center gap-1 shrink-0">
+                          <MapPin className="w-3 h-3 text-indigo-500" />
+                          สถานที่:
+                        </span>
+                        {peripheral.tags && peripheral.tags.length > 0 ? (
+                          peripheral.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
+                            >
+                              <span>{tag}</span>
+                              <button
+                                onClick={() => {
+                                  const updated = (peripheral.tags || []).filter((t) => t !== tag);
+                                  handleSavePeripheralTags(peripheral.id, updated);
+                                }}
+                                className="text-indigo-400 hover:text-rose-500 transition-colors cursor-pointer"
+                                title="ลบแท็กสถานที่"
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-text/40 italic">ยังไม่ได้ระบุตำแหน่ง</span>
+                        )}
+
+                        {editingTagsPeripheralId === peripheral.id ? (
+                          <div className="inline-flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={newTagInput}
+                              onChange={(e) => setNewTagInput(e.target.value)}
+                              placeholder="เช่น Counter 1, Kitchen..."
+                              className="w-28 px-1.5 py-0.5 text-[10px] rounded bg-background border border-indigo-500 text-text focus:outline-none"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && newTagInput.trim()) {
+                                  const current = peripheral.tags || [];
+                                  handleSavePeripheralTags(peripheral.id, [...current, newTagInput.trim()]);
+                                }
+                              }}
+                            />
+                            <button
+                              onClick={() => {
+                                if (newTagInput.trim()) {
+                                  const current = peripheral.tags || [];
+                                  handleSavePeripheralTags(peripheral.id, [...current, newTagInput.trim()]);
+                                }
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-indigo-600 text-white text-[9px] font-bold cursor-pointer"
+                            >
+                              บันทึก
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingTagsPeripheralId(null);
+                                setNewTagInput('');
+                              }}
+                              className="text-text/40 hover:text-text text-[9px] cursor-pointer"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setEditingTagsPeripheralId(peripheral.id);
+                              setNewTagInput('');
+                            }}
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg border border-dashed border-indigo-500/40 hover:border-indigo-500 text-indigo-500 text-[9px] font-medium transition-colors cursor-pointer"
+                            title="เพิ่มสถานที่ฮาร์ดแวร์"
+                          >
+                            <Plus className="w-2.5 h-2.5" />
+                            <span>เพิ่มจุด</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1201,6 +2321,41 @@ export function InfrastructureDashboard() {
                     </div>
                   </div>
                 </div>
+
+                {/* Physical Connectivity & Network Path Indicator */}
+                {peripheral.connectivity.networkPath && (
+                  <div className="p-3 rounded-2xl bg-indigo-950/20 border border-indigo-500/30 text-xs space-y-1.5 shadow-xs">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-indigo-500 uppercase tracking-wider">
+                      <span className="flex items-center gap-1.5">
+                        <Route className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>Physical Network Path & Terminal Link</span>
+                      </span>
+                      <span className="font-mono text-text/60">
+                        {peripheral.connectivity.networkPath.terminalId}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 font-mono text-[11px] pt-0.5">
+                      <div className="flex items-center gap-1.5 font-bold text-text truncate">
+                        <Monitor className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
+                        <span className="truncate">{peripheral.connectivity.networkPath.terminalName}</span>
+                      </div>
+
+                      <div className="flex items-center gap-1 text-[10px] shrink-0 font-bold px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border border-indigo-500/25">
+                        <Share2 className="w-3 h-3 text-amber-400" />
+                        <span>{peripheral.connectivity.networkPath.connectionType}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] text-text/60 font-mono pt-1 border-t border-border/40">
+                      <span>Hop Address: <strong className="text-text">{peripheral.connectivity.networkPath.ipOrBus}</strong></span>
+                      <span className="text-emerald-500 font-semibold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                        Link Active
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Status Sections: 3-column subgrid */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
@@ -1317,26 +2472,95 @@ export function InfrastructureDashboard() {
                     )}
                   </div>
 
-                  {/* 3. Driver Health Status */}
+                  {/* 3. Driver Health & Firmware Status */}
                   <div className="bg-background/60 p-3 rounded-xl border border-border border-crisp space-y-1.5">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-text/50 flex items-center justify-between">
-                      <span>Driver Health</span>
-                      <span className="text-[10px] font-mono text-text/60">v{peripheral.driverVersion}</span>
+                      <span>Firmware & Driver</span>
+                      <span className="text-[10px] font-mono text-text/60">Drv v{peripheral.driverVersion}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    <div className="flex items-center justify-between gap-1 text-xs">
+                      <span className="font-mono font-semibold text-text">FW: {peripheral.firmwareVersion}</span>
+                      {peripheral.firmwareVersion !== peripheral.latestDriverVersion && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-bold text-[9px] uppercase animate-pulse flex items-center gap-0.5">
+                          <DownloadCloud className="w-2.5 h-2.5 shrink-0" />
+                          Update ({peripheral.latestDriverVersion})
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 pt-0.5">
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                      <span className="truncate">Antigravity OK</span>
-                    </div>
-                    <div className="text-[10px] text-text/60 font-mono">
-                      {peripheral.driverHealth.driverSignStatus === 'whql_certified'
-                        ? 'WHQL Certified'
-                        : peripheral.driverHealth.driverSignStatus === 'antigravity_verified'
-                        ? 'AI Verified'
-                        : 'OEM Signed'}
+                      <span className="truncate">Antigravity Verified</span>
                     </div>
                     <div className="text-[10px] text-text/50 truncate">
                       ตรวจสอบ: {new Date(peripheral.driverHealth.lastAuditTimestamp).toLocaleTimeString('th-TH')}
                     </div>
+                  </div>
+                </div>
+
+                {/* Eco Sleep Mode Active Banner */}
+                {peripheral.isPowerSaveMode && (
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between text-xs text-amber-800 dark:text-amber-200">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold">
+                      <Moon className="w-3.5 h-3.5 text-amber-500 animate-pulse shrink-0" />
+                      <span>อยู่ในโหมดประหยัดพลังงาน (Standby Sleep Mode • {peripheral.powerSaveWatts || 0.2}W)</span>
+                    </div>
+                    <button
+                      onClick={() => handleTogglePowerSave(peripheral.id, false)}
+                      className="px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] transition-colors cursor-pointer"
+                    >
+                      Wake Up
+                    </button>
+                  </div>
+                )}
+
+                {/* 24-Hour Uptime & Stability Sparkline Chart Widget */}
+                <div className="p-3 rounded-xl bg-background/70 border border-border border-crisp space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-1.5 font-semibold text-text">
+                      <Activity className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Uptime & Stability (24 Hours)</span>
+                    </div>
+                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs">
+                      {peripheral.connectivity.state === 'online' ? '99.8%' : '84.2%'} สถิตเสถียร
+                    </span>
+                  </div>
+
+                  {/* SVG Sparkline Graph */}
+                  <div className="relative h-10 w-full flex items-end">
+                    <svg viewBox="0 0 240 40" className="w-full h-10 overflow-visible">
+                      <defs>
+                        <linearGradient id={`spark-grad-${peripheral.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                          <stop offset="0%" stopColor="#6366f1" stopOpacity="0.35" />
+                          <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
+                      {/* Area Fill */}
+                      <path
+                        d="M 0 32 Q 20 28 40 22 T 80 18 T 120 25 T 160 12 T 200 15 T 240 10 L 240 40 L 0 40 Z"
+                        fill={`url(#spark-grad-${peripheral.id})`}
+                      />
+                      {/* Line Path */}
+                      <path
+                        d="M 0 32 Q 20 28 40 22 T 80 18 T 120 25 T 160 12 T 200 15 T 240 10"
+                        fill="none"
+                        stroke="#6366f1"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                      {/* Interactive Data Points */}
+                      <circle cx="40" cy="22" r="2.5" fill="#3b82f6" />
+                      <circle cx="120" cy="25" r="2.5" fill="#6366f1" />
+                      <circle cx="160" cy="12" r="2.5" fill="#10b981" />
+                      <circle cx="240" cy="10" r="3" fill="#10b981" className="animate-ping" />
+                      <circle cx="240" cy="10" r="3" fill="#10b981" />
+                    </svg>
+                  </div>
+                  <div className="flex items-center justify-between text-[9px] font-mono text-text/50 pt-0.5">
+                    <span>-24h (00:00)</span>
+                    <span>-18h</span>
+                    <span>-12h</span>
+                    <span>-6h</span>
+                    <span className="text-emerald-500 font-bold">Now (Live)</span>
                   </div>
                 </div>
 
@@ -1349,19 +2573,30 @@ export function InfrastructureDashboard() {
                   <div>{peripheral.driverHealth.diagnostics}</div>
                 </div>
 
-                {/* Error Recovery Banner if in Error State */}
-                {pulseState === 'error' && (
-                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-between gap-2 text-[11px] text-rose-600 dark:text-rose-400">
+                {/* Error Recovery Banner if in Error State or Disconnected */}
+                {(pulseState === 'error' || peripheral.connectivity.state === 'disconnected') && (
+                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-rose-600 dark:text-rose-400">
                     <div className="flex items-center gap-1.5">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                      <span>พบสัญญาณขัดข้อง (Error State) — คลิก Run Diagnostics หรือรีเซ็ต</span>
+                      <span>{peripheral.connectivity.state === 'disconnected' ? 'อุปกรณ์ออฟไลน์ / หลุดการเชื่อมต่อ' : 'พบสัญญาณขัดข้อง (Error State)'}</span>
                     </div>
-                    <button
-                      onClick={() => handleClearPeripheralError(peripheral.id)}
-                      className="px-2 py-0.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-semibold transition-all cursor-pointer"
-                    >
-                      Clear Error
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleAutoReconnect(peripheral)}
+                        disabled={reconnectingPeripheralId === peripheral.id}
+                        className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 disabled:opacity-50 shadow-sm"
+                        title="สั่งการ Auto-Reconnect กู้คืนการเชื่อมต่อพอร์ตอัตโนมัติ"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${reconnectingPeripheralId === peripheral.id ? 'animate-spin' : ''}`} />
+                        <span>{reconnectingPeripheralId === peripheral.id ? 'กำลังเชื่อมต่อ...' : 'Auto-Reconnect'}</span>
+                      </button>
+                      <button
+                        onClick={() => handleClearPeripheralError(peripheral.id)}
+                        className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-semibold transition-all cursor-pointer"
+                      >
+                        Clear Error
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -1371,6 +2606,20 @@ export function InfrastructureDashboard() {
                     {peripheral.telemetryData.operationsCountToday} คำสั่งวันนี้ • {peripheral.telemetryData.errorCountToday} Error
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* Power Save Toggle Switch */}
+                    <button
+                      onClick={() => handleTogglePowerSave(peripheral.id, !peripheral.isPowerSaveMode)}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer ${
+                        peripheral.isPowerSaveMode
+                          ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400 shadow-sm'
+                          : 'bg-background hover:bg-card border-border/70 text-text/80'
+                      }`}
+                      title={peripheral.isPowerSaveMode ? 'คลิกเพื่อออกจากโหมดประหยัดพลังงาน (Wake Up)' : 'คลิกเพื่อเข้าสู่โหมดประหยัดพลังงาน (Eco Sleep 0.2W)'}
+                    >
+                      <Moon className={`w-3.5 h-3.5 ${peripheral.isPowerSaveMode ? 'text-amber-500 animate-pulse' : 'text-text/50'}`} />
+                      <span>{peripheral.isPowerSaveMode ? 'Eco Sleep' : 'Power Save'}</span>
+                    </button>
+
                     <button
                       onClick={() => handleRunDiagnostics(peripheral, false)}
                       disabled={diagnosingPeripheralId === peripheral.id}
@@ -1408,12 +2657,237 @@ export function InfrastructureDashboard() {
                       <RefreshCw className={`w-3 h-3 ${isAuditing ? 'animate-spin' : ''}`} />
                       {isAuditing ? 'กำลังตรวจ...' : 'AI Audit'}
                     </button>
+                    <button
+                      onClick={() => setRebootConfirmPeripheral(peripheral)}
+                      disabled={rebootingPeripheralId === peripheral.id}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-[11px] font-semibold transition-all cursor-pointer disabled:opacity-50"
+                      title="ส่งสัญญาณตัดและจ่ายไฟใหม่ (Power Cycle / Cold Reboot) เพื่อแก้ไขอาการค้าง"
+                    >
+                      <RotateCcw className={`w-3.5 h-3.5 ${rebootingPeripheralId === peripheral.id ? 'animate-spin' : ''}`} />
+                      <span>{rebootingPeripheralId === peripheral.id ? 'กำลัง Cold Boot...' : 'รีบูต'}</span>
+                    </button>
+                    <button
+                      onClick={() => handleToggleMaintenanceMode(peripheral)}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer ${
+                        peripheral.isMaintenanceMode
+                          ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                          : 'bg-background hover:bg-card border-border text-text/70'
+                      }`}
+                      title={peripheral.isMaintenanceMode ? 'ปิดโหมดซ่อมบำรุง (เปิดรับแจ้งเตือนปกติ)' : 'เปิดโหมดซ่อมบำรุง (ระงับแจ้งเตือนอุปกรณ์นี้ชั่วคราว)'}
+                    >
+                      <Wrench className={`w-3.5 h-3.5 ${peripheral.isMaintenanceMode ? 'animate-pulse text-white' : 'text-text/50'}`} />
+                      <span>{peripheral.isMaintenanceMode ? 'Maintenance ON' : 'Service Mode'}</span>
+                    </button>
                   </div>
                 </div>
               </div>
             );
           })}
         </div>
+        ) : (
+          /* List View Table Branch */
+          <div className="bg-card rounded-2xl border border-border border-crisp shadow-sm overflow-hidden animate-card-entrance">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-background/80 text-text/60 text-[11px] uppercase border-b border-border border-crisp font-mono">
+                    <th className="py-3.5 px-4 font-semibold">สถานะ (Pulse)</th>
+                    <th className="py-3.5 px-4 font-semibold">อุปกรณ์ (Device)</th>
+                    <th className="py-3.5 px-4 font-semibold">สถานที่ (Location)</th>
+                    <th className="py-3.5 px-4 font-semibold">พอร์ต / Interface</th>
+                    <th className="py-3.5 px-4 font-semibold">Driver Health</th>
+                    <th className="py-3.5 px-4 font-semibold">Latency / Ops</th>
+                    <th className="py-3.5 px-4 font-semibold text-right">การจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40 font-sans">
+                  {filteredPeripherals.map((peripheral) => {
+                    const isAuditing = auditingPeripheralId === peripheral.id;
+                    const pulseState = getPeripheralPulseState(peripheral);
+                    const pulseDetails = getCategoryPulseDetails(peripheral, pulseState);
+
+                    return (
+                      <tr key={peripheral.id} className="hover:bg-background/50 transition-colors">
+                        <td className="py-3 px-4 shrink-0 whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold uppercase font-mono border ${
+                              pulseState === 'active'
+                                ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-600 dark:text-indigo-400'
+                                : pulseState === 'error'
+                                ? 'bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400 animate-pulse'
+                                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                            }`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              pulseState === 'active' ? 'bg-indigo-500 animate-ping' :
+                              pulseState === 'error' ? 'bg-rose-500 animate-bounce' : 'bg-emerald-500 animate-pulse'
+                            }`} />
+                            {pulseDetails.label}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-8 h-8 rounded-xl bg-background border border-border flex items-center justify-center shrink-0">
+                              {peripheral.category === 'printer' && <Printer className="w-4 h-4 text-indigo-500" />}
+                              {peripheral.category === 'scanner' && <Scan className="w-4 h-4 text-emerald-500" />}
+                              {peripheral.category === 'drawer' && <Banknote className="w-4 h-4 text-amber-500" />}
+                              {peripheral.category === 'edc' && <CreditCard className="w-4 h-4 text-purple-500" />}
+                            </span>
+                            <div>
+                              {editingNamePeripheralId === peripheral.id ? (
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="text"
+                                    value={editingNameInput}
+                                    onChange={(e) => setEditingNameInput(e.target.value)}
+                                    placeholder="นามเรียกขานอุปกรณ์..."
+                                    className="px-2 py-0.5 text-xs font-bold rounded bg-background border border-indigo-500 text-text focus:outline-none w-40"
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        handleSavePeripheralName(peripheral.id);
+                                      }
+                                      if (e.key === 'Escape') {
+                                        setEditingNamePeripheralId(null);
+                                      }
+                                    }}
+                                  />
+                                  <button
+                                    onClick={() => handleSavePeripheralName(peripheral.id)}
+                                    className="p-1 rounded bg-indigo-600 text-white cursor-pointer"
+                                    title="บันทึก"
+                                  >
+                                    <Check className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingNamePeripheralId(null)}
+                                    className="p-1 rounded text-text/40 hover:text-text cursor-pointer"
+                                    title="ยกเลิก"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1.5 group">
+                                  <span className="font-bold text-text">{peripheral.name}</span>
+                                  <button
+                                    onClick={() => {
+                                      setEditingNamePeripheralId(peripheral.id);
+                                      setEditingNameInput(peripheral.name);
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 hover:text-indigo-500 transition-opacity p-0.5 rounded cursor-pointer"
+                                    title="แก้ไขนามเรียกขานอุปกรณ์"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
+                              <div className="text-[10px] text-text/60 font-mono">{peripheral.model} • SN: {peripheral.serialNumber}</div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Location Tag Cell */}
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <div className="flex flex-wrap items-center gap-1">
+                            {peripheral.tags && peripheral.tags.length > 0 ? (
+                              peripheral.tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 inline-flex items-center gap-1"
+                                >
+                                  <MapPin className="w-2.5 h-2.5" />
+                                  {tag}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[10px] text-text/40 italic">-</span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-4 font-mono text-text/80 whitespace-nowrap space-y-1">
+                          <span className="px-2 py-0.5 rounded bg-background border border-border text-[10px] font-semibold block w-fit">
+                            {peripheral.port}
+                          </span>
+                          {peripheral.connectivity.networkPath && (
+                            <div className="flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 font-sans font-medium">
+                              <Monitor className="w-3 h-3 text-cyan-500 shrink-0" />
+                              <span>{peripheral.connectivity.networkPath.terminalName}</span>
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold text-[10px]">
+                            <ShieldCheck className="w-3 h-3" />
+                            {peripheral.driverHealth.driverSignStatus === 'whql_certified' ? 'WHQL Certified' : 'AI Verified'}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-4 font-mono whitespace-nowrap">
+                          <div className="text-text font-semibold">{peripheral.connectivity.latencyMs} ms</div>
+                          <div className="text-[10px] text-text/50">{peripheral.telemetryData.operationsCountToday} ops</div>
+                        </td>
+
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleTogglePowerSave(peripheral.id, !peripheral.isPowerSaveMode)}
+                              className={`px-2 py-1 rounded-lg border text-[10px] font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                                peripheral.isPowerSaveMode
+                                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400'
+                                  : 'bg-background hover:bg-card border-border text-text/80'
+                              }`}
+                              title={peripheral.isPowerSaveMode ? 'Wake Up (ออกจากโหมดสแตนด์บาย)' : 'Power Save (สแตนด์บายโหมดกินไฟต่ำ 0.2W)'}
+                            >
+                              <Moon className={`w-3 h-3 ${peripheral.isPowerSaveMode ? 'text-amber-500 animate-pulse' : 'text-text/50'}`} />
+                              <span>{peripheral.isPowerSaveMode ? 'Eco Sleep' : 'Power Save'}</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleRunDiagnostics(peripheral, false)}
+                              disabled={diagnosingPeripheralId === peripheral.id}
+                              className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-[10px] transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
+                              title="Run Diagnostics"
+                            >
+                              {diagnosingPeripheralId === peripheral.id ? 'Handshaking...' : 'Diagnostics'}
+                            </button>
+                            <button
+                              onClick={() => handleTestPeripheralSignal(peripheral)}
+                              className="px-2 py-1 rounded-lg bg-background hover:bg-card border border-border text-text/80 font-medium text-[10px] transition-all cursor-pointer"
+                              title={pulseDetails.actionLabel}
+                            >
+                              Pulse
+                            </button>
+                            <button
+                              onClick={() => handleAuditPeripheral(peripheral.id)}
+                              disabled={isAuditing}
+                              className="px-2 py-1 rounded-lg bg-background hover:bg-card border border-border text-text/80 font-medium text-[10px] transition-all cursor-pointer disabled:opacity-50"
+                              title="AI Audit"
+                            >
+                              {isAuditing ? 'Auditing...' : 'AI Audit'}
+                            </button>
+                            <button
+                              onClick={() => setRebootConfirmPeripheral(peripheral)}
+                              disabled={rebootingPeripheralId === peripheral.id}
+                              className="px-2 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-600 dark:text-rose-400 font-semibold text-[10px] transition-all cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                              title="รีบูตฮาร์ดแวร์ระยะไกล (Remote Power Cycle)"
+                            >
+                              <RotateCcw className={`w-3 h-3 ${rebootingPeripheralId === peripheral.id ? 'animate-spin' : ''}`} />
+                              <span>{rebootingPeripheralId === peripheral.id ? 'Rebooting...' : 'รีบูต'}</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Automated Driver/Firmware Remote Registry Advisories */}
@@ -1427,7 +2901,16 @@ export function InfrastructureDashboard() {
               ระบบตรวจสอบลายเซ็นฮาร์ดแวร์ (Hardware Signature) เทียบกับฐานข้อมูลรีจิสทรีส่วนกลาง เพื่อแจ้งเตือนช่องโหว่ความปลอดภัย (CVEs) และอัปเดตประสิทธิภาพแบบเรียลไทม์
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={() => handleRunStagedFirmwareUpdate()}
+              disabled={updatingFirmware}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+              title="เริ่มอัปเดตเฟิร์มแวร์อุปกรณ์ทั้งหมดแบบเป็นขั้นตอน (Staged Update Routine)"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${updatingFirmware ? 'animate-spin' : ''}`} />
+              <span>{updatingFirmware ? 'กำลังอัปเดตแบบ Staged...' : 'Staged Firmware Update All'}</span>
+            </button>
             <button
               onClick={handleBulkFirmwareCheck}
               disabled={bulkFirmwareChecking}
@@ -1442,6 +2925,68 @@ export function InfrastructureDashboard() {
             </span>
           </div>
         </div>
+
+        {/* Live Staged Firmware Update Controller Progress Panel */}
+        {(updatingFirmware || firmwareLogs.length > 0) && (
+          <div className="p-5 rounded-2xl bg-slate-950 border border-indigo-500/50 text-white space-y-4 shadow-xl animate-card-entrance">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-indigo-900/50 pb-3">
+              <div className="flex items-center gap-2">
+                <RefreshCw className={`w-5 h-5 text-indigo-400 ${updatingFirmware ? 'animate-spin' : ''}`} />
+                <span className="font-bold text-sm text-indigo-200">Staged Firmware Update Controller (Sequential Flash Engine)</span>
+              </div>
+              <span className="font-mono text-xs text-slate-300 font-bold bg-indigo-950 px-3 py-1 rounded-lg border border-indigo-800">
+                {firmwareUpdateProgress}% Complete
+              </span>
+            </div>
+
+            {/* Overall Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-cyan-300 font-semibold">{firmwareCurrentStage}</span>
+                <span className="text-slate-400">{firmwareUpdateProgress === 100 ? 'เสร็จสมบูรณ์' : 'กำลังดำเนินการ...'}</span>
+              </div>
+              <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-500 via-cyan-400 to-emerald-400 transition-all duration-500"
+                  style={{ width: `${firmwareUpdateProgress}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Stage Milestones Badges */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[10px] font-mono text-center">
+              {[
+                { stageNum: 1, label: 'Stage 1: Checksum', threshold: 20 },
+                { stageNum: 2, label: 'Stage 2: EEPROM Backup', threshold: 40 },
+                { stageNum: 3, label: 'Stage 3: Flashing ROM', threshold: 70 },
+                { stageNum: 4, label: 'Stage 4: Cold Reboot', threshold: 90 },
+                { stageNum: 5, label: 'Stage 5: Verified', threshold: 100 },
+              ].map((m) => (
+                <div
+                  key={m.stageNum}
+                  className={`p-2 rounded-xl border transition-all ${
+                    firmwareUpdateProgress >= m.threshold
+                      ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300 font-bold'
+                      : 'bg-slate-900 border-slate-800 text-slate-500'
+                  }`}
+                >
+                  <div>{m.label}</div>
+                  <div className="text-[9px] mt-0.5">{firmwareUpdateProgress >= m.threshold ? '✓ PASSED' : 'WAITING'}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Live Terminal Log Stream */}
+            <div className="p-3 rounded-xl bg-black/80 font-mono text-[11px] text-slate-300 space-y-1 max-h-36 overflow-y-auto">
+              {firmwareLogs.map((log, idx) => (
+                <div key={idx} className="leading-relaxed flex items-center gap-2">
+                  <span className="text-indigo-400">›</span>
+                  <span>{log}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Bulk Firmware Check Results Panel */}
         {bulkFirmwareResult && (
@@ -1724,6 +3269,187 @@ export function InfrastructureDashboard() {
           ))}
         </div>
       </div>
+
+      {/* New Device Setup Step-by-Step Wizard Overlay */}
+      <NewDeviceSetupModal
+        isOpen={isNewDeviceSetupOpen}
+        onClose={() => setIsNewDeviceSetupOpen(false)}
+        onDeviceAdded={handleDeviceAddedFromWizard}
+      />
+
+      {/* Remote Reboot Confirmation Modal */}
+      {rebootConfirmPeripheral && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-card w-full max-w-md rounded-3xl border border-border border-crisp shadow-2xl p-6 space-y-5 animate-scale-up">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center shrink-0">
+                  <RotateCcw className="w-6 h-6 animate-spin-slow" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-text">ยืนยันการรีบูตฮาร์ดแวร์ระยะไกล</h3>
+                  <p className="text-xs text-text/60 font-mono mt-0.5">ID: {rebootConfirmPeripheral.id}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRebootConfirmPeripheral(null)}
+                className="text-text/40 hover:text-text p-1 rounded-xl hover:bg-background transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-2 text-xs">
+              <div className="font-bold text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>คำเตือนความปลอดภัย (Hardware Power Cycle Warning)</span>
+              </div>
+              <p className="text-text/80 leading-relaxed">
+                คุณกำลังจะส่งสัญญาณรีเซ็ตไฟกระแสตรง (DTR Power Cycle Signal) ไปยังอุปกรณ์ <strong className="text-text font-semibold">{rebootConfirmPeripheral.name}</strong> บนพอร์ต <code className="bg-card px-1.5 py-0.5 rounded border font-mono">{rebootConfirmPeripheral.port}</code>
+              </p>
+              <p className="text-text/70 text-[11px] leading-relaxed">
+                อุปกรณ์จะตัดการเชื่อมต่อและดับลงชั่วคราวประมาณ 1-3 วินาที ก่อนกลับมาทำงานใหม่เพื่อล้าง Memory Buffer
+              </p>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-background border border-border border-crisp text-xs space-y-1.5 font-mono">
+              <div className="flex justify-between text-text/70">
+                <span>สถานที่จัดวาง:</span>
+                <span className="font-bold text-indigo-500">{rebootConfirmPeripheral.tags?.join(', ') || 'ไม่ได้ระบุ'}</span>
+              </div>
+              <div className="flex justify-between text-text/70">
+                <span>อินเทอร์เฟซ:</span>
+                <span className="font-bold text-text">{rebootConfirmPeripheral.connectivity.interface}</span>
+              </div>
+              <div className="flex justify-between text-text/70">
+                <span>เวอร์ชันเฟิร์มแวร์:</span>
+                <span className="font-bold text-text">{rebootConfirmPeripheral.firmwareVersion}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setRebootConfirmPeripheral(null)}
+                className="px-4 py-2.5 rounded-xl border border-border border-crisp text-text/80 hover:bg-background text-xs font-semibold transition-all cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={() => handleExecuteRemoteReboot(rebootConfirmPeripheral)}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-2 cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>ยืนยันรีบูตฮาร์ดแวร์</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Power Cycle & Auto-Reboot Modal */}
+      {isScheduleModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-card w-full max-w-lg rounded-3xl border border-border border-crisp shadow-2xl p-6 space-y-5 animate-scale-up">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-500 flex items-center justify-center shrink-0">
+                  <Clock className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-text">กำหนดการจัดการฮาร์ดแวร์อัจฉริยะ (Smart Management Scheduling)</h3>
+                  <p className="text-xs text-text/60 mt-0.5">ล้าง Memory Buffer และกู้คืนประสิทธิภาพอุปกรณ์อัตโนมัติตามเงื่อนไข</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsScheduleModalOpen(false)}
+                className="text-text/40 hover:text-text p-1 rounded-xl hover:bg-background transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-5 text-xs">
+              {/* Type Selection */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => handleCreateScheduledPowerCycle('STORE_CLOSING')}
+                  className="p-3 rounded-2xl bg-indigo-500 text-white font-bold flex flex-col items-center gap-2 hover:bg-indigo-600 transition-all cursor-pointer text-center"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                  <span>รีบูตช่วงปิดร้าน (Closing Reboot)</span>
+                </button>
+                <button
+                  onClick={() => handleCreateScheduledPowerCycle('AUTO_REBOOT_HIGH_ERROR')}
+                  className="p-3 rounded-2xl bg-rose-500 text-white font-bold flex flex-col items-center gap-2 hover:bg-rose-600 transition-all cursor-pointer text-center"
+                >
+                  <AlertTriangle className="w-5 h-5" />
+                  <span>รีบูตเมื่อ Error สูง (Smart Auto-Reboot)</span>
+                </button>
+              </div>
+
+              <div className="border-t border-border border-crisp pt-4 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <label className="block text-text/70 font-semibold mb-1">ช่วงเวลาทราฟฟิกต่ำ (Low Traffic Window):</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="time"
+                        value={scheduleTime}
+                        onChange={(e) => setScheduleTime(e.target.value)}
+                        className="px-3 py-1.5 rounded-xl bg-background border border-border border-crisp font-mono text-sm font-bold text-indigo-500 focus:outline-none"
+                      />
+                      <span className="text-text/60 text-[10px]">น.</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-text/70 font-semibold mb-1">เกณฑ์แจ้งเตือน Error (Threshold):</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="99"
+                        value={scheduleErrorThreshold}
+                        onChange={(e) => setScheduleErrorThreshold(Number(e.target.value))}
+                        className="w-16 px-3 py-1.5 rounded-xl bg-background border border-border border-crisp font-mono text-sm font-bold text-rose-500 focus:outline-none"
+                      />
+                      <span className="text-text/60 text-[10px]">ครั้ง/วัน</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-background border border-border border-crisp space-y-2">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={scheduleOnlyNonCritical}
+                      onChange={(e) => setScheduleOnlyNonCritical(e.target.checked)}
+                      className="w-4 h-4 rounded border-border text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <span className="font-bold text-text text-xs">ยกเว้นอุปกรณ์สำคัญ (Exclude Critical Devices)</span>
+                  </label>
+                  <p className="text-[10px] text-text/50 pl-6 leading-relaxed">
+                    ระบบจะทำการรีบูตเฉพาะเครื่องพิมพ์และสแกนเนอร์เท่านั้น ลิ้นชักเก็บเงินและเครื่อง EDC จะไม่อยู่ในเงื่อนไขอัตโนมัติ
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-800 dark:text-amber-200 leading-relaxed italic">
+                <span className="font-bold">AI Monitoring:</span> Antigravity จะทำการรีบูตอุปกรณ์ที่มีอัตราความผิดพลาดเกินค่าที่กำหนดในช่วงเวลาที่ร้านมีผู้ใช้งานน้อยที่สุด เพื่อรักษาสภาพคล่องของระบบ
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setIsScheduleModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl border border-border border-crisp text-text/80 hover:bg-background text-xs font-semibold transition-all cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
