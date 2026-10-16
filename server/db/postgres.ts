@@ -21,13 +21,9 @@ export const classifyProductionDatabaseTarget = (databaseUrl: string): Productio
 
 export const resolveProductionDatabaseUrl = async (
   vercelOidcToken?: string,
-): Promise<string> => {
+): Promise<string | undefined> => {
   if (!shouldResolveProductionDatabaseUrl()) {
-    const connectionString = process.env.DATABASE_URL;
-    if (!connectionString) {
-      throw new Error('DATABASE_URL is required to create the PostgreSQL pool.');
-    }
-    return connectionString;
+    return process.env.DATABASE_URL;
   }
 
   const oidcToken = vercelOidcToken ?? process.env.VERCEL_OIDC_TOKEN;
@@ -59,7 +55,17 @@ export const resolveProductionDatabaseUrl = async (
 export const createPostgresPool = (config: PoolConfig = {}): Pool => {
   const connectionString = config.connectionString ?? process.env.DATABASE_URL;
   if (!connectionString) {
-    throw new Error('DATABASE_URL is required to create the PostgreSQL pool.');
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('DATABASE_URL is required to create the PostgreSQL pool.');
+    }
+    console.warn('DATABASE_URL is missing. PostgreSQL pool will not be able to execute queries.');
+    // Return a dummy pool that fails on query
+    return {
+      query: () => Promise.reject(new Error('PostgreSQL is not configured (DATABASE_URL is missing).')),
+      on: () => {},
+      end: () => Promise.resolve(),
+      connect: () => Promise.reject(new Error('PostgreSQL is not configured.')),
+    } as unknown as Pool;
   }
 
   return new Pool({

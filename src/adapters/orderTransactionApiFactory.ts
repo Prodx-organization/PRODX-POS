@@ -1,8 +1,9 @@
 import { orderApi as mockOrderApi } from './mockAdapter';
 import { createProductionOrderTransactionApi } from './productionOrderTransactionApi';
 
+import { shouldReadMock } from './env';
+
 export function createOrderTransactionApi(token: string) {
-  const isMockDisabled = localStorage.getItem('prodx_disable_mocks') === 'true';
-  if (import.meta.env.DEV && !isMockDisabled) return mockOrderApi;
+  if (shouldReadMock()) return mockOrderApi;
   return createProductionOrderTransactionApi(token);
 }

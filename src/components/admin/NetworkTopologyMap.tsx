@@ -16,14 +16,22 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { HardwarePeripheralStatus } from '../../../server/services/infrastructureAiService';
+import { useTheme } from '../../context/ThemeContext';
 
 export interface NetworkTopologyMapProps {
   peripherals: HardwarePeripheralStatus[];
 }
 
 export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ peripherals }) => {
+  const { theme, currentPreset } = useTheme();
   const [selectedInterface, setSelectedInterface] = useState<'all' | 'USB' | 'Bluetooth_LE' | 'Ethernet' | 'RJ12_Drawer_Kick'>('all');
   const [hoveredPeripheralId, setHoveredPeripheralId] = useState<string | null>(null);
+
+  const primaryColor = currentPreset.primary;
+  const secondaryColor = currentPreset.primaryDark; // Adjust based on preset
+  const textColor = theme === 'dark' ? '#f8fafc' : '#0f172a';
+  const mutedColor = theme === 'dark' ? '#94a3b8' : '#64748b';
+  const borderColor = currentPreset.border;
 
   const filteredPeripherals = peripherals.filter((p) => {
     if (selectedInterface === 'all') return true;
@@ -106,12 +114,12 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ peripher
 
             {/* Gradient Paths */}
             <linearGradient id="usb-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#6366f1" />
-              <stop offset="100%" stopColor="#3b82f6" />
+              <stop offset="0%" stopColor={primaryColor} />
+              <stop offset="100%" stopColor={secondaryColor} />
             </linearGradient>
             <linearGradient id="ble-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#06b6d4" />
-              <stop offset="100%" stopColor="#3b82f6" />
+              <stop offset="0%" stopColor={secondaryColor} />
+              <stop offset="100%" stopColor={primaryColor} />
             </linearGradient>
             <linearGradient id="rj12-grad" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#f59e0b" />
@@ -125,7 +133,7 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ peripher
             const isUsb = peripheral.connectivity.interface === 'USB';
             const isBle = peripheral.connectivity.interface === 'Bluetooth_LE';
             const isDrawer = peripheral.connectivity.interface === 'RJ12_Drawer_Kick';
-            const strokeColor = isUsb ? '#6366f1' : isBle ? '#06b6d4' : isDrawer ? '#f59e0b' : '#10b981';
+            const strokeColor = isUsb ? primaryColor : isBle ? secondaryColor : isDrawer ? '#f59e0b' : '#10b981';
 
             // Control point for smooth curved Bézier connection
             const cx = (hubX + x) / 2;
@@ -137,7 +145,7 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ peripher
                 <path
                   d={`M ${hubX} ${hubY} Q ${cx} ${cy} ${x} ${y}`}
                   fill="none"
-                  stroke="#334155"
+                  stroke={theme === 'dark' ? '#334155' : '#cbd5e1'}
                   strokeWidth={isHovered ? 4 : 2}
                   strokeOpacity={0.6}
                 />
@@ -166,20 +174,20 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ peripher
           {/* Central POS Terminal Hub Node */}
           <g transform={`translate(${hubX}, ${hubY})`} filter="url(#neon-glow)">
             {/* Radar Pulse Rings */}
-            <circle r="55" fill="none" stroke="#6366f1" strokeWidth="1.5" strokeOpacity="0.3" className="animate-ping" />
-            <circle r="42" fill="#1e1b4b" stroke="#818cf8" strokeWidth="2" />
-            <circle r="34" fill="#0f172a" stroke="#6366f1" strokeWidth="1.5" />
+            <circle r="55" fill="none" stroke={primaryColor} strokeWidth="1.5" strokeOpacity="0.3" className="animate-ping" />
+            <circle r="42" fill={currentPreset.card} stroke={primaryColor} strokeWidth="2" />
+            <circle r="34" fill={currentPreset.background} stroke={primaryColor} strokeWidth="1.5" />
             {/* Hub Icon / Server Core */}
             <foreignObject x="-20" y="-20" width="40" height="40">
-              <div className="w-full h-full flex items-center justify-center text-indigo-400">
+              <div className="w-full h-full flex items-center justify-center" style={{ color: primaryColor }}>
                 <Server className="w-6 h-6 animate-pulse" />
               </div>
             </foreignObject>
             {/* Hub Label */}
-            <text x="0" y="52" textAnchor="middle" fill="#f8fafc" fontSize="11" fontWeight="bold" fontFamily="monospace">
+            <text x="0" y="52" textAnchor="middle" fill={textColor} fontSize="11" fontWeight="bold" fontFamily="monospace">
               POS CORE HOST (PRODX)
             </text>
-            <text x="0" y="66" textAnchor="middle" fill="#94a3b8" fontSize="9" fontFamily="monospace">
+            <text x="0" y="66" textAnchor="middle" fill={mutedColor} fontSize="9" fontFamily="monospace">
               IP: 192.168.1.100 • Online
             </text>
           </g>
@@ -251,19 +259,19 @@ export const NetworkTopologyMap: React.FC<NetworkTopologyMapProps> = ({ peripher
         </svg>
 
         {/* Legend Overlay at Bottom */}
-        <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] font-mono text-slate-300 backdrop-blur-sm">
+        <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-card border border-border text-[11px] font-mono text-text backdrop-blur-sm">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-1 bg-indigo-500 rounded-full inline-block" /> USB Direct Bus
+              <span className="w-3 h-1 rounded-full inline-block" style={{ backgroundColor: primaryColor }} /> USB Direct Bus
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-1 bg-cyan-400 rounded-full inline-block" /> Bluetooth LE (Wireless)
+              <span className="w-3 h-1 rounded-full inline-block" style={{ backgroundColor: secondaryColor }} /> Bluetooth LE (Wireless)
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-3 h-1 bg-amber-500 rounded-full inline-block" /> RJ12 Solenoid Kick
             </span>
           </div>
-          <div className="text-slate-400">
+          <div className="text-muted-foreground">
             แสดงเส้นทางเชื่อมต่ออุปกรณ์จำนวน {positionedPeripherals.length} รายการ
           </div>
         </div>

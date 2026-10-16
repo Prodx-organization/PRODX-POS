@@ -172,9 +172,9 @@ export const InventoryScreen: React.FC = () => {
   const handleBulkImportComplete = async (result: BulkImportResult) => {
     if (session) {
       const [freshProducts, freshCategories, freshLedger] = await Promise.all([
-        catalogReadApi.getProducts(),
-        catalogReadApi.getCategories(),
-        catalogReadApi.getInventoryLedger(),
+        catalogReadApi.getProducts(session.currentStore.id),
+        catalogReadApi.getCategories(session.currentStore.id),
+        catalogReadApi.getInventoryLedger(session.currentStore.id),
       ]);
       setProducts([...freshProducts]);
       setCategories([...freshCategories]);
@@ -402,9 +402,9 @@ export const InventoryScreen: React.FC = () => {
     if (!session) return;
     try {
       const [prods, cats, ledger] = await Promise.all([
-        catalogReadApi.getProducts(),
-        catalogReadApi.getCategories(),
-        catalogReadApi.getInventoryLedger(),
+        catalogReadApi.getProducts(session.currentStore.id),
+        catalogReadApi.getCategories(session.currentStore.id),
+        catalogReadApi.getInventoryLedger(session.currentStore.id),
       ]);
       setProducts([...prods]);
       setCategories(cats);

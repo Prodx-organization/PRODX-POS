@@ -28,6 +28,30 @@ export const AppShell: React.FC<AppShellProps> = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isHoldModalOpen, setIsHoldModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  
+  // Health Monitoring & Recovery State
+  const [hasRenderError, setHasRenderError] = useState(false);
+  const [loadingStartTime] = useState(Date.now());
+  const [isStuck, setIsStuck] = useState(false);
+  const [isFirstRenderDone, setIsFirstRenderDone] = useState(false);
+
+  // Monitor for "stuck" loading or empty content
+  useEffect(() => {
+    if (!children) {
+      const timer = setTimeout(() => {
+        console.error(`[AppShell Health] UI Hang Detected: Route '${currentRoute}' failed to provide content for 5 seconds.`);
+        setIsStuck(true);
+      }, 5000);
+      return () => clearTimeout(timer);
+    } else {
+      setIsStuck(false);
+      if (!isFirstRenderDone) {
+        setIsFirstRenderDone(true);
+        const bootTime = Date.now() - loadingStartTime;
+        console.info(`[AppShell Health] UI Ready: Route '${currentRoute}' rendered successfully in ${bootTime}ms.`);
+      }
+    }
+  }, [children, currentRoute, isFirstRenderDone, loadingStartTime]);
 
   // Global accelerators: Ctrl+K / Cmd+K (Palette) and Alt+S / Ctrl+Shift+S (Sync Activity)
   useEffect(() => {
@@ -95,7 +119,33 @@ export const AppShell: React.FC<AppShellProps> = ({
 
         {/* Dynamic Route Content */}
         <main className="flex-1 min-h-0 relative flex flex-col min-w-0 overflow-hidden w-full max-w-full">
-          {children}
+          {isStuck ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-4">
+                <div className="w-8 h-8 rounded-full border-4 border-amber-500 border-t-transparent animate-spin" />
+              </div>
+              <h2 className="text-lg font-bold text-text mb-2">กำลังรอการโหลดข้อมูล...</h2>
+              <p className="text-sm text-text/60 max-w-md mb-6">
+                ระบบกำลังพยายามโหลดหน้า <span className="font-mono font-bold text-amber-500 uppercase">{currentRoute}</span> หากค้างนานเกินไป โปรดลองกดปุ่มรีเซ็ตด้านล่าง
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => window.location.reload()}
+                  className="px-6 py-2.5 rounded-xl bg-primary text-white font-bold text-sm shadow-md hover:bg-primary-dark transition-all cursor-pointer active:scale-95"
+                >
+                  โหลดหน้าเว็บใหม่ (Reload)
+                </button>
+                <button
+                  onClick={() => onNavigate('pos')}
+                  className="px-6 py-2.5 rounded-xl border border-border bg-card text-text/80 font-bold text-sm hover:bg-background transition-all cursor-pointer active:scale-95"
+                >
+                  กลับหน้าขาย (POS)
+                </button>
+              </div>
+            </div>
+          ) : (
+            children
+          )}
         </main>
 
         {/* Bottom Diagnostics Bar */}

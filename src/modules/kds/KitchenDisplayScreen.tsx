@@ -74,7 +74,7 @@ export const KitchenDisplayScreen: React.FC = () => {
     if (!orderReadApi) return;
     setIsLoading(true);
     try {
-      const fetched = await orderReadApi.getOrders(100);
+      const fetched = await orderReadApi.getOrders(session!.currentStore.id, 100);
       setOrders(fetched);
     } catch (err) {
       console.error('[KDS] Failed to load kitchen tickets:', err);

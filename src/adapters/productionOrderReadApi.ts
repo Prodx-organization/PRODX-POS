@@ -8,16 +8,16 @@ const baseUrl = () => {
 };
 
 export interface IProductionOrderReadApi {
-  getOrders(limit?: number): Promise<readonly Order[]>;
+  getOrders(storeId: string, limit?: number): Promise<readonly Order[]>;
 }
 
 export function createProductionOrderReadApi(token: string): IProductionOrderReadApi {
   return {
-    async getOrders(limit = 50) {
+    async getOrders(storeId, limit = 50) {
       const host = baseUrl();
       if (host) {
         try {
-          const response = await fetch(`${host}/api/v1/orders?limit=${encodeURIComponent(String(limit))}`, {
+          const response = await fetch(`${host}/api/v1/orders?storeId=${encodeURIComponent(storeId)}&limit=${encodeURIComponent(String(limit))}`, {
             credentials: 'include',
             headers: { Accept: 'application/json', Authorization: `Bearer ${(token || '').trim()}` }
           });
@@ -29,7 +29,7 @@ export function createProductionOrderReadApi(token: string): IProductionOrderRea
           // Fallback to mock
         }
       }
-      return mockOrderApi.getOrders('store-flagship-downtown', limit);
+      return mockOrderApi.getOrders(storeId, limit);
     }
   };
 }

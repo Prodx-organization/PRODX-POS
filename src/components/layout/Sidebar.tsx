@@ -15,6 +15,7 @@ import {
   Lock,
   ChefHat,
   Zap,
+  Globe,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useShift } from '../../context/ShiftContext';
@@ -55,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRoute, onNavigate, onCl
   const { session, logout } = useAuth();
   const { canAccessModule } = useRbac();
   const { currentShift } = useShift();
-  const { language, t } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const navItems: NavItemConfig[] = [
@@ -247,8 +248,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRoute, onNavigate, onCl
             </div>
           </RbacGuard>
 
-          {/* ปุ่มตั้งค่า และ ออกจากระบบ */}
-          <div className="flex items-center gap-2">
+          {/* ปุ่มสลับภาษา, ตั้งค่า และ ออกจากระบบ */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const nextLang = language === 'th' ? 'en' : 'th';
+                setLanguage(nextLang);
+              }}
+              className="flex-1 min-h-[44px] px-3 rounded-xl border border-border bg-background text-xs font-bold text-text hover:bg-background/80 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-2xs"
+              title={language === 'th' ? 'Switch to English' : 'เปลี่ยนเป็นภาษาไทย'}
+            >
+              <Globe className="h-3.5 w-3.5 text-indigo-500" />
+              <span>{language === 'th' ? 'EN' : 'TH'}</span>
+            </button>
             <RbacGuard module="settings" hideMode="hidden">
               <button
                 type="button"
@@ -265,21 +278,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRoute, onNavigate, onCl
                 <span className="truncate">{language === 'th' ? 'ตั้งค่า' : 'Settings'}</span>
               </button>
             </RbacGuard>
-            <button
-              type="button"
-              onClick={() => setShowLogoutConfirm(true)}
-              className="flex-1 min-h-[44px] px-3 rounded-xl border border-rose-500/20 bg-rose-500/10 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-2xs"
-            >
-              <GraphicIcon
-                icon={LogOut}
-                color="rose"
-                variant="flat"
-                size="sm"
-                animateHover={false}
-              />
-              <span className="truncate">{language === 'th' ? 'ออกจากระบบ' : 'Sign Out'}</span>
-            </button>
           </div>
+          
+          <button
+            type="button"
+            onClick={() => setShowLogoutConfirm(true)}
+            className="w-full min-h-[44px] px-3 rounded-xl border border-rose-500/20 bg-rose-500/10 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-2xs"
+          >
+            <GraphicIcon
+              icon={LogOut}
+              color="rose"
+              variant="flat"
+              size="sm"
+              animateHover={false}
+            />
+            <span className="truncate">{language === 'th' ? 'ออกจากระบบ' : 'Sign Out'}</span>
+          </button>
         </div>
       </aside>
 

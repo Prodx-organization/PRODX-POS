@@ -125,8 +125,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       setIsLoading(true);
       try {
         const [loadedOrders, loadedProducts] = await Promise.all([
-          orderReadApi.getOrders(200),
-          catalogApi!.getProducts(),
+          orderReadApi.getOrders(session.currentStore.id, 200),
+          catalogApi!.getProducts(session.currentStore.id),
         ]);
         setOrders(loadedOrders);
         setProducts(loadedProducts);

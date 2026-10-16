@@ -59,6 +59,13 @@ export interface PeripheralDriverHealth {
   diagnostics: string;
 }
 
+export interface PredictiveAnalysis {
+  reliabilityScore: number; // 0-100
+  estimatedTimeToFailureDays: number | null;
+  maintenanceRecommended: boolean;
+  analysisInsight: string;
+}
+
 export interface HardwarePeripheralStatus {
   id: string;
   name: string;
@@ -72,15 +79,18 @@ export interface HardwarePeripheralStatus {
   connectivity: PeripheralConnectivity;
   battery: PeripheralBattery;
   driverHealth: PeripheralDriverHealth;
+  predictiveAnalysis: PredictiveAnalysis;
   lastActivity: string;
   telemetryData: {
     operationsCountToday: number;
     errorCountToday: number;
+    historicalErrorCount: number; // For predictive analysis
     temperatureCelsius?: number;
   };
   tags?: string[];
   isPowerSaveMode?: boolean;
   powerSaveWatts?: number;
+  currentPowerDrawWatts?: number; // Real-time power telemetry
   isMaintenanceMode?: boolean;
 }
 
@@ -267,13 +277,21 @@ class InfrastructureAIService {
         driverSignStatus: 'whql_certified',
         diagnostics: 'Thermal print head impedance 24.2Ω (Normal). Paper feed stepper sync 100%. Buffer latency 1.4ms.',
       },
+      predictiveAnalysis: {
+        reliabilityScore: 100,
+        estimatedTimeToFailureDays: 365,
+        maintenanceRecommended: false,
+        analysisInsight: '',
+      },
       lastActivity: new Date().toISOString(),
       telemetryData: {
         operationsCountToday: 348,
         errorCountToday: 0,
+        historicalErrorCount: 12,
         temperatureCelsius: 38.5,
       },
       tags: ['Counter 1', 'Main POS'],
+      currentPowerDrawWatts: 8.5,
     },
     {
       id: 'periph-scn-01',
@@ -310,13 +328,21 @@ class InfrastructureAIService {
         driverSignStatus: 'oem_signed',
         diagnostics: 'Zero bit-error rate on Aztec / QR / EAN-13 decoding. Keyboard wedge buffer response 0.8ms.',
       },
+      predictiveAnalysis: {
+        reliabilityScore: 100,
+        estimatedTimeToFailureDays: 365,
+        maintenanceRecommended: false,
+        analysisInsight: '',
+      },
       lastActivity: new Date().toISOString(),
       telemetryData: {
         operationsCountToday: 512,
         errorCountToday: 0,
+        historicalErrorCount: 5,
         temperatureCelsius: 29.1,
       },
       tags: ['Counter 1'],
+      currentPowerDrawWatts: 1.2,
     },
     {
       id: 'periph-drw-01',
@@ -353,12 +379,20 @@ class InfrastructureAIService {
         driverSignStatus: 'antigravity_verified',
         diagnostics: 'Microswitch circuit loop closed. 24V 100ms kick-pulse verified. Tamper sensor normal.',
       },
+      predictiveAnalysis: {
+        reliabilityScore: 40,
+        estimatedTimeToFailureDays: 14,
+        maintenanceRecommended: true,
+        analysisInsight: '⚠️ ตรวจพบสัญญาณ Kick-Pulse ผิดจังหวะบ่อยครั้งในวันนี้ แนะนำให้หล่อลื่นกลไกสลักแม่เหล็ก',
+      },
       lastActivity: new Date().toISOString(),
       telemetryData: {
         operationsCountToday: 84,
-        errorCountToday: 0,
+        errorCountToday: 8, // Trigger high error alert
+        historicalErrorCount: 42, // High historical errors for predictive fail
       },
       tags: ['Counter 1'],
+      currentPowerDrawWatts: 14.2, // Higher draw indicating potential solenoid issue
     },
     {
       id: 'periph-scn-02',
@@ -396,13 +430,21 @@ class InfrastructureAIService {
         driverSignStatus: 'whql_certified',
         diagnostics: 'BLE connection RSSI -42dBm (Strong). CoreScanner driver synchronized. 14 hours battery remaining.',
       },
+      predictiveAnalysis: {
+        reliabilityScore: 98,
+        estimatedTimeToFailureDays: 320,
+        maintenanceRecommended: false,
+        analysisInsight: '',
+      },
       lastActivity: new Date().toISOString(),
       telemetryData: {
         operationsCountToday: 219,
         errorCountToday: 0,
+        historicalErrorCount: 2,
         temperatureCelsius: 27.8,
       },
       tags: ['Bar', 'Beverage Counter'],
+      currentPowerDrawWatts: 0.8,
     },
     {
       id: 'periph-prn-02',
@@ -440,13 +482,21 @@ class InfrastructureAIService {
         driverSignStatus: 'oem_signed',
         diagnostics: 'Mobile battery cycle count: 48 (Good). Thermal head condition: Normal. Wireless buffer 100% stable.',
       },
+      predictiveAnalysis: {
+        reliabilityScore: 92,
+        estimatedTimeToFailureDays: 280,
+        maintenanceRecommended: false,
+        analysisInsight: '',
+      },
       lastActivity: new Date().toISOString(),
       telemetryData: {
         operationsCountToday: 62,
         errorCountToday: 0,
+        historicalErrorCount: 8,
         temperatureCelsius: 32.0,
       },
       tags: ['Kitchen', 'Order Prep'],
+      currentPowerDrawWatts: 2.1,
     },
     {
       id: 'periph-edc-01',
@@ -483,15 +533,81 @@ class InfrastructureAIService {
         driverSignStatus: 'whql_certified',
         diagnostics: 'Thai QR PromptPay & EMV Contactless kernel validated. SSL/TLS 1.3 encrypted channel verified.',
       },
+      predictiveAnalysis: {
+        reliabilityScore: 99,
+        estimatedTimeToFailureDays: 360,
+        maintenanceRecommended: false,
+        analysisInsight: '',
+      },
       lastActivity: new Date().toISOString(),
       telemetryData: {
         operationsCountToday: 142,
         errorCountToday: 0,
+        historicalErrorCount: 3,
         temperatureCelsius: 34.2,
       },
       tags: ['Counter 1', 'Payment'],
+      currentPowerDrawWatts: 5.4,
     },
   ];
+
+  private calculatePredictiveAnalysis(p: HardwarePeripheralStatus): PredictiveAnalysis {
+    const errorRate = p.telemetryData.errorCountToday;
+    const historicalErrors = p.telemetryData.historicalErrorCount;
+    const opsCount = p.telemetryData.operationsCountToday;
+    
+    // AI Heuristic for predictive analysis using historical trends
+    let reliabilityScore = 100;
+    let estimatedTimeToFailureDays: number | null = 365;
+    let analysisInsight = 'สถานะอุปกรณ์สถิตเสถียรดีเยี่ยม ไม่พบความผิดปกติในระบบย่อย';
+
+    // Impact of historical errors (long-term reliability)
+    if (historicalErrors > 10) {
+      reliabilityScore -= Math.min(30, historicalErrors * 0.5);
+      estimatedTimeToFailureDays = Math.max(30, 365 - (historicalErrors * 5));
+      analysisInsight = `ตรวจพบประวัติความผิดพลาดสะสม ${historicalErrors} ครั้ง ซึ่งสูงกว่าเกณฑ์ปกติเล็กน้อย`;
+    }
+
+    // Impact of today's errors (immediate risk)
+    if (errorRate > 0) {
+      reliabilityScore -= (errorRate * 8);
+      estimatedTimeToFailureDays = Math.min(estimatedTimeToFailureDays || 365, Math.max(7, 120 - (errorRate * 15)));
+      analysisInsight = `ตรวจพบความผิดพลาด ${errorRate} ครั้งในวันนี้ แนะนำให้ตรวจสอบพอร์ตการเชื่อมต่อเพื่อป้องกันการหยุดชะงัก`;
+    }
+
+    if (p.connectivity.state === 'disconnected') {
+      reliabilityScore = 0;
+      estimatedTimeToFailureDays = 0;
+      analysisInsight = 'อุปกรณ์ออฟไลน์ - ไม่สามารถระบุความเสถียรได้ในขณะนี้';
+    } else if (p.connectivity.latencyMs > 10) {
+      reliabilityScore -= 15;
+      analysisInsight = 'พบความล่าช้า (Latency) สูงกว่าเกณฑ์ปกติ อาจเกิดจากปัญหาคอขวดใน Bus ข้อมูล';
+    }
+
+    // High temperature impact
+    if (p.telemetryData.temperatureCelsius && p.telemetryData.temperatureCelsius > 45) {
+      reliabilityScore -= 12;
+      analysisInsight = 'อุณหภูมิการทำงานสูงกว่าปกติ อาจส่งผลต่ออายุการใช้งานในระยะยาว';
+    }
+
+    // Threshold for preventative maintenance
+    const maintenanceRecommended = reliabilityScore < 70 || errorRate >= 5 || historicalErrors > 40;
+
+    if (maintenanceRecommended) {
+      if (reliabilityScore < 40) {
+        analysisInsight = '⚠️ [ความเสี่ยงสูง] อุปกรณ์มีประวัติความผิดพลาดสะสมรุนแรง แนะนำให้ทำ Preventative Maintenance ทันที';
+      } else {
+        analysisInsight = '💡 แนะนำให้ตรวจสอบอุปกรณ์เชิงป้องกัน (Preventative Maintenance) เพื่อเลี่ยงการหยุดชะงักของระบบ';
+      }
+    }
+
+    return {
+      reliabilityScore: Math.max(0, Math.round(reliabilityScore)),
+      estimatedTimeToFailureDays: estimatedTimeToFailureDays,
+      maintenanceRecommended,
+      analysisInsight,
+    };
+  }
 
   getHardwarePeripherals(): HardwarePeripheralStatus[] {
     return this.peripherals.map(p => {
@@ -500,7 +616,8 @@ class InfrastructureAIService {
         latency = Number((latency + (Math.random() * 0.4 - 0.2)).toFixed(1));
         if (latency < 0.5) latency = 0.5;
       }
-      return {
+      
+      const updatedP = {
         ...p,
         connectivity: {
           ...p.connectivity,
@@ -508,6 +625,33 @@ class InfrastructureAIService {
           lastPingTimestamp: new Date().toISOString(),
         },
       };
+
+      // Real-time power draw simulation
+      if (updatedP.isPowerSaveMode) {
+        updatedP.currentPowerDrawWatts = updatedP.powerSaveWatts || 0.2;
+      } else {
+        // Base consumption by category
+        let baseWatts = updatedP.category === 'printer' ? 8.0 : 
+                        updatedP.category === 'drawer' ? 0.5 :
+                        updatedP.category === 'scanner' ? 1.0 : 5.0;
+        
+        // Add some noise and occasional spikes
+        let variance = (Math.random() * 0.4 - 0.2);
+        let spike = (Math.random() > 0.95) ? (Math.random() * 5.0) : 0;
+        
+        // Drawer specific failing solenoid simulation
+        if (updatedP.id === 'periph-drw-01') {
+          baseWatts = 12.0; // Consistently high
+          spike = (Math.random() > 0.8) ? (Math.random() * 8.0) : 0;
+        }
+
+        updatedP.currentPowerDrawWatts = Number((baseWatts + variance + spike).toFixed(1));
+      }
+
+      // Calculate predictive analysis on the fly
+      updatedP.predictiveAnalysis = this.calculatePredictiveAnalysis(updatedP);
+
+      return updatedP;
     });
   }
 

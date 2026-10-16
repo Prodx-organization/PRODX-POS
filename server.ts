@@ -10,7 +10,7 @@ const __dirname = dirname(__filename);
 
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
-  const port = process.env.PORT || 3000;
+  const port = 3000;
 
   // Create the production Express app (the backend)
   // We pass undefined for vercelOidcToken for local dev
@@ -36,7 +36,9 @@ async function startServer() {
     app.use('*', async (req, res, next) => {
       const url = req.originalUrl;
       try {
-        let template = await vite.transformIndexHtml(url, '');
+        const fs = await import('node:fs/promises');
+        const html = await fs.readFile(resolve(__dirname, 'index.html'), 'utf-8');
+        const template = await vite.transformIndexHtml(url, html);
         res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
       } catch (e) {
         vite.ssrFixStacktrace(e as Error);

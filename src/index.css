@@ -718,20 +718,29 @@
 }
 
 /* ========================================================================= */
-/* Visual Inspector Mode (1px dashed outlines for flex & absolute elements)  */
+/* QR Scanner (html5-qrcode) UI Overrides                                    */
 /* ========================================================================= */
-body.prodx-visual-inspector-active .flex,
-body.prodx-visual-inspector-active [class*="flex-"],
-body.prodx-visual-inspector-active .inline-flex,
-body.prodx-visual-inspector-active .grid,
-body.prodx-visual-inspector-active [class*="absolute"],
-body.prodx-visual-inspector-active [class*="relative"],
-body.prodx-visual-inspector-active [class*="fixed"],
-body.prodx-visual-inspector-active div[class*="flex"],
-body.prodx-visual-inspector-active section,
-body.prodx-visual-inspector-active article,
-body.prodx-visual-inspector-active main {
-  outline: 1px dashed rgba(239, 68, 68, 0.75) !important;
-  outline-offset: -1px;
+#qr-reader {
+  border: none !important;
+  background: transparent !important;
+}
+
+#qr-reader__dashboard,
+#qr-reader__header_message,
+#qr-reader__status_span,
+#qr-reader img[alt="Camera"],
+#qr-reader button {
+  display: none !important;
+}
+
+#qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 1rem !important;
+}
+
+#qr-reader__scan_region {
+  min-height: auto !important;
 }
 

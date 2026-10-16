@@ -16,10 +16,14 @@ import {
   UserRound,
   Wifi,
   X,
+  QrCode,
+  Camera,
+  RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
+import { Scanner } from '@yudiel/react-qr-scanner';
 
 const STORAGE = {
   organization: 'prodx.terminal.organization',
@@ -139,8 +143,47 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
-  const [isPinMode, setIsPinMode] = useState(true);
+  const [loginMode, setLoginMode] = useState<'pin' | 'email' | 'qr'>('pin');
   const [pin, setPin] = useState('');
+
+  // QR Scanning Logic
+  const handleScan = async (result: any) => {
+    if (!result || isLoading) return;
+    const decodedText = result[0].rawValue;
+    try {
+        let credentials: { identity: string; secret: string };
+        
+        try {
+          const parsed = JSON.parse(decodedText);
+          if (parsed.id && parsed.key) {
+            credentials = { identity: parsed.id, secret: parsed.key };
+          } else {
+            throw new Error('Invalid badge format');
+          }
+        } catch {
+          if (decodedText.includes('@') || decodedText.length > 4) {
+            credentials = { identity: decodedText, secret: decodedText };
+          } else {
+            addToast({ title: 'QR Scan', message: 'Unknown badge format', type: 'error' });
+            return;
+          }
+        }
+
+        addToast({ title: 'Badge Scanned', message: `Verifying identity for ${credentials.identity}...`, type: 'success' });
+        
+        await login({
+          organizationSlug: organizationSlug.trim(),
+          storeCode: storeCode.trim(),
+          registerId: registerId.trim(),
+          emailOrPin: credentials.identity,
+          passwordOrPin: credentials.secret,
+        });
+        persistTerminal();
+      } catch (err) {
+        console.error('QR Login Error:', err);
+        addToast({ title: 'Sign-in failed', message: 'Badge could not be verified.', type: 'error' });
+      }
+  };
 
   const handlePinInput = (digit: string) => {
     if (pin.length < 6) setPin(prev => prev + digit);
@@ -153,11 +196,11 @@ export const LoginScreen: React.FC = () => {
     event?.preventDefault();
     if (isLoading) return;
 
-    const finalIdentity = isPinMode ? pin : identity.trim();
-    const finalSecret = isPinMode ? pin : secret;
+    const finalIdentity = loginMode === 'pin' ? pin : identity.trim();
+    const finalSecret = loginMode === 'pin' ? pin : secret;
 
     if (!terminalReady || !finalIdentity || !finalSecret) {
-      if (!isPinMode) {
+      if (loginMode === 'email') {
         setTerminalOpen(true);
         addToast({ title: copy.setup, message: copy.required, type: 'error' });
       }
@@ -347,21 +390,73 @@ export const LoginScreen: React.FC = () => {
               <div className="mb-6 flex p-1 bg-slate-100 rounded-xl">
                 <button
                   type="button"
-                  onClick={() => { setIsPinMode(true); setPin(''); }}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${isPinMode ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => { setLoginMode('pin'); setPin(''); }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${loginMode === 'pin' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  {isThai ? 'เข้าด้วยรหัส PIN' : 'PIN Access'}
+                  {isThai ? 'รหัส PIN' : 'PIN'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setIsPinMode(false); setPin(''); }}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${!isPinMode ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => { setLoginMode('qr'); setPin(''); }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${loginMode === 'qr' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  {isThai ? 'เข้าด้วยอีเมล' : 'Email Login'}
+                  <div className="flex items-center justify-center gap-1.5">
+                    <QrCode className="w-3.5 h-3.5" />
+                    <span>{isThai ? 'สแกนบัตร' : 'Badge'}</span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setLoginMode('email'); setPin(''); }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${loginMode === 'email' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  {isThai ? 'อีเมล' : 'Email'}
                 </button>
               </div>
 
-              {isPinMode ? (
+              {loginMode === 'qr' && (
+                <div className="animate-in fade-in zoom-in-95 duration-300">
+                  <div className="relative rounded-2xl border-2 border-slate-200 bg-slate-50 overflow-hidden mb-4">
+                    <Scanner 
+                        onScan={handleScan}
+                        onError={(error) => console.log(error?.message)}
+                        components={{ finder: true, torch: true }}
+                    />
+                    <div className="absolute inset-0 pointer-events-none border-[30px] border-slate-950/20 flex items-center justify-center">
+                      <div className="w-48 h-48 border-2 border-dashed border-white/60 rounded-2xl flex items-center justify-center">
+                        <div className="w-4 h-4 border-t-4 border-l-4 border-[#ff6b1a] absolute top-0 left-0 rounded-tl-lg" />
+                        <div className="w-4 h-4 border-t-4 border-r-4 border-[#ff6b1a] absolute top-0 right-0 rounded-tr-lg" />
+                        <div className="w-4 h-4 border-b-4 border-l-4 border-[#ff6b1a] absolute bottom-0 left-0 rounded-bl-lg" />
+                        <div className="w-4 h-4 border-b-4 border-r-4 border-[#ff6b1a] absolute bottom-0 right-0 rounded-br-lg" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-center space-y-3">
+                    <div className="flex items-center justify-center gap-2 text-[#e85d0c] font-black text-xs uppercase tracking-widest">
+                      <Camera className="w-4 h-4" />
+                      <span>Ready to scan badge</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 max-w-[280px] mx-auto">
+                      {isThai 
+                        ? 'ถือบัตรพนักงานหน้ากล้องเพื่อให้ระบบสแกน QR Code โดยอัตโนมัติ' 
+                        : 'Hold your employee ID badge in front of the camera to sign in instantly.'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginMode('pin');
+                        setTimeout(() => setLoginMode('qr'), 100);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-[10px] font-bold text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-all cursor-pointer active:scale-95"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>{isThai ? 'เริ่มสแกนใหม่' : 'Reset Scanner'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {loginMode === 'pin' ? (
                 <div className="space-y-6">
                   <div className="flex justify-center gap-3">
                     {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -424,7 +519,7 @@ export const LoginScreen: React.FC = () => {
                     {isLoading ? copy.signingIn : copy.signIn}
                   </button>
                 </div>
-              ) : (
+              ) : loginMode === 'email' ? (
                 <form onSubmit={submit} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <label className="block">
                     <span className="mb-2 block text-xs font-black text-slate-700">{copy.identity}</span>
@@ -448,7 +543,7 @@ export const LoginScreen: React.FC = () => {
                     {isLoading ? copy.signingIn : copy.signIn}
                   </button>
                 </form>
-              )}
+              ) : null}
 
               <div className="mt-6 rounded-2xl bg-slate-50 p-4">
                 <div className="flex items-start gap-3">

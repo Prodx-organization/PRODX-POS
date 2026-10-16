@@ -37,7 +37,8 @@ interface AuthContextType {
 }
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STORAGE_KEY = AUTH_SESSION_STORAGE_KEY; const TIMEOUT_STORAGE_KEY = 'prodx_pos_inactivity_timeout'; const CUSTOM_STORE_KEY = 'prodx_custom_store_profile';
-const IS_DEVELOPMENT = import.meta.env.DEV;
+import { shouldReadMock } from '../adapters/env';
+const IS_DEVELOPMENT = shouldReadMock();
 
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -48,6 +49,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [customPermissionSets, setCustomPermissionSets] = useState<CustomPermissionSet[]>(() => IS_DEVELOPMENT ? getStoredCustomPermissionSets() : []);
   const [inactivityTimeoutMinutes, setInactivityTimeoutMinutesState] = useState<number>(() => { try { const stored = localStorage.getItem(TIMEOUT_STORAGE_KEY); if (stored !== null) return Number(stored); } catch {} return 5; });
   const lastActivityRef = useRef(Date.now());
+
+  // Ensure default admin PIN
+  useEffect(() => {
+    if (!IS_DEVELOPMENT) return;
+    const adminUsers = staffUsers.filter(u => u.role === 'admin');
+    let needsUpdate = false;
+    const nextPins = { ...staffPins };
+    for (const admin of adminUsers) {
+      if (!nextPins[admin.id]) {
+        nextPins[admin.id] = '999999';
+        needsUpdate = true;
+      }
+    }
+    if (needsUpdate) {
+      setStaffPins(nextPins);
+      saveStoredStaffPins(nextPins);
+    }
+  }, [staffUsers]);
 
   useEffect(() => { async function restoreSession() { try { localStorage.removeItem(STORAGE_KEY); const persisted = readPersistedSession(sessionStorage); if (!persisted) { clearPersistedSession(sessionStorage); return; } const verified = await authApi.verifySession(persisted.token); if (!verified) { clearPersistedSession(sessionStorage); return; } setSession(verified); writePersistedSession(sessionStorage, verified.token); lastActivityRef.current = Date.now(); } catch (err) { console.error('[AuthContext] Session restore error:', err); try { clearPersistedSession(sessionStorage); localStorage.removeItem(STORAGE_KEY); } catch {} } finally { setIsLoading(false); } } restoreSession(); }, []);
   useEffect(() => { if (!session || isLocked) return; const handleActivity = () => { lastActivityRef.current = Date.now(); }; const events = ['mousemove','mousedown','keydown','touchstart','scroll']; events.forEach(ev => window.addEventListener(ev, handleActivity, { passive: true })); const timer = setInterval(() => { if (!isLocked && session && inactivityTimeoutMinutes > 0 && Date.now() - lastActivityRef.current >= inactivityTimeoutMinutes * 60 * 1000) setIsLocked(true); }, 10000); return () => { events.forEach(ev => window.removeEventListener(ev, handleActivity)); clearInterval(timer); }; }, [session, isLocked, inactivityTimeoutMinutes]);

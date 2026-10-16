@@ -111,8 +111,8 @@ export const GlobalSearchInput: React.FC<GlobalSearchInputProps> = ({
     const loadCatalog = async () => {
       try {
         const [prods, cats] = await Promise.all([
-          catalogApi.getProducts(),
-          catalogApi.getCategories(),
+          catalogApi.getProducts(session.currentStore.id),
+          catalogApi.getCategories(session.currentStore.id),
         ]);
         if (isMounted) {
           setProducts(prods as Product[]);

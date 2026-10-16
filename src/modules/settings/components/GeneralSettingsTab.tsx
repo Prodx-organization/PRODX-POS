@@ -281,25 +281,14 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
                 {language === 'th' ? 'เลือกภาษาหลักสำหรับการแสดงผลส่วนติดต่อผู้ใช้ (UI) เมนู ปุ่มคำสั่ง และรายงานทั้งระบบ' : 'Select system-wide interface language for POS screens, menus, and real-time reports.'}
               </p>
             </div>
-            <Badge variant="primary" size="sm" className="font-mono text-[10px] shrink-0 uppercase">
+            <Badge size="sm" className="font-mono text-[10px] shrink-0 uppercase">
               {language} Active
             </Badge>
           </div>
         </CardHeader>
 
         <CardBody className="p-5 space-y-4">
-          <LanguageSwitcher
-            variant="grid"
-            gridColumns="grid-cols-2"
-            showDetails={true}
-            onSelect={(newLng) => {
-              addToast({
-                title: newLng === 'th' ? 'เปลี่ยนภาษาระบบสำเร็จ' : newLng === 'zh' ? '系统语言已更新' : newLng === 'ja' ? 'システム言語を変更しました' : 'System Language Updated',
-                message: `PRODX POS interface language switched to ${newLng.toUpperCase()}.`,
-                type: 'info',
-              });
-            }}
-          />
+          <LanguageSwitcher />
         </CardBody>
       </Card>
 

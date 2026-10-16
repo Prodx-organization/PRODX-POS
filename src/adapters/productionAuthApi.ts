@@ -41,13 +41,21 @@ export const createProductionAuthApi = (): IAuthApi => ({
 
   async verifySession(token: string): Promise<SessionContext | null> {
     if (!token) return null;
-    const response = await fetch(`${baseUrl()}/auth/session`, {
-      credentials: 'include',
-      headers: { Accept: 'application/json', Authorization: `Bearer ${requireToken(token)}` },
-    });
-    if (response.status === 401) return null;
-    if (!response.ok) throw new Error(`Authentication API request failed (${response.status}).`);
-    return response.json() as Promise<SessionContext>;
+    try {
+      const response = await fetch(`${baseUrl()}/auth/session`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json', Authorization: `Bearer ${requireToken(token)}` },
+      });
+      if (response.status === 401) return null;
+      if (!response.ok) {
+        console.warn(`Authentication API session verification failed (${response.status}). Falling back to unauthenticated.`);
+        return null;
+      }
+      return await response.json() as SessionContext;
+    } catch (e) {
+      console.error('Authentication API session verification error:', e);
+      return null;
+    }
   },
 
   async getStores(orgSlug: string, token: string): Promise<readonly Store[]> {

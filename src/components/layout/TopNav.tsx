@@ -30,6 +30,7 @@ import { NavRoute } from './Sidebar';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { CustomerDisplayLauncherModal } from '../customerDisplay/CustomerDisplayLauncherModal';
 import { GlobalSearchInput } from './GlobalSearchInput';
+import { LanguageSwitcher } from '../common/LanguageSwitcher';
 import { getZIndexClass } from '../../utils/ZIndexManager';
 import { AVAILABLE_LANGUAGES, SupportedLanguage } from '../../i18n/types';
 import { useVisualInspector } from '../../context/VisualInspectorContext';
@@ -59,7 +60,6 @@ export const TopNav: React.FC<TopNavProps> = ({
 
   const [isStoreMenuOpen, setIsStoreMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const [isCurrencyMenuOpen, setIsCurrencyMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isCustomerDisplayModalOpen, setIsCustomerDisplayModalOpen] = useState(false);
@@ -85,13 +85,12 @@ export const TopNav: React.FC<TopNavProps> = ({
   return (
     <>
       {/* Backdrop for closing open dropdowns */}
-      {(isStoreMenuOpen || isUserMenuOpen || isLangMenuOpen || isCurrencyMenuOpen) && (
+      {(isStoreMenuOpen || isUserMenuOpen || isCurrencyMenuOpen) && (
         <div
           className={`fixed inset-0 ${getZIndexClass('dropdownBackdrop')} bg-transparent`}
           onClick={() => {
             setIsStoreMenuOpen(false);
             setIsUserMenuOpen(false);
-            setIsLangMenuOpen(false);
             setIsCurrencyMenuOpen(false);
           }}
         />
@@ -132,7 +131,6 @@ export const TopNav: React.FC<TopNavProps> = ({
               onClick={() => {
                 setIsStoreMenuOpen(!isStoreMenuOpen);
                 setIsCurrencyMenuOpen(false);
-                setIsLangMenuOpen(false);
                 setIsUserMenuOpen(false);
               }}
               className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 min-h-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background text-xs font-bold text-text transition-all duration-150 cursor-pointer active:scale-95"
@@ -263,7 +261,6 @@ export const TopNav: React.FC<TopNavProps> = ({
               onClick={() => {
                 setIsCurrencyMenuOpen(!isCurrencyMenuOpen);
                 setIsStoreMenuOpen(false);
-                setIsLangMenuOpen(false);
                 setIsUserMenuOpen(false);
               }}
               className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 min-h-[44px] min-w-[44px] justify-center rounded-xl border border-border border-crisp bg-background/80 hover:bg-background text-text/80 hover:text-text text-xs font-bold transition-all duration-150 cursor-pointer active:scale-95"
@@ -314,55 +311,7 @@ export const TopNav: React.FC<TopNavProps> = ({
           </div>
 
           {/* Language Switcher Dropdown */}
-          <div className="relative hidden lg:block">
-            <button
-              type="button"
-              onClick={() => {
-                setIsLangMenuOpen(!isLangMenuOpen);
-                setIsStoreMenuOpen(false);
-                setIsCurrencyMenuOpen(false);
-                setIsUserMenuOpen(false);
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 min-h-[44px] min-w-[44px] justify-center rounded-xl border border-border border-crisp bg-background/80 hover:bg-background text-text/80 hover:text-text text-xs font-bold transition-all duration-150 cursor-pointer active:scale-95"
-              aria-label={t.topNav.selectLang}
-            >
-              <Globe className="h-3.5 w-3.5 text-text/60" />
-              <span>{AVAILABLE_LANGUAGES[language as SupportedLanguage]?.flag || '🌐'} {language.toUpperCase()}</span>
-            </button>
-
-            {isLangMenuOpen && (
-              <div
-                className={`${getZIndexClass('dropdown')} absolute right-0 mt-2 w-48 max-w-[90vw] overflow-x-hidden rounded-2xl border border-border border-crisp bg-card shadow-2xl py-2 animate-in fade-in zoom-in-95 duration-100`}
-                onMouseLeave={() => setIsLangMenuOpen(false)}
-              >
-                {Object.values(AVAILABLE_LANGUAGES).map((lang) => {
-                  const isSelected = language === lang.code;
-                  return (
-                    <button
-                      key={lang.code}
-                      type="button"
-                      onClick={() => {
-                        setLanguage(lang.code);
-                        setIsLangMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-3.5 py-2.5 min-h-[44px] text-xs flex items-center justify-between cursor-pointer hover:bg-background/80 transition-colors ${
-                        isSelected ? 'font-bold text-primary bg-primary/10' : 'text-text/80'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{lang.flag}</span>
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-xs leading-tight">{lang.nativeName}</span>
-                          <span className="text-[10px] text-text/50">{lang.name}</span>
-                        </div>
-                      </div>
-                      {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <LanguageSwitcher />
 
           {/* Theme Toggle */}
           <button
@@ -386,7 +335,6 @@ export const TopNav: React.FC<TopNavProps> = ({
                 setIsUserMenuOpen(!isUserMenuOpen);
                 setIsStoreMenuOpen(false);
                 setIsCurrencyMenuOpen(false);
-                setIsLangMenuOpen(false);
               }}
               className="flex items-center justify-center gap-1.5 sm:gap-2 p-1.5 min-h-[44px] min-w-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background transition-all duration-150 cursor-pointer active:scale-95 shrink-0"
             >

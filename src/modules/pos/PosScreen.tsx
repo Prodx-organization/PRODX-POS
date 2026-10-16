@@ -153,8 +153,8 @@ export const PosScreen: React.FC = () => {
     setIsLoading(true);
     try {
       const [cats, prods] = await Promise.all([
-        catalogApi!.getCategories(),
-        catalogApi!.getProducts(),
+        catalogApi!.getCategories(session.currentStore.id),
+        catalogApi!.getProducts(session.currentStore.id),
       ]);
       setCategories([...cats]);
       setProducts([...prods]);
@@ -254,7 +254,7 @@ export const PosScreen: React.FC = () => {
       if (localProd) return { prod: localProd, code };
       
       try {
-        const remoteProd = await catalogApi!.getProductByBarcode(code);
+        const remoteProd = await catalogApi!.getProductByBarcode(session.currentStore.id, code);
         return { prod: remoteProd || null, code };
       } catch (err) {
         console.error('[BulkAdd] Error loading barcode:', code, err);
