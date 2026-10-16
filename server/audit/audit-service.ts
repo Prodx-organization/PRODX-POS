@@ -1,4 +1,4 @@
-import type { SqlQueryExecutor } from '../db/transaction';
+import type { SqlQueryExecutor, TransactionalSqlExecutor } from '../db/transaction';
 
 export class AuditValidationError extends Error { readonly code = 'AUDIT_VALIDATION_FAILED'; }
 type DbRow = Record<string, unknown>;
@@ -33,5 +33,84 @@ export const createAuditReadService = (db: SqlQueryExecutor) => ({
       severity: row.severity, details: row.details ?? {},
       timestamp: new Date(String(row.created_at)).toISOString(),
     }));
+  },
+});
+
+
+const allowedClientAuditActions = new Set([
+  'user_login', 'user_logout', 'shift_opened', 'shift_closed',
+  'cash_paid_in', 'cash_paid_out', 'order_checkout_committed',
+  'order_checkout_queued_offline', 'order_voided', 'order_refunded',
+  'price_override_applied', 'cart_discount_applied', 'stock_adjusted',
+  'offline_sync_completed', 'manager_override_authorized',
+]);
+
+export type AuditWriteInput = {
+  organizationId: string;
+  storeId: string;
+  userId: string;
+  action: unknown;
+  severity: unknown;
+  details: unknown;
+};
+
+export const createAuditWriteService = (db: TransactionalSqlExecutor) => ({
+  async recordEvent(input: AuditWriteInput) {
+    if (!input.organizationId?.trim() || !input.storeId?.trim() || !input.userId?.trim()) {
+      throw new AuditValidationError('Authenticated organization, store, and user are required.');
+    }
+    if (typeof input.action !== 'string' || !allowedClientAuditActions.has(input.action)) {
+      throw new AuditValidationError('Unsupported audit action.');
+    }
+    if (input.severity !== 'info' && input.severity !== 'warn' && input.severity !== 'critical') {
+      throw new AuditValidationError('Audit severity must be info, warn, or critical.');
+    }
+    if (!input.details || typeof input.details !== 'object' || Array.isArray(input.details)) {
+      throw new AuditValidationError('Audit details must be a JSON object.');
+    }
+    let detailsJson: string;
+    try {
+      detailsJson = JSON.stringify(input.details);
+    } catch {
+      throw new AuditValidationError('Audit details must be serializable JSON.');
+    }
+    if (detailsJson.length > 16384) {
+      throw new AuditValidationError('Audit details exceed the 16 KB limit.');
+    }
+
+    return db.transaction(async (tx) => {
+      const inserted = await tx.query<DbRow>(
+        `INSERT INTO prodx_audit_log
+           (id, organization_id, store_id, register_id, user_id, action, severity, details)
+         VALUES ($1, $2, $3, NULL, $4, $5, $6, $7::jsonb)
+         RETURNING id`,
+        [crypto.randomUUID(), input.organizationId, input.storeId, input.userId, input.action, input.severity, detailsJson],
+      );
+      const id = inserted.rows[0]?.id;
+      if (typeof id !== 'string') throw new Error('Audit write did not return a persisted record identifier.');
+      const result = await tx.query<DbRow>(
+        `SELECT a.id, a.store_id, ''::text AS register_id, a.user_id,
+                COALESCE(u.display_name, '') AS user_name,
+                a.action, a.severity, a.details, a.created_at
+           FROM prodx_audit_log a
+           JOIN prodx_users u ON u.id = a.user_id AND u.organization_id = a.organization_id
+          WHERE a.id = $1 AND a.organization_id = $2 AND a.store_id = $3
+          LIMIT 1`,
+        [id, input.organizationId, input.storeId],
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error('Persisted audit record could not be read back within its transaction.');
+      return {
+        id: String(row.id),
+        storeId: String(row.store_id),
+        registerId: String(row.register_id ?? ''),
+        userId: String(row.user_id),
+        userName: String(row.user_name ?? ''),
+        action: String(row.action),
+        severity: String(row.severity),
+        details: (row.details ?? {}) as Record<string, unknown>,
+        timestamp: new Date(String(row.created_at)).toISOString(),
+      };
+    });
   },
 });
