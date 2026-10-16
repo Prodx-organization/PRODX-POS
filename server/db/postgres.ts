@@ -82,6 +82,9 @@ export const createProductionPostgresPool = async (
 ): Promise<Pool> => {
   const connectionString = config.connectionString ?? await resolveProductionDatabaseUrl(vercelOidcToken);
   if (shouldResolveProductionDatabaseUrl()) {
+    if (typeof connectionString !== 'string' || connectionString.length === 0) {
+      throw new Error('Production database URL resolution returned no connection string.');
+    }
     console.info('PRODX production database target selected', {
       target: classifyProductionDatabaseTarget(connectionString),
     });
