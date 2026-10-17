@@ -81,6 +81,7 @@ import { ModulesControlSettingsTab } from './components/ModulesControlSettingsTa
 import { SystemToolsManagementTab } from './components/SystemToolsManagementTab';
 import { LoyaltyCrmSettingsTab } from './components/LoyaltyCrmSettingsTab';
 import { AiAssistantSettingsTab } from './components/AiAssistantSettingsTab';
+import { SystemConfigTab } from './components/SystemConfigTab';
 import { StickyActionBar } from './components/StickyActionBar';
 import { SettingsKeyboardShortcutsModal } from './components/SettingsKeyboardShortcutsModal';
 import { SystemDiagnosticOverlay } from './components/SystemDiagnosticOverlay';
@@ -127,6 +128,16 @@ const TAB_ITEMS: SettingsTabItem[] = [
     isQuickTab: false,
   },
 
+  {
+    id: 'system_config',
+    label: { th: 'การตั้งค่าองค์กรและสาขา', en: 'System Configuration' },
+    sublabel: { th: 'จัดการองค์กร สาขา และเครื่อง POS', en: 'Manage org, branches, terminals' },
+    iconName: 'Building2',
+    graphicColor: 'primary',
+    badge: 'CORE',
+    category: 'store_pos',
+    isQuickTab: true,
+  },
   // 2. Hardware & Peripherals
   {
     id: 'hardware',
@@ -1345,6 +1356,7 @@ export const SettingsScreen: React.FC = () => {
 
           {/* Active Tab Component Render */}
           <div className="pb-28">
+            {activeTab === 'system_config' && <SystemConfigTab />}
             {activeTab === 'general' && (
               <GeneralSettingsTab
                 formData={storeForm}

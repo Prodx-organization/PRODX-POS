@@ -1,0 +1,56 @@
+{
+  "entities": {
+    "Organization": {
+      "title": "Organization",
+      "description": "An enterprise organization operating PRODX POS",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "slug": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z0-9\\-]+$" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "slug", "createdAt"]
+    },
+    "Branch": {
+      "title": "Branch",
+      "description": "A physical store or branch belonging to an organization",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "orgId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "address": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "orgId", "name", "address", "createdAt"]
+    },
+    "Terminal": {
+      "title": "Terminal",
+      "description": "A POS register terminal assigned to a branch",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "branchId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "code": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "branchId", "name", "code", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/organizations/{orgId}": {
+      "schema": { "$ref": "Organization" },
+      "description": "Enterprise organizations collection"
+    },
+    "/branches/{branchId}": {
+      "schema": { "$ref": "Branch" },
+      "description": "Store branches collection"
+    },
+    "/terminals/{terminalId}": {
+      "schema": { "$ref": "Terminal" },
+      "description": "POS register terminals collection"
+    }
+  }
+}

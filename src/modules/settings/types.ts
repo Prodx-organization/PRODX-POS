@@ -17,7 +17,8 @@ export type SettingsTabId =
   | 'role_management'
   | 'role_assignment'
   | 'permission_sets'
-  | 'data_sync';
+  | 'data_sync'
+  | 'system_config';
 
 export interface SettingsTabItem {
   id: SettingsTabId;
@@ -208,3 +209,27 @@ export interface ReceiptTemplateConfig {
   wifiPassword: string;
   paperWidth: '58mm' | '80mm';
 }
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  createdAt: number;
+}
+
+export interface Branch {
+  id: string;
+  orgId: string;
+  name: string;
+  address: string;
+  createdAt: number;
+}
+
+export interface Terminal {
+  id: string;
+  branchId: string;
+  name: string;
+  code: string;
+  createdAt: number;
+}
+

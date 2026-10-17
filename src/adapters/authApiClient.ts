@@ -43,5 +43,6 @@ export function createProductionAuthApi(
     logout: (token: string) => requestWithBearer<void>('/auth/logout', token, { method: 'POST' }),
     verifySession: (token: string) => requestWithBearer<SessionContext | null>('/auth/session', token),
     getStores: (orgSlug: string, token: string) => requestWithBearer<readonly Store[]>(`/organizations/${encodeURIComponent(orgSlug)}/stores`, token),
+    forgotPin: (org: string, store: string, identity: string, reg: string) => request<void>('/auth/forgot-pin', { method: 'POST', body: JSON.stringify({ organizationSlug: org, storeCode: store, emailOrPin: identity, registerId: reg }) }),
   };
 }

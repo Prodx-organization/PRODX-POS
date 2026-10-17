@@ -23,6 +23,9 @@ import { AppShell } from './components/layout/AppShell';
 import { CustomerDisplayView } from './modules/customerDisplay/CustomerDisplayView';
 import { NavRoute } from './components/layout/Sidebar';
 import { LoginScreen } from './modules/auth/LoginScreen';
+import { AdminLoginScreen } from './modules/admin/AdminLoginScreen';
+import { AdminConfigDashboard } from './modules/admin/AdminConfigDashboard';
+import { AdminConsoleLayout, AdminConsoleSection } from './modules/admin/AdminConsoleLayout';
 import { PosScreen } from './modules/pos/PosScreen';
 import { DashboardScreen } from './modules/dashboard/DashboardScreen';
 import { OrdersScreen } from './modules/orders/OrdersScreen';
@@ -39,13 +42,66 @@ import { RbacGuard } from './components/auth/RbacGuard';
 import { InfrastructureDashboard } from './components/admin/InfrastructureDashboard';
 import { FrontendAssistant } from './components/ai/FrontendAssistant';
 
+const checkIsAdminPath = () => {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.location.pathname.startsWith('/admin') ||
+    window.location.hash.startsWith('#admin') ||
+    window.location.search.includes('mode=admin')
+  );
+};
+
+const checkIsDedicatedAdminLoginPath = () => {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.location.pathname.startsWith('/admin/login') ||
+    window.location.hash.startsWith('#admin-login') ||
+    window.location.search.includes('mode=admin-login')
+  );
+};
+
 const MainApplication: React.FC = () => {
   const { session } = useAuth();
   const [currentRoute, setCurrentRoute] = useState<NavRoute>('pos');
   const [isShortcutsOverlayOpen, setIsShortcutsOverlayOpen] = useState(false);
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(checkIsAdminPath);
+  const [isAdminLoginRoute, setIsAdminLoginRoute] = useState<boolean>(
+    checkIsDedicatedAdminLoginPath,
+  );
+  const [adminSection, setAdminSection] = useState<AdminConsoleSection>('overview');
+
+  useEffect(() => {
+    const syncAdminMode = () => {
+      setIsAdminMode(checkIsAdminPath());
+      setIsAdminLoginRoute(checkIsDedicatedAdminLoginPath());
+    };
+    window.addEventListener('popstate', syncAdminMode);
+    window.addEventListener('hashchange', syncAdminMode);
+    return () => {
+      window.removeEventListener('popstate', syncAdminMode);
+      window.removeEventListener('hashchange', syncAdminMode);
+    };
+  }, []);
+
+  const enterAdminLogin = () => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/admin/login');
+    }
+    setIsAdminLoginRoute(true);
+    setIsAdminMode(true);
+  };
+
+  const exitAdminMode = () => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/');
+    }
+    setIsAdminLoginRoute(false);
+    setIsAdminMode(false);
+  };
 
   // Register operational keyboard shortcuts (F1 = POS, F2 = Dashboard, F9 = Shortcuts Overlay, etc.)
   useEffect(() => {
+    if (isAdminMode) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       // Allow F9 to toggle the shortcuts overlay from anywhere
       if (e.key === 'F9') {
@@ -102,12 +158,49 @@ const MainApplication: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isAdminMode]);
+
+  if (isAdminMode || isAdminLoginRoute) {
+    // If explicitly on /admin/login and not authenticated as admin yet, show the dedicated AdminLoginScreen
+    if (isAdminLoginRoute && (!session || session.currentUser.role !== 'admin')) {
+      return (
+        <ErrorBoundary moduleName="Administrator Login">
+          <AdminLoginScreen
+            onBackToPos={exitAdminMode}
+            onLoginSuccess={() => {
+              setIsAdminLoginRoute(false);
+              setIsAdminMode(true);
+            }}
+          />
+        </ErrorBoundary>
+      );
+    }
+
+    return (
+      <ErrorBoundary moduleName="Administrator Console">
+        <AdminConsoleLayout
+          activeSection={adminSection}
+          onSelectSection={setAdminSection}
+          onExitAdminMode={exitAdminMode}
+        >
+          {adminSection === 'rbac' ? (
+            <SettingsScreen />
+          ) : adminSection === 'audit' ? (
+            <AuditScreen />
+          ) : adminSection === 'infrastructure' ? (
+            <InfrastructureDashboard />
+          ) : (
+            <AdminConfigDashboard activeSection={adminSection} />
+          )}
+        </AdminConsoleLayout>
+      </ErrorBoundary>
+    );
+  }
 
   if (!session) {
     return (
       <ErrorBoundary moduleName="Authentication Terminal">
-        <LoginScreen />
+        <LoginScreen onOpenAdminLogin={enterAdminLogin} />
       </ErrorBoundary>
     );
   }

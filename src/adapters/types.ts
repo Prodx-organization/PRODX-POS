@@ -21,12 +21,26 @@ import { AuditLogEntry, AuditAction, AuditSeverity } from '../domain/audit';
 import { OutboxItem } from '../domain/sync';
 import { Money } from '../domain/money';
 
+export interface OrganizationLoginContext {
+  organizationId: string;
+  organizationName: string;
+  organizationSlug: string;
+  branchId: string;
+  branchName: string;
+  branchAddress: string;
+  terminalId: string;
+  terminalName: string;
+  terminalCode: string;
+}
+
 export interface LoginRequest {
   organizationSlug: string;
   storeCode: string;
   emailOrPin: string;
   passwordOrPin?: string;
   registerId: string;
+  organizationContext?: OrganizationLoginContext;
+  requireAdminRole?: boolean;
 }
 
 export interface CheckoutRequest {
@@ -55,6 +69,7 @@ export interface IAuthApi {
   logout(token: string): Promise<void>;
   verifySession(token: string): Promise<SessionContext | null>;
   getStores(orgSlug: string, token: string): Promise<readonly Store[]>;
+  forgotPin(organizationSlug: string, storeCode: string, emailOrPin: string, registerId: string): Promise<void>;
 }
 
 export interface ICatalogApi {

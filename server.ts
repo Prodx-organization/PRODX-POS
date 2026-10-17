@@ -21,7 +21,7 @@ async function startServer() {
   if (!isProd) {
     // Create Vite server in middleware mode
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: 'custom',
     });
 
