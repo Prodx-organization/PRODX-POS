@@ -61,6 +61,7 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
     },
     configurePublicRoutes: (configuredApp) => {
       registerAuthRoutes(configuredApp, sql, sessions);
+      registerInfrastructureRoutes(configuredApp, pool);
     },
     authenticateRequest: async (request) => {
       const header = request.header('authorization');
@@ -83,7 +84,6 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
       registerOrderReadRoute(configuredApp, transactions);
       registerVoidRoute(configuredApp, transactions);
       registerInventoryAdjustmentRoute(configuredApp, transactions);
-      registerInfrastructureRoutes(configuredApp);
       const aiRouter = express.Router();
       installAIHttpRoute(aiRouter, { gateway: aiGateway });
       configuredApp.use('/api/v1/ai', aiRouter);

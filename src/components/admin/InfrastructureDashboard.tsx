@@ -65,6 +65,7 @@ import { FloorPlanView } from './FloorPlanView';
 import { SystemAlertNotificationCenter } from './SystemAlertNotificationCenter';
 import { SystemNotificationToastCorner } from './SystemNotificationToastCorner';
 import { DiagnosticBatchBufferMonitor } from './DiagnosticBatchBufferMonitor';
+import { SystemHealthCheckCard } from './SystemHealthCheckCard';
 import { systemNotificationService } from '../../services/systemNotificationService';
 import { auditService, DiagnosticLogLevel } from '../../services/auditService';
 import { HardwarePeripheralStatus } from '../../types/hardware';
@@ -1657,6 +1658,9 @@ export function InfrastructureDashboard() {
           diagnosingPeripheralId={diagnosingPeripheralId}
           healingAll={healing}
         />
+
+        {/* End-to-End SystemHealthCheck Utility (Cloud SQL & Firestore Status-Coded JSON Ping) */}
+        <SystemHealthCheckCard />
 
         {/* Background Buffered Diagnostic Log & Firestore Batch Uploader Monitor */}
         <DiagnosticBatchBufferMonitor />

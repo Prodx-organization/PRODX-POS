@@ -1,9 +1,48 @@
 import type { Express, Request, Response } from 'express';
+import type { Pool } from 'pg';
 import { infrastructureAiService } from '../services/infrastructureAiService';
 import { firmwareRegistryService } from '../services/firmwareRegistryService';
+import { performEndToEndHealthCheck } from '../services/systemHealthCheckService';
 import { GoogleGenAI } from '@google/genai';
 
-export function registerInfrastructureRoutes(app: Express) {
+export function registerInfrastructureRoutes(app: Express, pool?: Pool) {
+  // End-to-end ping of backend services (Cloud SQL and Firestore) with status-coded response
+  app.get('/api/v1/infrastructure/system-health-check', async (req: Request, res: Response) => {
+    try {
+      const requestId = (req.headers['x-request-id'] as string) || req.id || `req-${Date.now()}`;
+      const result = await performEndToEndHealthCheck(pool, requestId);
+      res.status(result.statusCode).json({
+        success: result.statusCode === 200 || result.statusCode === 207,
+        ...result,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        statusCode: 500,
+        status: 'DOWN',
+        error: error.message || 'System health check execution failed',
+      });
+    }
+  });
+
+  app.post('/api/v1/infrastructure/system-health-check', async (req: Request, res: Response) => {
+    try {
+      const requestId = (req.headers['x-request-id'] as string) || req.id || `req-${Date.now()}`;
+      const result = await performEndToEndHealthCheck(pool, requestId);
+      res.status(result.statusCode).json({
+        success: result.statusCode === 200 || result.statusCode === 207,
+        ...result,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        statusCode: 500,
+        status: 'DOWN',
+        error: error.message || 'System health check execution failed',
+      });
+    }
+  });
+
   // Get system infrastructure health
   app.get('/api/v1/infrastructure/health', (_req: Request, res: Response) => {
     try {

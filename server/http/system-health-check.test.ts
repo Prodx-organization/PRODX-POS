@@ -1,0 +1,105 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import express from 'express';
+import { registerInfrastructureRoutes } from './infrastructureRoutes';
+import { pingCloudSql, pingFirestore, performEndToEndHealthCheck } from '../services/systemHealthCheckService';
+
+const start = async (app: express.Express) => {
+  const server = await new Promise<import('node:http').Server>((resolve) => {
+    const instance = app.listen(0, () => resolve(instance));
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}`,
+    close: () => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),
+  };
+};
+
+test('pingCloudSql returns 503 when pool is unavailable and reports safe diagnostics', async () => {
+  const result = await pingCloudSql(undefined);
+  assert.equal(result.service, 'Google Cloud SQL (PostgreSQL)');
+  assert.equal(result.statusCode, 503);
+  assert.equal(result.status, 'unreachable');
+  assert.equal(result.projectId, 'gen-lang-client-0282713343');
+  assert.equal(result.region, 'asia-southeast1');
+  assert.equal(result.code, 'DATABASE_URL_MISSING');
+});
+
+test('pingCloudSql executes query when pool is supplied and returns 200', async () => {
+  const mockPool = {
+    totalCount: 5,
+    idleCount: 4,
+    waitingCount: 0,
+    query: async () => ({
+      rows: [{ ping: 1, server_time: new Date().toISOString(), version: 'PostgreSQL 16.2 on x86_64' }],
+    }),
+  };
+
+  const result = await pingCloudSql(mockPool as any);
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.status, 'connected');
+  assert.equal(result.engine, 'PostgreSQL 16.2 (Cloud SQL)');
+  assert.equal(result.queryProbe, 'SELECT 1 -> OK');
+  assert.equal(result.poolStats?.totalConnections, 5);
+});
+
+test('pingFirestore reports Google Cloud Firestore configuration and collections', async () => {
+  const result = await pingFirestore();
+  assert.equal(result.service, 'Google Cloud Firestore');
+  assert.equal(result.projectId, 'modified-bit-mct7q');
+  assert.equal(result.databaseId, 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990');
+  assert.equal(result.region, 'asia-southeast1');
+  assert.ok(result.verifiedCollections.includes('audit_logs'));
+  assert.ok(result.verifiedCollections.includes('AppErrorLog'));
+});
+
+test('performEndToEndHealthCheck computes 200 when all services pass and 207 on partial failure', async () => {
+  const mockPool = {
+    totalCount: 2,
+    idleCount: 2,
+    waitingCount: 0,
+    query: async () => ({
+      rows: [{ ping: 1, server_time: new Date().toISOString(), version: 'PostgreSQL 16.0' }],
+    }),
+  };
+
+  const result = await performEndToEndHealthCheck(mockPool as any, 'test-req-001');
+  assert.ok(result.statusCode === 200 || result.statusCode === 207);
+  assert.equal(result.requestId, 'test-req-001');
+  assert.equal(result.environment.region, 'asia-southeast1');
+  assert.equal(result.services.cloudSql.statusCode, 200);
+});
+
+test('HTTP GET /api/v1/infrastructure/system-health-check returns status-coded JSON object', async () => {
+  const app = express();
+  app.use(express.json());
+
+  const mockPool = {
+    totalCount: 3,
+    idleCount: 3,
+    waitingCount: 0,
+    query: async () => ({
+      rows: [{ ping: 1, server_time: new Date().toISOString(), version: 'PostgreSQL 16.1' }],
+    }),
+  };
+
+  registerInfrastructureRoutes(app, mockPool as any);
+  const server = await start(app);
+
+  try {
+    const response = await fetch(`${server.baseUrl}/api/v1/infrastructure/system-health-check`, {
+      headers: { 'x-request-id': 'req-health-check-e2e' },
+    });
+
+    assert.ok(response.status === 200 || response.status === 207);
+    const body = await response.json();
+    assert.equal(body.requestId, 'req-health-check-e2e');
+    assert.ok(body.services.cloudSql);
+    assert.ok(body.services.firestore);
+    assert.equal(body.services.cloudSql.projectId, 'gen-lang-client-0282713343');
+    assert.equal(body.services.firestore.databaseId, 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990');
+  } finally {
+    await server.close();
+  }
+});
