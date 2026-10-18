@@ -214,7 +214,13 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
+  taxId?: string;
+  phone?: string;
+  email?: string;
+  currency?: string;
+  status?: 'active' | 'inactive';
   createdAt: number;
+  updatedAt?: number;
 }
 
 export interface Branch {
@@ -222,14 +228,47 @@ export interface Branch {
   orgId: string;
   name: string;
   address: string;
+  code?: string;
+  phone?: string;
+  manager?: string;
+  status?: 'active' | 'inactive';
   createdAt: number;
+  updatedAt?: number;
 }
 
 export interface Terminal {
   id: string;
   branchId: string;
+  orgId?: string;
   name: string;
   code: string;
+  deviceModel?: string;
+  ipAddress?: string;
+  paperWidth?: '58mm' | '80mm';
+  status?: 'active' | 'maintenance' | 'inactive';
   createdAt: number;
+  updatedAt?: number;
 }
+
+export interface OrganizationAuditLog {
+  id: string;
+  entityType: 'organization' | 'branch' | 'terminal';
+  entityId: string;
+  action: 'create' | 'update' | 'delete' | 'cascade_delete';
+  entityName?: string;
+  orgId?: string;
+  branchId?: string;
+  actor?: {
+    id?: string;
+    name?: string;
+    email?: string;
+    role?: string;
+  };
+  details?: Record<string, unknown>;
+  previousState?: Record<string, unknown>;
+  newState?: Record<string, unknown>;
+  timestamp: number;
+  ipAddress?: string;
+}
+
 

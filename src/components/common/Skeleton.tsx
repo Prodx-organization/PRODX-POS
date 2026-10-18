@@ -5,9 +5,13 @@ export interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 export const Skeleton: React.FC<SkeletonProps> = ({ className = '', ...props }) => {
+  const hasCustomBg = /\bbg-/.test(className);
   return (
     <div
-      className={`animate-pulse rounded-md bg-background dark:bg-background ${className}`}
+      aria-hidden="true"
+      className={`animate-pulse rounded-md ${
+        hasCustomBg ? '' : 'bg-slate-200/80 dark:bg-slate-800/80'
+      } ${className}`.trim()}
       {...props}
     />
   );

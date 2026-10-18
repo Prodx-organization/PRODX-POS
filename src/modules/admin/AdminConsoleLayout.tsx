@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { ProdxVectorMark } from '../../components/common/ProdxLogo';
 import { AdminLoginScreen } from './AdminLoginScreen';
 
 export type AdminConsoleSection =
@@ -196,9 +197,7 @@ export const AdminConsoleLayout: React.FC<AdminConsoleLayoutProps> = ({
       {/* Top Executive Admin Header */}
       <header className="sticky top-0 z-30 h-16 bg-slate-950 text-white border-b border-slate-800 px-4 sm:px-8 flex items-center justify-between">
         <div className="flex items-center gap-3.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ff6b1a] text-white font-black text-lg shadow-lg shadow-[#ff6b1a]/20">
-            P.
-          </div>
+          <ProdxVectorMark size={40} className="shadow-lg shadow-[#ff6b1a]/15 rounded-xl" />
           <div>
             <div className="flex items-center gap-2">
               <span className="font-black tracking-tight text-base sm:text-lg">

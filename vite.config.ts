@@ -9,6 +9,32 @@ export default defineConfig(() => {
     plugins: [
       react(), 
       tailwindcss(),
+      {
+        name: 'prodx-disable-hmr-ws',
+        enforce: 'post',
+        transform(code, id) {
+          if (id.includes('vite/dist/client/client.mjs')) {
+            return code.replace(
+              /createConnection:\s*\(\)\s*=>\s*new WebSocket\([\s\S]*?"vite-hmr"\s*\)/g,
+              `createConnection: () => ({
+                readyState: 1,
+                OPEN: 1,
+                CONNECTING: 0,
+                CLOSING: 2,
+                CLOSED: 3,
+                url: 'ws://localhost:3000/',
+                protocol: 'vite-hmr',
+                addEventListener() {},
+                removeEventListener() {},
+                dispatchEvent() { return true; },
+                send() {},
+                close() {}
+              })`
+            );
+          }
+          return null;
+        },
+      },
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.svg', 'prodx-logo.svg'],
@@ -86,7 +112,7 @@ export default defineConfig(() => {
           ],
         },
         devOptions: {
-          enabled: true,
+          enabled: false,
           type: 'module',
         },
       }),

@@ -17,6 +17,7 @@ import { ReceiptPrinterProvider } from './context/ReceiptPrinterContext';
 import { VisualInspectorProvider } from './context/VisualInspectorContext';
 import { BreadcrumbProvider } from './context/BreadcrumbContext';
 import { SettingsProvider } from './context/SettingsContext';
+import { ConfirmationDialogProvider } from './context/ConfirmationDialogContext';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { GlobalErrorRecoveryProvider } from './context/GlobalErrorRecoveryProvider';
 import { AppShell } from './components/layout/AppShell';
@@ -25,6 +26,7 @@ import { NavRoute } from './components/layout/Sidebar';
 import { LoginScreen } from './modules/auth/LoginScreen';
 import { AdminLoginScreen } from './modules/admin/AdminLoginScreen';
 import { AdminConfigDashboard } from './modules/admin/AdminConfigDashboard';
+import { OrganizationManagementModule } from './modules/admin/OrganizationManagementModule';
 import { AdminConsoleLayout, AdminConsoleSection } from './modules/admin/AdminConsoleLayout';
 import { PosScreen } from './modules/pos/PosScreen';
 import { DashboardScreen } from './modules/dashboard/DashboardScreen';
@@ -160,6 +162,15 @@ const MainApplication: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isAdminMode]);
 
+  const enterAdminConsole = (section: AdminConsoleSection = 'overview') => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/admin');
+    }
+    setAdminSection(section);
+    setIsAdminLoginRoute(false);
+    setIsAdminMode(true);
+  };
+
   if (isAdminMode || isAdminLoginRoute) {
     // If explicitly on /admin/login and not authenticated as admin yet, show the dedicated AdminLoginScreen
     if (isAdminLoginRoute && (!session || session.currentUser.role !== 'admin')) {
@@ -183,15 +194,32 @@ const MainApplication: React.FC = () => {
           onSelectSection={setAdminSection}
           onExitAdminMode={exitAdminMode}
         >
-          {adminSection === 'rbac' ? (
-            <SettingsScreen />
-          ) : adminSection === 'audit' ? (
-            <AuditScreen />
-          ) : adminSection === 'infrastructure' ? (
-            <InfrastructureDashboard />
-          ) : (
-            <AdminConfigDashboard activeSection={adminSection} />
-          )}
+          <RbacGuard
+            isOrganizationLevel={true}
+            allowedRoles={['admin']}
+            requiredPermissions={['org:manage', 'settings:manage']}
+            hideMode="denied-card"
+            onRedirectToPos={exitAdminMode}
+          >
+            {adminSection === 'rbac' ? (
+              <SettingsScreen />
+            ) : adminSection === 'audit' ? (
+              <AuditScreen />
+            ) : adminSection === 'infrastructure' ? (
+              <InfrastructureDashboard />
+            ) : (
+              <OrganizationManagementModule
+                initialTab={
+                  adminSection === 'branches'
+                    ? 'branches'
+                    : adminSection === 'terminals'
+                    ? 'terminals'
+                    : 'organizations'
+                }
+                onNavigateSection={(section) => setAdminSection(section)}
+              />
+            )}
+          </RbacGuard>
         </AdminConsoleLayout>
       </ErrorBoundary>
     );
@@ -207,7 +235,11 @@ const MainApplication: React.FC = () => {
 
   return (
     <>
-      <AppShell currentRoute={currentRoute} onNavigate={setCurrentRoute}>
+      <AppShell
+        currentRoute={currentRoute}
+        onNavigate={setCurrentRoute}
+        onOpenAdminConsole={() => enterAdminConsole('overview')}
+      >
         {currentRoute === 'pos' && (
           <ErrorBoundary moduleName="POS Cash Register & Checkout">
             <PosScreen />
@@ -227,17 +259,38 @@ const MainApplication: React.FC = () => {
         )}
         {currentRoute === 'kds' && (
           <ErrorBoundary moduleName="Kitchen Display System (KDS)">
-            <KitchenDisplayScreen />
+            <RbacGuard
+              module="kds"
+              allowedRoles={['manager', 'admin']}
+              hideMode="denied-card"
+              onRedirectToPos={() => setCurrentRoute('pos')}
+            >
+              <KitchenDisplayScreen />
+            </RbacGuard>
           </ErrorBoundary>
         )}
         {currentRoute === 'orders' && (
           <ErrorBoundary moduleName="Orders & Receipts Management">
-            <OrdersScreen onNavigate={setCurrentRoute} />
+            <RbacGuard
+              module="orders"
+              allowedRoles={['manager', 'admin']}
+              hideMode="denied-card"
+              onRedirectToPos={() => setCurrentRoute('pos')}
+            >
+              <OrdersScreen onNavigate={setCurrentRoute} />
+            </RbacGuard>
           </ErrorBoundary>
         )}
         {currentRoute === 'inventory' && (
           <ErrorBoundary moduleName="Inventory & Stock Tracking">
-            <InventoryScreen />
+            <RbacGuard
+              module="inventory"
+              allowedRoles={['manager', 'admin']}
+              hideMode="denied-card"
+              onRedirectToPos={() => setCurrentRoute('pos')}
+            >
+              <InventoryScreen />
+            </RbacGuard>
           </ErrorBoundary>
         )}
         {currentRoute === 'shift' && (
@@ -254,7 +307,14 @@ const MainApplication: React.FC = () => {
         )}
         {currentRoute === 'customers' && (
           <ErrorBoundary moduleName="Customer Loyalty & CRM">
-            <CustomersScreen />
+            <RbacGuard
+              module="customers"
+              allowedRoles={['manager', 'admin']}
+              hideMode="denied-card"
+              onRedirectToPos={() => setCurrentRoute('pos')}
+            >
+              <CustomersScreen />
+            </RbacGuard>
           </ErrorBoundary>
         )}
         {currentRoute === 'audit' && (
@@ -262,6 +322,7 @@ const MainApplication: React.FC = () => {
             <RbacGuard
               module="audit"
               allowedRoles={['manager', 'admin']}
+              isOrganizationLevel={true}
               hideMode="denied-card"
               onRedirectToPos={() => setCurrentRoute('pos')}
             >
@@ -272,8 +333,9 @@ const MainApplication: React.FC = () => {
         {currentRoute === 'infrastructure' && (
           <ErrorBoundary moduleName="Antigravity AI & Plug & Play Infrastructure">
             <RbacGuard
-              module="settings"
-              allowedRoles={['manager', 'admin']}
+              module="infrastructure"
+              allowedRoles={['admin']}
+              isOrganizationLevel={true}
               hideMode="denied-card"
               onRedirectToPos={() => setCurrentRoute('pos')}
             >
@@ -286,6 +348,7 @@ const MainApplication: React.FC = () => {
             <RbacGuard
               module="settings"
               allowedRoles={['manager', 'admin']}
+              isOrganizationLevel={true}
               hideMode="denied-card"
               onRedirectToPos={() => setCurrentRoute('pos')}
             >
@@ -393,7 +456,9 @@ export default function App() {
                             <ReceiptPrinterProvider>
                               <VisualInspectorProvider>
                                 <BreadcrumbProvider>
-                                  <MainApplication />
+                                  <ConfirmationDialogProvider>
+                                    <MainApplication />
+                                  </ConfirmationDialogProvider>
                                 </BreadcrumbProvider>
                               </VisualInspectorProvider>
                             </ReceiptPrinterProvider>

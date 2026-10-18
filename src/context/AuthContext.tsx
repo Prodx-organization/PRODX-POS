@@ -2,14 +2,31 @@
  * PRODX POS - Authentication, Multi-Tenant Session & Enterprise RBAC Context
  */
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import {
-  User, Store, Organization, SessionContext, Permission, Role,
-  getStoredStaffDirectory, saveStoredStaffDirectory, getStoredRolePermissions,
-  saveStoredRolePermissions, getStoredStaffPins, saveStoredStaffPins,
+  User,
+  Store,
+  Organization,
+  SessionContext,
+  Permission,
+  Role,
+  OperationalScope,
+  getStoredStaffDirectory,
+  saveStoredStaffDirectory,
+  getStoredRolePermissions,
+  saveStoredRolePermissions,
+  getStoredStaffPins,
+  saveStoredStaffPins,
+  getStoredOperationalScope,
+  saveStoredOperationalScope,
   ROLE_PERMISSIONS,
 } from '../domain/auth';
-import { CustomPermissionSet, DEFAULT_PERMISSION_SETS, getStoredCustomPermissionSets, saveStoredCustomPermissionSets } from '../domain/permissionSets';
+import {
+  CustomPermissionSet,
+  DEFAULT_PERMISSION_SETS,
+  getStoredCustomPermissionSets,
+  saveStoredCustomPermissionSets,
+} from '../domain/permissionSets';
 import { authApi } from '../adapters/authApiFactory';
 import { aiService } from '../services/aiService';
 import { LoginRequest } from '../adapters/types';
@@ -19,42 +36,163 @@ import {
   readPersistedSession,
   writePersistedSession,
 } from './authSessionStorage';
+import { shouldReadMock } from '../adapters/env';
 
-export interface AddStaffPayload { name: string; email: string; role: Role; employeeCode: string; pin?: string; isActive?: boolean; }
+export interface AddStaffPayload {
+  name: string;
+  email: string;
+  role: Role;
+  employeeCode: string;
+  pin?: string;
+  isActive?: boolean;
+}
+
 interface AuthContextType {
-  session: SessionContext | null; isLoading: boolean; isLocked: boolean; inactivityTimeoutMinutes: number;
-  staffUsers: User[]; rolePermissions: Record<Role, Permission[]>; login: (req: LoginRequest) => Promise<void>; logout: () => Promise<void>;
-  switchStore: (store: Store) => void; updateStoreProfile: (updates: Partial<Store>) => void; switchCurrency: (currencyCode: string) => void;
-  switchDemoRole: (role: Role) => void; can: (permission: Permission) => boolean; lockSystem: () => void; unlockSystem: (pinOrPassword: string) => Promise<boolean>;
-  setInactivityTimeoutMinutes: (mins: number) => void; addStaffUser: (payload: AddStaffPayload) => User; updateStaffUser: (id: string, updates: Partial<User> & { pin?: string }) => void;
-  deleteStaffUser: (id: string) => boolean; switchActiveUser: (userOrId: User | string) => void; updateRolePermissions: (role: Role, perms: Permission[]) => void;
-  resetRolePermissions: () => void; getStaffPin: (userId: string) => string; setStaffPin: (userId: string, pin: string) => void;
-  assignRoleToStaffUser: (id: string, newRole: Role, options?: { permissions?: Permission[]; assignedBy?: string; note?: string; permissionSetId?: string }) => void;
-  bulkAssignRoles: (ids: string[], newRole: Role, options?: { assignedBy?: string; note?: string }) => void;
-  customPermissionSets: CustomPermissionSet[]; addCustomPermissionSet: (set: Omit<CustomPermissionSet, 'id' | 'createdAt' | 'updatedAt'>) => CustomPermissionSet;
-  updateCustomPermissionSet: (id: string, updates: Partial<CustomPermissionSet>) => void; deleteCustomPermissionSet: (id: string) => boolean;
-  applyPermissionSetToRole: (setId: string, role: Role) => void; applyPermissionSetToStaff: (setId: string, staffId: string) => void; resetPermissionSetsToDefaults: () => void;
+  session: SessionContext | null;
+  operationalScope: OperationalScope | null;
+  setOperationalScope: (scope: OperationalScope | null) => void;
+  isLoading: boolean;
+  isLocked: boolean;
+  inactivityTimeoutMinutes: number;
+  staffUsers: User[];
+  rolePermissions: Record<Role, Permission[]>;
+  login: (req: LoginRequest) => Promise<void>;
+  logout: () => Promise<void>;
+  switchStore: (store: Store) => void;
+  updateStoreProfile: (updates: Partial<Store>) => void;
+  switchCurrency: (currencyCode: string) => void;
+  switchDemoRole: (role: Role) => void;
+  can: (permission: Permission) => boolean;
+  lockSystem: () => void;
+  unlockSystem: (pinOrPassword: string) => Promise<boolean>;
+  setInactivityTimeoutMinutes: (mins: number) => void;
+  addStaffUser: (payload: AddStaffPayload) => User;
+  updateStaffUser: (id: string, updates: Partial<User> & { pin?: string }) => void;
+  deleteStaffUser: (id: string) => boolean;
+  switchActiveUser: (userOrId: User | string) => void;
+  updateRolePermissions: (role: Role, perms: Permission[]) => void;
+  resetRolePermissions: () => void;
+  getStaffPin: (userId: string) => string;
+  setStaffPin: (userId: string, pin: string) => void;
+  assignRoleToStaffUser: (
+    id: string,
+    newRole: Role,
+    options?: {
+      permissions?: Permission[];
+      assignedBy?: string;
+      note?: string;
+      permissionSetId?: string;
+    },
+  ) => void;
+  bulkAssignRoles: (
+    ids: string[],
+    newRole: Role,
+    options?: { assignedBy?: string; note?: string },
+  ) => void;
+  customPermissionSets: CustomPermissionSet[];
+  addCustomPermissionSet: (
+    set: Omit<CustomPermissionSet, 'id' | 'createdAt' | 'updatedAt'>,
+  ) => CustomPermissionSet;
+  updateCustomPermissionSet: (id: string, updates: Partial<CustomPermissionSet>) => void;
+  deleteCustomPermissionSet: (id: string) => boolean;
+  applyPermissionSetToRole: (setId: string, role: Role) => void;
+  applyPermissionSetToStaff: (setId: string, staffId: string) => void;
+  resetPermissionSetsToDefaults: () => void;
   forgotPin: (identity: string, org: string, store: string, reg: string) => Promise<void>;
 }
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const STORAGE_KEY = AUTH_SESSION_STORAGE_KEY; const TIMEOUT_STORAGE_KEY = 'prodx_pos_inactivity_timeout'; const CUSTOM_STORE_KEY = 'prodx_custom_store_profile';
-import { shouldReadMock } from '../adapters/env';
+const STORAGE_KEY = AUTH_SESSION_STORAGE_KEY;
+const TIMEOUT_STORAGE_KEY = 'prodx_pos_inactivity_timeout';
+const CUSTOM_STORE_KEY = 'prodx_custom_store_profile';
 const IS_DEVELOPMENT = shouldReadMock();
 
+function applyOperationalScopeToSession(
+  baseSession: SessionContext,
+  scope: OperationalScope | null,
+): SessionContext {
+  if (!scope) return baseSession;
+  const updatedStore: Store = {
+    ...baseSession.currentStore,
+    organizationId: scope.organizationId || baseSession.currentStore.organizationId,
+    code: scope.branchName || baseSession.currentStore.code,
+    name: scope.branchAddress
+      ? `${scope.branchName} — ${scope.branchAddress}`
+      : scope.branchName || baseSession.currentStore.name,
+    address: scope.branchAddress || baseSession.currentStore.address,
+  };
+
+  const storesList: Store[] = baseSession.organization.stores.some(
+    (s) => s.code.toLowerCase() === updatedStore.code.toLowerCase(),
+  )
+    ? baseSession.organization.stores.map((s) =>
+        s.code.toLowerCase() === updatedStore.code.toLowerCase() ? updatedStore : s,
+      )
+    : [updatedStore, ...baseSession.organization.stores];
+
+  const updatedOrg: Organization = {
+    ...baseSession.organization,
+    id: scope.organizationId || baseSession.organization.id,
+    name: scope.organizationName || baseSession.organization.name,
+    slug: scope.organizationSlug || baseSession.organization.slug,
+    stores: storesList,
+  };
+
+  return {
+    ...baseSession,
+    organization: updatedOrg,
+    currentStore: updatedStore,
+    registerId: scope.terminalCode || baseSession.registerId,
+    operationalScope: scope,
+  };
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [session, setSession] = useState<SessionContext | null>(null); const [isLoading, setIsLoading] = useState(true); const [isLocked, setIsLocked] = useState(false);
-  const [staffUsers, setStaffUsers] = useState<User[]>(() => IS_DEVELOPMENT ? getStoredStaffDirectory() : []);
-  const [rolePermissions, setRolePermissions] = useState<Record<Role, Permission[]>>(() => IS_DEVELOPMENT ? getStoredRolePermissions() : { admin:[...ROLE_PERMISSIONS.admin], manager:[...ROLE_PERMISSIONS.manager], cashier:[...ROLE_PERMISSIONS.cashier] });
-  const [staffPins, setStaffPins] = useState<Record<string, string>>(() => IS_DEVELOPMENT ? getStoredStaffPins() : {});
-  const [customPermissionSets, setCustomPermissionSets] = useState<CustomPermissionSet[]>(() => IS_DEVELOPMENT ? getStoredCustomPermissionSets() : []);
-  const [inactivityTimeoutMinutes, setInactivityTimeoutMinutesState] = useState<number>(() => { try { const stored = localStorage.getItem(TIMEOUT_STORAGE_KEY); if (stored !== null) return Number(stored); } catch {} return 5; });
+  const [session, setSession] = useState<SessionContext | null>(null);
+  const [operationalScope, setOperationalScopeState] = useState<OperationalScope | null>(() =>
+    getStoredOperationalScope(),
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLocked, setIsLocked] = useState(false);
+  const [staffUsers, setStaffUsers] = useState<User[]>(() =>
+    IS_DEVELOPMENT ? getStoredStaffDirectory() : [],
+  );
+  const [rolePermissions, setRolePermissions] = useState<Record<Role, Permission[]>>(() =>
+    IS_DEVELOPMENT
+      ? getStoredRolePermissions()
+      : {
+          admin: [...ROLE_PERMISSIONS.admin],
+          manager: [...ROLE_PERMISSIONS.manager],
+          cashier: [...ROLE_PERMISSIONS.cashier],
+        },
+  );
+  const [staffPins, setStaffPins] = useState<Record<string, string>>(() =>
+    IS_DEVELOPMENT ? getStoredStaffPins() : {},
+  );
+  const [customPermissionSets, setCustomPermissionSets] = useState<CustomPermissionSet[]>(() =>
+    IS_DEVELOPMENT ? getStoredCustomPermissionSets() : [],
+  );
+  const [inactivityTimeoutMinutes, setInactivityTimeoutMinutesState] = useState<number>(() => {
+    try {
+      const stored = localStorage.getItem(TIMEOUT_STORAGE_KEY);
+      if (stored !== null) return Number(stored);
+    } catch {}
+    return 5;
+  });
   const lastActivityRef = useRef(Date.now());
+
+  const setOperationalScope = useCallback((scope: OperationalScope | null) => {
+    setOperationalScopeState(scope);
+    saveStoredOperationalScope(scope);
+    if (scope) {
+      setSession((prev) => (prev ? applyOperationalScopeToSession(prev, scope) : null));
+    }
+  }, []);
 
   // Ensure default admin PIN
   useEffect(() => {
     if (!IS_DEVELOPMENT) return;
-    const adminUsers = staffUsers.filter(u => u.role === 'admin');
+    const adminUsers = staffUsers.filter((u) => u.role === 'admin');
     let needsUpdate = false;
     const nextPins = { ...staffPins };
     for (const admin of adminUsers) {
@@ -69,39 +207,553 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [staffUsers]);
 
-  useEffect(() => { async function restoreSession() { try { localStorage.removeItem(STORAGE_KEY); const persisted = readPersistedSession(sessionStorage); if (!persisted) { clearPersistedSession(sessionStorage); return; } const verified = await authApi.verifySession(persisted.token); if (!verified) { clearPersistedSession(sessionStorage); return; } setSession(verified); writePersistedSession(sessionStorage, verified.token); lastActivityRef.current = Date.now(); } catch (err) { console.error('[AuthContext] Session restore error:', err); try { clearPersistedSession(sessionStorage); localStorage.removeItem(STORAGE_KEY); } catch {} } finally { setIsLoading(false); } } restoreSession(); }, []);
-  useEffect(() => { if (!session || isLocked) return; const handleActivity = () => { lastActivityRef.current = Date.now(); }; const events = ['mousemove','mousedown','keydown','touchstart','scroll']; events.forEach(ev => window.addEventListener(ev, handleActivity, { passive: true })); const timer = setInterval(() => { if (!isLocked && session && inactivityTimeoutMinutes > 0 && Date.now() - lastActivityRef.current >= inactivityTimeoutMinutes * 60 * 1000) setIsLocked(true); }, 10000); return () => { events.forEach(ev => window.removeEventListener(ev, handleActivity)); clearInterval(timer); }; }, [session, isLocked, inactivityTimeoutMinutes]);
-  useEffect(() => { aiService.setSessionToken(session?.token); }, [session?.token]);
-  const login = async (req: LoginRequest) => { setIsLoading(true); try { const newSession = await authApi.login(req); try { writePersistedSession(sessionStorage, newSession.token); } catch (error) { await authApi.logout(newSession.token).catch(() => undefined); throw error; } try { localStorage.removeItem(STORAGE_KEY); } catch {} setSession(newSession); setIsLocked(false); lastActivityRef.current = Date.now(); } finally { setIsLoading(false); } };
-  const logout = async () => { const token = session?.token; setIsLoading(true); try { if (token) await authApi.logout(token); } catch (error) { console.error('[AuthContext] Server logout failed; local session was cleared.', error); } finally { setSession(null); setIsLocked(false); try { clearPersistedSession(sessionStorage); localStorage.removeItem(STORAGE_KEY); } catch {} setIsLoading(false); } };
-  const switchStore = (store: Store) => { if (!IS_DEVELOPMENT || !session) return; const updated = { ...session, currentStore: store }; setSession(updated); };
-  const updateStoreProfile = (updates: Partial<Store>) => { if (!IS_DEVELOPMENT || !session) return; const updatedStore = { ...session.currentStore, ...updates }; const updatedSession = { ...session, currentStore: updatedStore }; setSession(updatedSession); localStorage.setItem(CUSTOM_STORE_KEY, JSON.stringify(updatedStore)); };
-  const switchCurrency = (currencyCode: string) => { if (!IS_DEVELOPMENT || !session) return; const updatedStore = { ...session.currentStore, currency: currencyCode.toUpperCase() }; const updated = { ...session, currentStore: updatedStore }; setSession(updated); };
-  const switchDemoRole = (_role: Role) => { return; };
-  const can = (permission: Permission) => session?.currentUser.permissions.includes(permission) ?? false;
-  const lockSystem = () => { if (session) setIsLocked(true); };
-  const unlockSystem = async (pinOrPassword: string) => { if (!session) return false; const secret = pinOrPassword; if (!secret) return false; if (IS_DEVELOPMENT) { const normalizedPin = secret.trim(); const userPin = getStaffPin(session.currentUser.id); if (!userPin || normalizedPin !== userPin) return false; setIsLocked(false); lastActivityRef.current = Date.now(); return true; } let replacement: SessionContext | null = null; try { const previousSession = session; replacement = await authApi.login({ organizationSlug: previousSession.organization.slug, storeCode: previousSession.currentStore.code, registerId: previousSession.registerId, emailOrPin: previousSession.currentUser.email, passwordOrPin: secret }); if (replacement.currentUser.id !== previousSession.currentUser.id || replacement.currentStore.id !== previousSession.currentStore.id || replacement.registerId !== previousSession.registerId) { await authApi.logout(replacement.token).catch(() => undefined); return false; } try { await authApi.logout(previousSession.token); } catch { await authApi.logout(replacement.token).catch(() => undefined); return false; } writePersistedSession(sessionStorage, replacement.token); setSession(replacement); setIsLocked(false); lastActivityRef.current = Date.now(); return true; } catch { if (replacement) await authApi.logout(replacement.token).catch(() => undefined); return false; } };
-  const setInactivityTimeoutMinutes = (mins: number) => { setInactivityTimeoutMinutesState(mins); try { localStorage.setItem(TIMEOUT_STORAGE_KEY, String(mins)); } catch {} };
-  const addStaffUser = (payload: AddStaffPayload): User => { if (!IS_DEVELOPMENT) throw new Error('Staff management requires the production server API.'); const id = `usr-${payload.role}-${Date.now().toString(36)}`; const rolePerms = rolePermissions[payload.role] || []; const newUser: User = { id, name: payload.name.trim(), email: payload.email.trim(), role: payload.role, employeeCode: payload.employeeCode.trim().toUpperCase(), permissions: rolePerms, isActive: payload.isActive !== false }; const nextUsers = [...staffUsers, newUser]; setStaffUsers(nextUsers); saveStoredStaffDirectory(nextUsers); if (payload.pin) setStaffPin(id, payload.pin); return newUser; };
-  const updateStaffUser = (id: string, updates: Partial<User> & { pin?: string }) => { if (!IS_DEVELOPMENT) return; const nextUsers = staffUsers.map(u => u.id === id ? { ...u, ...updates, role: updates.role || u.role, permissions: updates.permissions || (updates.role ? rolePermissions[updates.role] : u.permissions) } : u); setStaffUsers(nextUsers); saveStoredStaffDirectory(nextUsers); if (updates.pin) setStaffPin(id, updates.pin); if (session?.currentUser.id === id) { const updatedUser = nextUsers.find(u => u.id === id); if (updatedUser) { const updatedSession = { ...session, currentUser: updatedUser }; setSession(updatedSession); } } };
-  const assignRoleToStaffUser = (id: string, newRole: Role, options?: { permissions?: Permission[]; assignedBy?: string; note?: string; permissionSetId?: string }) => updateStaffUser(id, { role: newRole, permissions: [...(options?.permissions || rolePermissions[newRole] || ROLE_PERMISSIONS[newRole])], lastRoleAssignedAt: new Date().toISOString(), assignedBy: options?.assignedBy || session?.currentUser.name, roleAssignmentNote: options?.note, assignedPermissionSetId: options?.permissionSetId });
-  const bulkAssignRoles = (ids: string[], newRole: Role, options?: { assignedBy?: string; note?: string }) => { if (!IS_DEVELOPMENT) return; const nextPerms = rolePermissions[newRole] || ROLE_PERMISSIONS[newRole]; const now = new Date().toISOString(); const assignedBy = options?.assignedBy || session?.currentUser.name; const nextUsers = staffUsers.map(u => ids.includes(u.id) ? { ...u, role: newRole, permissions: [...nextPerms], lastRoleAssignedAt: now, assignedBy, roleAssignmentNote: options?.note } : u); setStaffUsers(nextUsers); saveStoredStaffDirectory(nextUsers); if (session && ids.includes(session.currentUser.id)) { const updatedUser = nextUsers.find(u => u.id === session.currentUser.id); if (updatedUser) { const updatedSession = { ...session, currentUser: updatedUser }; setSession(updatedSession); } } };
-  const deleteStaffUser = (id: string) => { if (!IS_DEVELOPMENT || session?.currentUser.id === id) return false; const nextUsers = staffUsers.filter(u => u.id !== id); setStaffUsers(nextUsers); saveStoredStaffDirectory(nextUsers); return true; };
-  const switchActiveUser = (userOrId: User | string) => { if (!IS_DEVELOPMENT || !session) return; const target = typeof userOrId === 'string' ? staffUsers.find(u => u.id === userOrId) : userOrId; if (!target) return; const updatedUser = { ...target, permissions: rolePermissions[target.role] || target.permissions }; const updatedSession = { ...session, currentUser: updatedUser }; setSession(updatedSession); writePersistedSession(sessionStorage, updatedSession.token); };
-  const updateRolePermissions = (role: Role, perms: Permission[]) => { if (!IS_DEVELOPMENT) return; const nextMatrix = { ...rolePermissions, [role]: perms }; setRolePermissions(nextMatrix); saveStoredRolePermissions(nextMatrix); if (session?.currentUser.role === role) { const updatedSession = { ...session, currentUser: { ...session.currentUser, permissions: perms } }; setSession(updatedSession); writePersistedSession(sessionStorage, updatedSession.token); } };
-  const resetRolePermissions = () => { if (!IS_DEVELOPMENT) return; const defaults = { admin:[...ROLE_PERMISSIONS.admin], manager:[...ROLE_PERMISSIONS.manager], cashier:[...ROLE_PERMISSIONS.cashier] }; setRolePermissions(defaults); saveStoredRolePermissions(defaults); if (session) { const updatedSession = { ...session, currentUser:{...session.currentUser, permissions:defaults[session.currentUser.role]} }; setSession(updatedSession); writePersistedSession(sessionStorage, updatedSession.token); } };
-  const getStaffPin = (userId: string) => IS_DEVELOPMENT ? staffPins[userId] || '' : '';
-  const setStaffPin = (userId: string, pin: string) => { if (!IS_DEVELOPMENT) return; const nextPins = { ...staffPins, [userId]: pin.trim() }; setStaffPins(nextPins); saveStoredStaffPins(nextPins); };
-  const addCustomPermissionSet = (setPayload: Omit<CustomPermissionSet,'id'|'createdAt'|'updatedAt'>) => { if (!IS_DEVELOPMENT) throw new Error('Permission management requires the production server API.'); const id = `pset-custom-${Date.now()}`; const now = new Date().toISOString(); const newSet = { ...setPayload, id, createdAt: now, updatedAt: now }; const next=[...customPermissionSets,newSet]; setCustomPermissionSets(next); saveStoredCustomPermissionSets(next); return newSet; };
-  const updateCustomPermissionSet = (id: string, updates: Partial<CustomPermissionSet>) => { if (!IS_DEVELOPMENT) return; const next=customPermissionSets.map(s=>s.id===id?{...s,...updates,updatedAt:new Date().toISOString()}:s); setCustomPermissionSets(next); saveStoredCustomPermissionSets(next); };
-  const deleteCustomPermissionSet = (id: string) => { if (!IS_DEVELOPMENT) return false; const target=customPermissionSets.find(s=>s.id===id); if(!target||target.isSystem)return false; const next=customPermissionSets.filter(s=>s.id!==id); setCustomPermissionSets(next); saveStoredCustomPermissionSets(next); return true; };
-  const applyPermissionSetToRole = (setId: string, role: Role) => { const set=customPermissionSets.find(s=>s.id===setId); if(set) updateRolePermissions(role,set.permissions); };
-  const applyPermissionSetToStaff = (setId: string, staffId: string) => { const set=customPermissionSets.find(s=>s.id===setId); if(!set)return; const assigned=(set.assignedStaffIds||[]).includes(staffId); setCustomPermissionSets(prev=>{const next=prev.map(s=>s.id===setId?{...s,assignedStaffIds:assigned?(s.assignedStaffIds||[]).filter(id=>id!==staffId):[...(s.assignedStaffIds||[]),staffId]}:s);saveStoredCustomPermissionSets(next);return next;}); updateStaffUser(staffId,{permissions:assigned?[]:[...set.permissions]}); };
-  const resetPermissionSetsToDefaults = () => { if (!IS_DEVELOPMENT) return; setCustomPermissionSets(DEFAULT_PERMISSION_SETS); saveStoredCustomPermissionSets(DEFAULT_PERMISSION_SETS); };
+  useEffect(() => {
+    async function restoreSession() {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+        const persisted = readPersistedSession(sessionStorage);
+        if (!persisted) {
+          clearPersistedSession(sessionStorage);
+          return;
+        }
+        const verified = await authApi.verifySession(persisted.token);
+        if (!verified) {
+          clearPersistedSession(sessionStorage);
+          return;
+        }
+        const storedScope = verified.operationalScope ?? getStoredOperationalScope();
+        if (storedScope) {
+          setOperationalScopeState(storedScope);
+          saveStoredOperationalScope(storedScope);
+        }
+        const scopedSession = applyOperationalScopeToSession(verified, storedScope);
+        setSession(scopedSession);
+        writePersistedSession(sessionStorage, scopedSession.token);
+        lastActivityRef.current = Date.now();
+      } catch (err) {
+        console.error('[AuthContext] Session restore error:', err);
+        try {
+          clearPersistedSession(sessionStorage);
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {}
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    restoreSession();
+  }, []);
+
+  useEffect(() => {
+    if (!session || isLocked) return;
+    const handleActivity = () => {
+      lastActivityRef.current = Date.now();
+    };
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach((ev) => window.addEventListener(ev, handleActivity, { passive: true }));
+    const timer = setInterval(() => {
+      if (
+        !isLocked &&
+        session &&
+        inactivityTimeoutMinutes > 0 &&
+        Date.now() - lastActivityRef.current >= inactivityTimeoutMinutes * 60 * 1000
+      )
+        setIsLocked(true);
+    }, 10000);
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, handleActivity));
+      clearInterval(timer);
+    };
+  }, [session, isLocked, inactivityTimeoutMinutes]);
+
+  useEffect(() => {
+    aiService.setSessionToken(session?.token);
+  }, [session?.token]);
+
+  const login = async (req: LoginRequest) => {
+    setIsLoading(true);
+    try {
+      const effectiveScope = req.organizationContext ?? operationalScope ?? undefined;
+      const enrichedReq: LoginRequest = effectiveScope
+        ? {
+            ...req,
+            organizationSlug: effectiveScope.organizationSlug || req.organizationSlug,
+            storeCode: effectiveScope.branchName || req.storeCode,
+            registerId: effectiveScope.terminalCode || req.registerId,
+            organizationContext: effectiveScope,
+          }
+        : req;
+
+      const rawSession = await authApi.login(enrichedReq);
+      if (effectiveScope) {
+        setOperationalScopeState(effectiveScope);
+        saveStoredOperationalScope(effectiveScope);
+      }
+      const newSession = applyOperationalScopeToSession(
+        rawSession,
+        effectiveScope ?? rawSession.operationalScope ?? null,
+      );
+
+      try {
+        writePersistedSession(sessionStorage, newSession.token);
+      } catch (error) {
+        await authApi.logout(newSession.token).catch(() => undefined);
+        throw error;
+      }
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {}
+      setSession(newSession);
+      setIsLocked(false);
+      lastActivityRef.current = Date.now();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    const token = session?.token;
+    setIsLoading(true);
+    try {
+      if (token) await authApi.logout(token);
+    } catch (error) {
+      console.error('[AuthContext] Server logout failed; local session was cleared.', error);
+    } finally {
+      setSession(null);
+      setIsLocked(false);
+      try {
+        clearPersistedSession(sessionStorage);
+        localStorage.removeItem(STORAGE_KEY);
+      } catch {}
+      setIsLoading(false);
+    }
+  };
+
+  const switchStore = (store: Store) => {
+    if (!IS_DEVELOPMENT || !session) return;
+    const updatedScope: OperationalScope | undefined = session.operationalScope
+      ? {
+          ...session.operationalScope,
+          branchId: store.id,
+          branchName: store.code,
+          branchAddress: store.address,
+        }
+      : undefined;
+    if (updatedScope) {
+      setOperationalScopeState(updatedScope);
+      saveStoredOperationalScope(updatedScope);
+    }
+    const updated: SessionContext = {
+      ...session,
+      currentStore: store,
+      operationalScope: updatedScope ?? session.operationalScope,
+    };
+    setSession(updated);
+  };
+
+  const updateStoreProfile = (updates: Partial<Store>) => {
+    if (!IS_DEVELOPMENT || !session) return;
+    const updatedStore = { ...session.currentStore, ...updates };
+    const updatedSession = { ...session, currentStore: updatedStore };
+    setSession(updatedSession);
+    localStorage.setItem(CUSTOM_STORE_KEY, JSON.stringify(updatedStore));
+  };
+
+  const switchCurrency = (currencyCode: string) => {
+    if (!IS_DEVELOPMENT || !session) return;
+    const updatedStore = { ...session.currentStore, currency: currencyCode.toUpperCase() };
+    const updated = { ...session, currentStore: updatedStore };
+    setSession(updated);
+  };
+
+  const switchDemoRole = (_role: Role) => {
+    return;
+  };
+
+  const can = (permission: Permission) =>
+    session?.currentUser.permissions.includes(permission) ?? false;
+
+  const lockSystem = () => {
+    if (session) setIsLocked(true);
+  };
+
+  const unlockSystem = async (pinOrPassword: string) => {
+    if (!session) return false;
+    const secret = pinOrPassword;
+    if (!secret) return false;
+    if (IS_DEVELOPMENT) {
+      const normalizedPin = secret.trim();
+      const userPin = getStaffPin(session.currentUser.id);
+      if (!userPin || normalizedPin !== userPin) return false;
+      setIsLocked(false);
+      lastActivityRef.current = Date.now();
+      return true;
+    }
+    let replacement: SessionContext | null = null;
+    try {
+      const previousSession = session;
+      const activeScope = previousSession.operationalScope ?? operationalScope ?? undefined;
+      replacement = await authApi.login({
+        organizationSlug: previousSession.organization.slug,
+        storeCode: previousSession.currentStore.code,
+        registerId: previousSession.registerId,
+        emailOrPin: previousSession.currentUser.email,
+        passwordOrPin: secret,
+        organizationContext: activeScope,
+      });
+      if (
+        replacement.currentUser.id !== previousSession.currentUser.id ||
+        replacement.currentStore.id !== previousSession.currentStore.id ||
+        replacement.registerId !== previousSession.registerId
+      ) {
+        await authApi.logout(replacement.token).catch(() => undefined);
+        return false;
+      }
+      try {
+        await authApi.logout(previousSession.token);
+      } catch {
+        await authApi.logout(replacement.token).catch(() => undefined);
+        return false;
+      }
+      const scopedReplacement = applyOperationalScopeToSession(replacement, activeScope ?? null);
+      writePersistedSession(sessionStorage, scopedReplacement.token);
+      setSession(scopedReplacement);
+      setIsLocked(false);
+      lastActivityRef.current = Date.now();
+      return true;
+    } catch {
+      if (replacement) await authApi.logout(replacement.token).catch(() => undefined);
+      return false;
+    }
+  };
+
+  const setInactivityTimeoutMinutes = (mins: number) => {
+    setInactivityTimeoutMinutesState(mins);
+    try {
+      localStorage.setItem(TIMEOUT_STORAGE_KEY, String(mins));
+    } catch {}
+  };
+
+  const addStaffUser = (payload: AddStaffPayload): User => {
+    if (!IS_DEVELOPMENT) throw new Error('Staff management requires the production server API.');
+    const id = `usr-${payload.role}-${Date.now().toString(36)}`;
+    const rolePerms = rolePermissions[payload.role] || [];
+    const newUser: User = {
+      id,
+      name: payload.name.trim(),
+      email: payload.email.trim(),
+      role: payload.role,
+      employeeCode: payload.employeeCode.trim().toUpperCase(),
+      permissions: rolePerms,
+      isActive: payload.isActive !== false,
+    };
+    const nextUsers = [...staffUsers, newUser];
+    setStaffUsers(nextUsers);
+    saveStoredStaffDirectory(nextUsers);
+    if (payload.pin) setStaffPin(id, payload.pin);
+    return newUser;
+  };
+
+  const updateStaffUser = (id: string, updates: Partial<User> & { pin?: string }) => {
+    if (!IS_DEVELOPMENT) return;
+    const nextUsers = staffUsers.map((u) =>
+      u.id === id
+        ? {
+            ...u,
+            ...updates,
+            role: updates.role || u.role,
+            permissions:
+              updates.permissions || (updates.role ? rolePermissions[updates.role] : u.permissions),
+          }
+        : u,
+    );
+    setStaffUsers(nextUsers);
+    saveStoredStaffDirectory(nextUsers);
+    if (updates.pin) setStaffPin(id, updates.pin);
+    if (session?.currentUser.id === id) {
+      const updatedUser = nextUsers.find((u) => u.id === id);
+      if (updatedUser) {
+        const updatedSession = { ...session, currentUser: updatedUser };
+        setSession(updatedSession);
+      }
+    }
+  };
+
+  const assignRoleToStaffUser = (
+    id: string,
+    newRole: Role,
+    options?: {
+      permissions?: Permission[];
+      assignedBy?: string;
+      note?: string;
+      permissionSetId?: string;
+    },
+  ) =>
+    updateStaffUser(id, {
+      role: newRole,
+      permissions: [
+        ...(options?.permissions || rolePermissions[newRole] || ROLE_PERMISSIONS[newRole]),
+      ],
+      lastRoleAssignedAt: new Date().toISOString(),
+      assignedBy: options?.assignedBy || session?.currentUser.name,
+      roleAssignmentNote: options?.note,
+      assignedPermissionSetId: options?.permissionSetId,
+    });
+
+  const bulkAssignRoles = (
+    ids: string[],
+    newRole: Role,
+    options?: { assignedBy?: string; note?: string },
+  ) => {
+    if (!IS_DEVELOPMENT) return;
+    const nextPerms = rolePermissions[newRole] || ROLE_PERMISSIONS[newRole];
+    const now = new Date().toISOString();
+    const assignedBy = options?.assignedBy || session?.currentUser.name;
+    const nextUsers = staffUsers.map((u) =>
+      ids.includes(u.id)
+        ? {
+            ...u,
+            role: newRole,
+            permissions: [...nextPerms],
+            lastRoleAssignedAt: now,
+            assignedBy,
+            roleAssignmentNote: options?.note,
+          }
+        : u,
+    );
+    setStaffUsers(nextUsers);
+    saveStoredStaffDirectory(nextUsers);
+    if (session && ids.includes(session.currentUser.id)) {
+      const updatedUser = nextUsers.find((u) => u.id === session.currentUser.id);
+      if (updatedUser) {
+        const updatedSession = { ...session, currentUser: updatedUser };
+        setSession(updatedSession);
+      }
+    }
+  };
+
+  const deleteStaffUser = (id: string) => {
+    if (!IS_DEVELOPMENT || session?.currentUser.id === id) return false;
+    const nextUsers = staffUsers.filter((u) => u.id !== id);
+    setStaffUsers(nextUsers);
+    saveStoredStaffDirectory(nextUsers);
+    return true;
+  };
+
+  const switchActiveUser = (userOrId: User | string) => {
+    if (!IS_DEVELOPMENT || !session) return;
+    const target =
+      typeof userOrId === 'string' ? staffUsers.find((u) => u.id === userOrId) : userOrId;
+    if (!target) return;
+    const updatedUser = {
+      ...target,
+      permissions: rolePermissions[target.role] || target.permissions,
+    };
+    const updatedSession = { ...session, currentUser: updatedUser };
+    setSession(updatedSession);
+    writePersistedSession(sessionStorage, updatedSession.token);
+  };
+
+  const updateRolePermissions = (role: Role, perms: Permission[]) => {
+    if (!IS_DEVELOPMENT) return;
+    const nextMatrix = { ...rolePermissions, [role]: perms };
+    setRolePermissions(nextMatrix);
+    saveStoredRolePermissions(nextMatrix);
+    if (session?.currentUser.role === role) {
+      const updatedSession = {
+        ...session,
+        currentUser: { ...session.currentUser, permissions: perms },
+      };
+      setSession(updatedSession);
+      writePersistedSession(sessionStorage, updatedSession.token);
+    }
+  };
+
+  const resetRolePermissions = () => {
+    if (!IS_DEVELOPMENT) return;
+    const defaults = {
+      admin: [...ROLE_PERMISSIONS.admin],
+      manager: [...ROLE_PERMISSIONS.manager],
+      cashier: [...ROLE_PERMISSIONS.cashier],
+    };
+    setRolePermissions(defaults);
+    saveStoredRolePermissions(defaults);
+    if (session) {
+      const updatedSession = {
+        ...session,
+        currentUser: { ...session.currentUser, permissions: defaults[session.currentUser.role] },
+      };
+      setSession(updatedSession);
+      writePersistedSession(sessionStorage, updatedSession.token);
+    }
+  };
+
+  const getStaffPin = (userId: string) => (IS_DEVELOPMENT ? staffPins[userId] || '' : '');
+
+  const setStaffPin = (userId: string, pin: string) => {
+    if (!IS_DEVELOPMENT) return;
+    const nextPins = { ...staffPins, [userId]: pin.trim() };
+    setStaffPins(nextPins);
+    saveStoredStaffPins(nextPins);
+  };
+
+  const addCustomPermissionSet = (
+    setPayload: Omit<CustomPermissionSet, 'id' | 'createdAt' | 'updatedAt'>,
+  ) => {
+    if (!IS_DEVELOPMENT)
+      throw new Error('Permission management requires the production server API.');
+    const id = `pset-custom-${Date.now()}`;
+    const now = new Date().toISOString();
+    const newSet = { ...setPayload, id, createdAt: now, updatedAt: now };
+    const next = [...customPermissionSets, newSet];
+    setCustomPermissionSets(next);
+    saveStoredCustomPermissionSets(next);
+    return newSet;
+  };
+
+  const updateCustomPermissionSet = (id: string, updates: Partial<CustomPermissionSet>) => {
+    if (!IS_DEVELOPMENT) return;
+    const next = customPermissionSets.map((s) =>
+      s.id === id ? { ...s, ...updates, updatedAt: new Date().toISOString() } : s,
+    );
+    setCustomPermissionSets(next);
+    saveStoredCustomPermissionSets(next);
+  };
+
+  const deleteCustomPermissionSet = (id: string) => {
+    if (!IS_DEVELOPMENT) return false;
+    const target = customPermissionSets.find((s) => s.id === id);
+    if (!target || target.isSystem) return false;
+    const next = customPermissionSets.filter((s) => s.id !== id);
+    setCustomPermissionSets(next);
+    saveStoredCustomPermissionSets(next);
+    return true;
+  };
+
+  const applyPermissionSetToRole = (setId: string, role: Role) => {
+    const set = customPermissionSets.find((s) => s.id === setId);
+    if (set) updateRolePermissions(role, set.permissions);
+  };
+
+  const applyPermissionSetToStaff = (setId: string, staffId: string) => {
+    const set = customPermissionSets.find((s) => s.id === setId);
+    if (!set) return;
+    const assigned = (set.assignedStaffIds || []).includes(staffId);
+    setCustomPermissionSets((prev) => {
+      const next = prev.map((s) =>
+        s.id === setId
+          ? {
+              ...s,
+              assignedStaffIds: assigned
+                ? (s.assignedStaffIds || []).filter((id) => id !== staffId)
+                : [...(s.assignedStaffIds || []), staffId],
+            }
+          : s,
+      );
+      saveStoredCustomPermissionSets(next);
+      return next;
+    });
+    updateStaffUser(staffId, { permissions: assigned ? [] : [...set.permissions] });
+  };
+
+  const resetPermissionSetsToDefaults = () => {
+    if (!IS_DEVELOPMENT) return;
+    setCustomPermissionSets(DEFAULT_PERMISSION_SETS);
+    saveStoredCustomPermissionSets(DEFAULT_PERMISSION_SETS);
+  };
+
   const forgotPin = async (identity: string, org: string, store: string, reg: string) => {
     await authApi.forgotPin(org, store, identity, reg);
   };
-  return <AuthContext.Provider value={{session,isLoading,isLocked,inactivityTimeoutMinutes,staffUsers,rolePermissions,login,logout,switchStore,updateStoreProfile,switchCurrency,switchDemoRole,can,lockSystem,unlockSystem,setInactivityTimeoutMinutes,addStaffUser,updateStaffUser,deleteStaffUser,switchActiveUser,updateRolePermissions,resetRolePermissions,getStaffPin,setStaffPin,assignRoleToStaffUser,bulkAssignRoles,customPermissionSets,addCustomPermissionSet,updateCustomPermissionSet,deleteCustomPermissionSet,applyPermissionSetToRole,applyPermissionSetToStaff,resetPermissionSetsToDefaults,forgotPin}}>{children}</AuthContext.Provider>;
+
+  return (
+    <AuthContext.Provider
+      value={{
+        session,
+        operationalScope,
+        setOperationalScope,
+        isLoading,
+        isLocked,
+        inactivityTimeoutMinutes,
+        staffUsers,
+        rolePermissions,
+        login,
+        logout,
+        switchStore,
+        updateStoreProfile,
+        switchCurrency,
+        switchDemoRole,
+        can,
+        lockSystem,
+        unlockSystem,
+        setInactivityTimeoutMinutes,
+        addStaffUser,
+        updateStaffUser,
+        deleteStaffUser,
+        switchActiveUser,
+        updateRolePermissions,
+        resetRolePermissions,
+        getStaffPin,
+        setStaffPin,
+        assignRoleToStaffUser,
+        bulkAssignRoles,
+        customPermissionSets,
+        addCustomPermissionSet,
+        updateCustomPermissionSet,
+        deleteCustomPermissionSet,
+        applyPermissionSetToRole,
+        applyPermissionSetToStaff,
+        resetPermissionSetsToDefaults,
+        forgotPin,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };
-export function useOptionalAuth(): AuthContextType | null { return useContext(AuthContext) || null; }
-export function useAuth(): AuthContextType { const ctx=useContext(AuthContext); if(ctx)return ctx; return {session:null,isLoading:false,isLocked:false,inactivityTimeoutMinutes:15,staffUsers:[],rolePermissions:ROLE_PERMISSIONS as Record<Role,Permission[]>,login:async()=>{},logout:async()=>{},switchStore:()=>{},switchCurrency:()=>{},switchDemoRole:()=>{},switchActiveUser:()=>{},lockSystem:()=>{},unlockSystem:async()=>false,setInactivityTimeoutMinutes:()=>{},can:()=>false,addStaffUser:()=>({} as User),updateStaffUser:()=>{},deleteStaffUser:()=>false,updateRolePermissions:()=>{},resetRolePermissions:()=>{},getStaffPin:()=>'',setStaffPin:()=>{},assignRoleToStaffUser:()=>{},bulkAssignRoles:()=>{},customPermissionSets:[],addCustomPermissionSet:()=>({} as CustomPermissionSet),updateCustomPermissionSet:()=>{},deleteCustomPermissionSet:()=>false,updateStoreProfile:()=>{},applyPermissionSetToRole:()=>{},applyPermissionSetToStaff:()=>{},resetPermissionSetsToDefaults:()=>{},forgotPin:async()=>{}}; }
+
+export function useOptionalAuth(): AuthContextType | null {
+  return useContext(AuthContext) || null;
+}
+
+export function useAuth(): AuthContextType {
+  const ctx = useContext(AuthContext);
+  if (ctx) return ctx;
+  return {
+    session: null,
+    operationalScope: null,
+    setOperationalScope: () => {},
+    isLoading: false,
+    isLocked: false,
+    inactivityTimeoutMinutes: 15,
+    staffUsers: [],
+    rolePermissions: ROLE_PERMISSIONS as Record<Role, Permission[]>,
+    login: async () => {},
+    logout: async () => {},
+    switchStore: () => {},
+    switchCurrency: () => {},
+    switchDemoRole: () => {},
+    switchActiveUser: () => {},
+    lockSystem: () => {},
+    unlockSystem: async () => false,
+    setInactivityTimeoutMinutes: () => {},
+    can: () => false,
+    addStaffUser: () => ({} as User),
+    updateStaffUser: () => {},
+    deleteStaffUser: () => false,
+    updateRolePermissions: () => {},
+    resetRolePermissions: () => {},
+    getStaffPin: () => '',
+    setStaffPin: () => {},
+    assignRoleToStaffUser: () => {},
+    bulkAssignRoles: () => {},
+    customPermissionSets: [],
+    addCustomPermissionSet: () => ({} as CustomPermissionSet),
+    updateCustomPermissionSet: () => {},
+    deleteCustomPermissionSet: () => false,
+    updateStoreProfile: () => {},
+    applyPermissionSetToRole: () => {},
+    applyPermissionSetToStaff: () => {},
+    resetPermissionSetsToDefaults: () => {},
+    forgotPin: async () => {},
+  };
+}

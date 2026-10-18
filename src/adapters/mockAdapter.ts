@@ -807,6 +807,7 @@ export class MockAuthApi implements IAuthApi {
       currentUser: resolvedUser,
       token: `mock-jwt-${resolvedUser.id}-${Date.now()}`,
       expiresAt: new Date(Date.now() + 8 * 3600 * 1000).toISOString(),
+      operationalScope: req.organizationContext,
     };
 
     if (typeof window !== 'undefined') {
@@ -908,6 +909,7 @@ export class MockAuthApi implements IAuthApi {
       },
       token,
       expiresAt: new Date(Date.now() + 8 * 3600 * 1000).toISOString(),
+      operationalScope: savedReq.organizationContext,
     };
   }
 
@@ -1581,9 +1583,11 @@ export class MockOrderApi implements IOrderApi {
     return response;
   }
 
-  async getOrders(storeId: string, limit = 50): Promise<readonly Order[]> {
+  async getOrders(storeId: string, limit = 50, registerId?: string): Promise<readonly Order[]> {
     await delay(50);
-    return mockState.orders.filter((o) => o.storeId === storeId).slice(0, limit);
+    return mockState.orders
+      .filter((o) => o.storeId === storeId && (!registerId || o.registerId === registerId))
+      .slice(0, limit);
   }
 
   async getOrderById(storeId: string, orderId: string): Promise<Order | null> {

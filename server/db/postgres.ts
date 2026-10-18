@@ -8,7 +8,8 @@ const shouldResolveProductionDatabaseUrl = (): boolean =>
 
 export type ProductionDatabaseTarget = 'supabase_session_pooler' | 'supabase_direct' | 'other' | 'invalid';
 
-export const classifyProductionDatabaseTarget = (databaseUrl: string): ProductionDatabaseTarget => {
+export const classifyProductionDatabaseTarget = (databaseUrl?: string): ProductionDatabaseTarget => {
+  if (!databaseUrl) return 'invalid';
   try {
     const hostname = new URL(databaseUrl).hostname;
     if (hostname === 'aws-0-ap-northeast-1.pooler.supabase.com') return 'supabase_session_pooler';

@@ -9,6 +9,7 @@ import { useSound } from '../../context/SoundContext';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
+import { ProdxReceiptLogo } from '../common/ProdxLogo';
 import { formatMoney, createMoney } from '../../domain/money';
 import { Mail, Printer, CheckCircle2, Copy, FileText, Sparkles, Send, Receipt, QrCode, ExternalLink, Coins, ShieldCheck, FileJson, Check } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -269,14 +270,11 @@ export const CartReceiptPreviewModal: React.FC<CartReceiptPreviewModalProps> = (
 
             {/* Simulated Receipt Header */}
             <div className="text-center space-y-1 mb-4 pt-2 flex flex-col items-center">
-              {customLogo && (
-                <img
-                  src={customLogo}
-                  alt="Store Logo"
-                  referrerPolicy="no-referrer"
-                  className="w-12 h-12 object-contain rounded-lg mb-2 border border-border"
-                />
-              )}
+              <ProdxReceiptLogo
+                customLogoUrl={customLogo}
+                paperWidth="80mm"
+                className="mb-2"
+              />
               <div className="font-sans font-black text-sm tracking-wide text-zinc-900">{currentStore.name}</div>
               <div className="text-[10px] text-text/60">{currentStore.address || '123 POS Road, Bangkok'}</div>
               <div className="text-[10px] text-text/60">Tel: {currentStore.phone || '02-123-4567'}</div>

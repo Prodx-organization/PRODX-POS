@@ -62,6 +62,11 @@ import { NewDeviceSetupModal } from './NewDeviceSetupModal';
 import { HardwareHealthChart } from './HardwareHealthChart';
 import { NetworkHealthGauge } from './NetworkHealthGauge';
 import { FloorPlanView } from './FloorPlanView';
+import { SystemAlertNotificationCenter } from './SystemAlertNotificationCenter';
+import { SystemNotificationToastCorner } from './SystemNotificationToastCorner';
+import { DiagnosticBatchBufferMonitor } from './DiagnosticBatchBufferMonitor';
+import { systemNotificationService } from '../../services/systemNotificationService';
+import { auditService, DiagnosticLogLevel } from '../../services/auditService';
 import { HardwarePeripheralStatus } from '../../types/hardware';
 
 
@@ -1352,12 +1357,97 @@ export function InfrastructureDashboard() {
       delete next[peripheralId];
       return next;
     });
+    setPeripherals((prev) =>
+      prev.map((p) =>
+        p.id === peripheralId
+          ? {
+              ...p,
+              connectivity: { ...p.connectivity, state: 'online' },
+              driverHealth: { ...p.driverHealth, status: 'healthy' },
+              telemetryData: { ...p.telemetryData, errorCountToday: 0 },
+            }
+          : p,
+      ),
+    );
     addToast({
-      type: 'info',
-      title: 'รีเซ็ตสถานะฮาร์ดแวร์',
-      message: 'อุปกรณ์กลับคืนสู่สถานะ IDLE / สแตนด์บายพร้อมใช้งาน',
+      type: 'success',
+      title: 'เคลียร์สถานะ Error สำเร็จ',
+      message: 'อุปกรณ์กลับคืนสู่สถานะ IDLE / พร้อมใช้งานปกติเรียบร้อยแล้ว',
       durationMs: 3000,
     });
+  };
+
+  const handleSimulateDeviceError = (targetPeripheralId?: string) => {
+    const target =
+      (targetPeripheralId && peripherals.find((p) => p.id === targetPeripheralId)) ||
+      peripherals.find((p) => getPeripheralPulseState(p) !== 'error' && !p.isMaintenanceMode) ||
+      peripherals[0];
+
+    if (!target) return;
+
+    setPulseOverrides((prev) => ({ ...prev, [target.id]: 'error' }));
+    setFailedPeripheralIds((prev) => new Set(prev).add(target.id));
+    setActivePeripheralIds((prev) => {
+      const next = new Set(prev);
+      next.delete(target.id);
+      return next;
+    });
+    setPeripherals((prev) =>
+      prev.map((p) =>
+        p.id === target.id
+          ? {
+              ...p,
+              driverHealth: { ...p.driverHealth, status: 'degraded' },
+              telemetryData: {
+                ...p.telemetryData,
+                errorCountToday: Math.max(1, p.telemetryData.errorCountToday + 1),
+              },
+            }
+          : p,
+      ),
+    );
+    setActionMessage(
+      `[System Alert Triggered] ตรวจพบสถานะ ERROR บนอุปกรณ์ "${target.name}" (พอร์ต ${target.port}) — ระบบส่งเสียงเตือนไซเรนและแสดง Framer-Motion Toast Notification มุมจอแล้ว`,
+    );
+  };
+
+  const handleSimulateDeviceOffline = (targetPeripheralId?: string) => {
+    const target =
+      (targetPeripheralId && peripherals.find((p) => p.id === targetPeripheralId)) ||
+      peripherals.find(
+        (p) => p.connectivity.state !== 'disconnected' && !p.isMaintenanceMode,
+      ) ||
+      peripherals[0];
+
+    if (!target) return;
+
+    setPulseOverrides((prev) => {
+      const next = { ...prev };
+      delete next[target.id];
+      return next;
+    });
+    setActivePeripheralIds((prev) => {
+      const next = new Set(prev);
+      next.delete(target.id);
+      return next;
+    });
+    setPeripherals((prev) =>
+      prev.map((p) =>
+        p.id === target.id
+          ? {
+              ...p,
+              connectivity: {
+                ...p.connectivity,
+                state: 'disconnected',
+                latencyMs: 0,
+              },
+            }
+          : p,
+      ),
+    );
+    setActionMessage(
+      `[System Notification Service] อุปกรณ์ "${target.name}" (พอร์ต ${target.port}) เปลี่ยนสถานะเป็น OFFLINE — แสดง Framer-Motion Toast Notification มุมจอแล้ว`,
+    );
   };
 
   const handleSimulatePulseWave = () => {
@@ -1403,6 +1493,16 @@ export function InfrastructureDashboard() {
     }
     return 'idle';
   };
+
+  // Global System Notification Service watcher: triggers framer-motion corner toasts
+  // whenever any peripheral's connectivity status transitions to 'Error' or 'Offline'
+  useEffect(() => {
+    if (peripherals.length === 0) return;
+    systemNotificationService.evaluatePeripherals(peripherals, getPeripheralPulseState, {
+      notifyOnInitialFault: true,
+      notifyOnRecovery: true,
+    });
+  }, [peripherals, pulseOverrides, failedPeripheralIds]);
 
   const getCategoryPulseDetails = (peripheral: HardwarePeripheralStatus, state: PeripheralHealthPulseState) => {
     switch (peripheral.category) {
@@ -1483,47 +1583,83 @@ export function InfrastructureDashboard() {
 
   return (
     <DndContext collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-       <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6">
+      <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6">
         {/* Header & Antigravity Banner */}
         <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-indigo-900/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        {/* ... rest of the dashboard ... */}
-       </div>
-        <div>
-          <div className="flex items-center gap-2 text-indigo-400 font-semibold text-xs uppercase tracking-wider mb-2">
-            <Zap className="w-4 h-4 text-amber-400 animate-bounce" />
-            Antigravity AI™ Infrastructure Supervisor (24/7 Active Autonomous)
+          <div>
+            <div className="flex items-center gap-2 text-indigo-400 font-semibold text-xs uppercase tracking-wider mb-2">
+              <Zap className="w-4 h-4 text-amber-400 animate-bounce" />
+              Antigravity AI™ Infrastructure Supervisor (24/7 Active Autonomous)
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Backend Infrastructure & Plug & Play Center</h1>
+            <p className="text-slate-300 text-sm mt-1">
+              ระบบดูแลโครงสร้างพื้นฐาน เซิร์ฟเวอร์ ฐานข้อมูล และตรวจจับอุปกรณ์ฮาร์ดแวร์ต่อพ่วงแบบอัตโนมัติเรียลไทม์
+            </p>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Backend Infrastructure & Plug & Play Center</h1>
-          <p className="text-slate-300 text-sm mt-1">
-            ระบบดูแลโครงสร้างพื้นฐาน เซิร์ฟเวอร์ ฐานข้อมูล และตรวจจับอุปกรณ์ฮาร์ดแวร์ต่อพ่วงแบบอัตโนมัติเรียลไทม์
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <NetworkHealthGauge 
-            active={peripherals.filter(p => p.connectivity.state === 'online' || p.connectivity.state === 'connected').length}
-            total={peripherals.length}
-            size={64}
-          />
-          <HardwareHealthChart data={pulseCounts} theme={theme} />
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => setIsNewDeviceSetupOpen(true)}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>ติดตั้งอุปกรณ์ใหม่ (New Device Setup)</span>
-            </button>
-            <button
-              onClick={handleSelfHeal}
-              disabled={healing}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium px-4 py-2.5 rounded-xl shadow-lg transition-all"
-            >
-              <RefreshCw className={`w-4 h-4 ${healing ? 'animate-spin' : ''}`} />
-              {healing ? 'Antigravity กำลังซ่อมแซม...' : 'สั่งการ Antigravity Self-Heal'}
-            </button>
+          <div className="flex items-center gap-4">
+            <NetworkHealthGauge 
+              active={peripherals.filter(p => p.connectivity.state === 'online' || p.connectivity.state === 'connected').length}
+              total={peripherals.length}
+              size={64}
+            />
+            <HardwareHealthChart data={pulseCounts} theme={theme} />
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => setIsNewDeviceSetupOpen(true)}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>ติดตั้งอุปกรณ์ใหม่ (New Device Setup)</span>
+              </button>
+              <button
+                onClick={handleSelfHeal}
+                disabled={healing}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium px-4 py-2.5 rounded-xl shadow-lg transition-all"
+              >
+                <RefreshCw className={`w-4 h-4 ${healing ? 'animate-spin' : ''}`} />
+                {healing ? 'Antigravity กำลังซ่อมแซม...' : 'สั่งการ Antigravity Self-Heal'}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+
+        {/* Global Framer-Motion Corner Toast Notifications for Peripheral Error / Offline Transitions */}
+        <SystemNotificationToastCorner
+          onAutoReconnect={handleAutoReconnect}
+          onRemoteReboot={(p) => handleExecuteRemoteReboot(p)}
+          onRunDiagnostics={(p) => handleRunDiagnostics(p, false)}
+          onClearError={handleClearPeripheralError}
+          reconnectingPeripheralId={reconnectingPeripheralId}
+          rebootingPeripheralId={rebootingPeripheralId}
+          diagnosingPeripheralId={diagnosingPeripheralId}
+        />
+
+        {/* System Alert Notification Center (Real-time Hardware Error Acoustic Siren & Remediation Hub) */}
+        <SystemAlertNotificationCenter
+          peripherals={peripherals}
+          getPeripheralPulseState={getPeripheralPulseState}
+          onAutoReconnect={handleAutoReconnect}
+          onRemoteReboot={(p) => handleExecuteRemoteReboot(p)}
+          onRunDiagnostics={(p) => handleRunDiagnostics(p, false)}
+          onClearError={handleClearPeripheralError}
+          onSimulateDeviceError={handleSimulateDeviceError}
+          onSimulateDeviceOffline={handleSimulateDeviceOffline}
+          onSelfHealAll={() => {
+            peripherals.forEach((p) => {
+              if (getPeripheralPulseState(p) === 'error') {
+                handleClearPeripheralError(p.id);
+              }
+            });
+            handleSelfHeal();
+          }}
+          reconnectingPeripheralId={reconnectingPeripheralId}
+          rebootingPeripheralId={rebootingPeripheralId}
+          diagnosingPeripheralId={diagnosingPeripheralId}
+          healingAll={healing}
+        />
+
+        {/* Background Buffered Diagnostic Log & Firestore Batch Uploader Monitor */}
+        <DiagnosticBatchBufferMonitor />
 
       {/* Comprehensive Hardware Test Suite Component */}
       <HardwareTestSuite />
@@ -3775,6 +3911,7 @@ export function InfrastructureDashboard() {
           onClose={() => setTerminalPeripheral(null)}
         />
       )}
+      </div>
     </DndContext>
   );
 }
@@ -3865,7 +4002,18 @@ function DiagnosticTerminal({ peripheral, onClose }: DiagnosticTerminalProps) {
     setStream(Array.from({ length: 5 }, generateLiveEvent));
 
     const interval = setInterval(() => {
-      setStream(prev => [...prev.slice(-49), generateLiveEvent()]);
+      const nextEvt = generateLiveEvent();
+      setStream((prev) => [...prev.slice(-49), nextEvt]);
+      auditService.logDiagnosticEvent({
+        peripheralId: peripheral.id,
+        deviceName: peripheral.name,
+        category: peripheral.category,
+        level: nextEvt.level as DiagnosticLogLevel,
+        event: nextEvt.event,
+        message: nextEvt.detail,
+        port: peripheral.port,
+        interfaceType: peripheral.connectivity.interface,
+      });
     }, 1000 + Math.random() * 1500);
 
     return () => clearInterval(interval);

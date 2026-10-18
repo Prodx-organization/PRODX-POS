@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -19,23 +19,22 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import {
-  getSystemConfigCatalog,
+  getOrganizations,
   getBranches,
   getTerminals,
-} from '../../services/systemConfigService';
+} from '../../services/organizationService';
 import { Organization, Branch, Terminal } from '../settings/types';
+import { OperationalScope } from '../../domain/auth';
 import { OrganizationLoginContext } from '../../adapters/types';
-
-const STORAGE = {
-  organization: 'prodx.terminal.organization',
-  store: 'prodx.terminal.store',
-  register: 'prodx.terminal.register',
-} as const;
+import { TERMINAL_SCOPE_STORAGE_KEYS } from './OrganizationSelection';
+import { Skeleton } from '../../components/common/Skeleton';
+import { ProdxVectorMark } from '../../components/common/ProdxLogo';
 
 const readTerminalValue = (key: string, env?: string) => {
   if (typeof window === 'undefined') return env?.trim() ?? '';
@@ -46,36 +45,49 @@ const readTerminalValue = (key: string, env?: string) => {
   }
 };
 
+const dropdownShakeVariants: Variants = {
+  idle: { x: 0 },
+  shake: {
+    x: [0, -10, 10, -8, 8, -4, 4, 0],
+    transition: { duration: 0.45, ease: 'easeInOut' },
+  },
+};
+
 export interface LoginScreenProps {
   onOpenAdminLogin?: () => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) => {
-  const { login, forgotPin, isLoading } = useAuth();
+  const { login, forgotPin, isLoading, operationalScope, setOperationalScope } = useAuth();
   const { language, setLanguage } = useLanguage();
   const { addToast } = useToast();
   const isThai = language === 'th';
 
-  // All component state declarations up front to prevent temporal dead zone issues
-  const [organizationSlug, setOrganizationSlug] = useState(() =>
-    readTerminalValue(STORAGE.organization, import.meta.env.VITE_PRODX_ORGANIZATION_SLUG || 'prodx'),
+  // Dropdown selection IDs for Organization, Branch, and Terminal
+  const [selectedOrgId, setSelectedOrgId] = useState<string>(
+    () => operationalScope?.organizationId || readTerminalValue(TERMINAL_SCOPE_STORAGE_KEYS.organization),
   );
-  const [storeCode, setStoreCode] = useState(() =>
-    readTerminalValue(STORAGE.store, import.meta.env.VITE_PRODX_STORE_CODE || 'STR-01'),
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(
+    () => operationalScope?.branchId || readTerminalValue(TERMINAL_SCOPE_STORAGE_KEYS.store),
   );
-  const [registerId, setRegisterId] = useState(() =>
-    readTerminalValue(STORAGE.register, import.meta.env.VITE_PRODX_REGISTER_ID || 'Terminal-001'),
+  const [selectedTerminalId, setSelectedTerminalId] = useState<string>(
+    () => operationalScope?.terminalId || readTerminalValue(TERMINAL_SCOPE_STORAGE_KEYS.register),
   );
-  const [identity, setIdentity] = useState('');
-  const [secret, setSecret] = useState('');
-  const [showSecret, setShowSecret] = useState(false);
-  const [loginMode, setLoginMode] = useState<'pin' | 'email' | 'qr'>('pin');
-  const [pin, setPin] = useState('');
-  const [clock, setClock] = useState('');
+
+  // Firestore-fetched catalog data & granular loading states
   const [orgs, setOrgs] = useState<Organization[]>([]);
-  const [allBranches, setAllBranches] = useState<Branch[]>([]);
-  const [allTerminals, setAllTerminals] = useState<Terminal[]>([]);
-  const [isFetching, setIsFetching] = useState(false);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [terminals, setTerminals] = useState<Terminal[]>([]);
+  const [isFetching, setIsFetching] = useState<boolean>(true);
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
+  const [syncStage, setSyncStage] = useState<'organizations' | 'branches' | 'terminals' | 'ready'>(
+    'organizations',
+  );
+  const [isFetchingBranches, setIsFetchingBranches] = useState<boolean>(false);
+  const [isFetchingTerminals, setIsFetchingTerminals] = useState<boolean>(false);
+
+  // Error shake triggers and touched states
+  const [errorShakeCount, setErrorShakeCount] = useState<number>(0);
   const [touched, setTouched] = useState<{
     organization: boolean;
     store: boolean;
@@ -85,6 +97,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
     store: false,
     register: false,
   });
+
+  // Operator Credential state
+  const [identity, setIdentity] = useState('');
+  const [secret, setSecret] = useState('');
+  const [showSecret, setShowSecret] = useState(false);
+  const [loginMode, setLoginMode] = useState<'pin' | 'email' | 'qr'>('pin');
+  const [pin, setPin] = useState('');
+  const [clock, setClock] = useState('');
 
   const navigateToAdminLogin = () => {
     if (onOpenAdminLogin) {
@@ -102,108 +122,102 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
       isThai
         ? {
             eyebrow: 'PRODX POS · OPERATOR CONSOLE',
-            title: 'พร้อมเริ่มกะ',
-            subtitle: 'เลือกองค์กร สาขา และเครื่อง POS จากระบบฐานข้อมูลก่อนยืนยันตัวตนเพื่อเข้าทำงาน',
+            title: 'พร้อมเริ่มกะการขาย',
+            subtitle:
+              'กรุณาเลือกองค์กร สาขา และเครื่อง POS จากฐานข้อมูล Firestore ให้ครบถ้วนก่อนป้อนข้อมูลยืนยันตัวตน',
             password: 'รหัสผ่าน',
             identity: 'อีเมลบัญชี',
             identityPlaceholder: 'เช่น cashier@prodx.co',
-            secretPassword: 'รหัสผ่าน',
             signIn: 'เข้าสู่ระบบพนักงาน POS',
-            signingIn: 'กำลังตรวจสอบสิทธิ์…',
-            terminal: '1. เลือกองค์กร สาขา และเครื่อง POS (Firestore)',
-            ready: 'พร้อมใช้งาน',
-            setup: 'ต้องตั้งค่า',
+            terminal: '1. เลือกขอบเขตการปฏิบัติงาน (Organization, Branch & Terminal — บังคับเลือก)',
+            setup: 'ต้องเลือกขอบเขตก่อน',
             organization: 'องค์กร',
             store: 'สาขา',
-            register: 'เครื่อง POS',
+            register: 'เครื่องขาย POS',
             security: 'ยืนยันสิทธิ์กับระบบหลัก',
             verified: 'Secure Enterprise Login',
-            serverNote: 'ข้อมูลองค์กร สาขา และเครื่องขายจาก Firestore จะกำหนดบริบทของการเข้าสู่ระบบ',
-            failed: 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบแล้วลองอีกครั้ง',
-            required: 'กรุณาเลือกองค์กร สาขา และเครื่อง POS ให้ครบทุกช่องก่อนเข้าสู่ระบบ',
+            serverNote:
+              'ข้อมูลองค์กร สาขา และเครื่องขายจาก Firestore ถูกบันทึกใน AuthContext เพื่อแยกแยะข้อมูลระดับระเบียน (Record-Level Isolation)',
+            failed: 'ข้อมูลยืนยันตัวตนไม่ถูกต้อง กรุณาตรวจสอบแล้วลองอีกครั้ง',
+            required: 'กรุณาเลือกองค์กร สาขา และเครื่อง POS ให้ครบทุกช่องก่อนป้อนรหัสผ่านหรือ PIN',
             language: 'English',
-            selectOrg: 'เลือกองค์กร',
-            selectBranch: 'เลือกสาขา',
-            selectTerminal: 'เลือกเครื่อง POS',
-            credentials: '2. ยืนยันตัวตนพนักงานขาย (Operator Authentication)',
+            selectOrg: '-- เลือกองค์กร (บังคับ) --',
+            selectBranch: '-- เลือกสาขา (บังคับ) --',
+            selectTerminal: '-- เลือกเครื่อง POS (บังคับ) --',
+            credentials: '2. ยืนยันตัวตนพนักงานขาย (Operator Credentials)',
             orgRequiredMsg: 'กรุณาเลือกองค์กรก่อนดำเนินการต่อ',
-            branchRequiredMsg: 'กรุณาเลือกสาขาที่สังกัดองค์กรนี้',
-            terminalRequiredMsg: 'กรุณาเลือกเครื่อง POS ประจำจุดขาย',
-            validationReady: 'เลือกองค์กร สาขา และเครื่อง POS ครบถ้วนแล้ว พร้อมสำหรับยืนยันตัวตน',
-            validationPending: 'บังคับเลือกองค์กร สาขา และเครื่อง POS ให้ครบทั้ง 3 ส่วนก่อนจึงจะป้อนข้อมูลเข้าสู่ระบบได้',
-            syncCatalog: 'ซิงค์ข้อมูลจาก Firestore',
-            orgContextLabel: 'บริบทองค์กรสำหรับการเข้าสู่ระบบ (Active Sign-In Context)',
+            branchRequiredMsg: 'กรุณาเลือกสาขาที่ต้องการปฏิบัติการ',
+            terminalRequiredMsg: 'กรุณาเลือกเครื่องขาย POS ประจำจุดชำระเงิน',
+            validationReady:
+              'บันทึกขอบเขตการปฏิบัติงาน (Operational Scope) ใน AuthContext เรียบร้อยแล้ว พร้อมป้อนรหัสยืนยันตัวตน',
+            validationPending:
+              'บังคับเลือกองค์กร สาขา และเครื่อง POS ให้ครบทั้ง 3 ช่องเพื่อปลดล็อกการเข้าสู่ระบบ',
+            syncCatalog: 'ซิงค์ Firestore',
+            orgContextLabel: 'ขอบเขตการปฏิบัติงานที่บันทึกใน AuthContext',
             adminLoginBtn: 'Admin Login',
-            adminPortalNote: 'สำหรับผู้ดูแลระบบระดับองค์กร (RBAC Admin):',
-            adminPortalLink: 'เข้าสู่ระบบผ่านช่องทาง Admin Login แยกเฉพาะ',
+            adminPortalNote: 'สำหรับผู้ดูแลระบบระดับองค์กร (Admin Role):',
+            adminPortalLink: 'เข้าสู่ระบบผ่าน Admin Login แยกเฉพาะ (/admin/login)',
+            focusMissingBtn: 'เลือกช่องที่ยังขาดอยู่',
           }
         : {
             eyebrow: 'PRODX POS · OPERATOR CONSOLE',
             title: 'Ready for your shift',
-            subtitle: 'Select your Organization, Branch, and POS Terminal from Firestore before authenticating.',
+            subtitle:
+              'Select your mandatory Organization, Branch, and POS Terminal from Firestore before entering credentials.',
             password: 'Password',
             identity: 'Account email',
             identityPlaceholder: 'e.g. cashier@prodx.co',
-            secretPassword: 'Password',
             signIn: 'Sign in to POS Terminal',
-            signingIn: 'Verifying access…',
-            terminal: '1. Organization, Branch & Terminal Selection (Firestore)',
-            ready: 'Ready',
-            setup: 'Setup required',
+            terminal: '1. Operational Scope Selection (Firestore — Mandatory)',
+            setup: 'Scope Required',
             organization: 'Organization',
-            store: 'Store / Branch',
+            store: 'Store Branch',
             register: 'POS Terminal',
             security: 'Server-side verification',
             verified: 'Secure Enterprise Login',
-            serverNote: 'Firestore organization, branch, and terminal selections determine your sign-in context.',
-            failed: 'Verification failed. Please check and try again.',
-            required: 'Please select an organization, branch, and POS terminal before authenticating.',
+            serverNote:
+              'Your Firestore Organization, Branch, and Terminal selection is saved in AuthContext for record-level security.',
+            failed: 'Verification failed. Please check credentials and try again.',
+            required: 'Please select an organization, branch, and POS terminal before entering credentials.',
             language: 'ไทย',
-            selectOrg: 'Select Organization',
-            selectBranch: 'Select Branch',
-            selectTerminal: 'Select Terminal',
+            selectOrg: '-- Select Organization (Required) --',
+            selectBranch: '-- Select Branch (Required) --',
+            selectTerminal: '-- Select Terminal (Required) --',
             credentials: '2. Operator Credentials',
             orgRequiredMsg: 'Please select an organization to continue.',
-            branchRequiredMsg: 'Please select a branch for this organization.',
-            terminalRequiredMsg: 'Please select an active POS terminal.',
-            validationReady: 'Organization, branch, and terminal context verified for sign-in.',
-            validationPending: 'Select Organization, Branch, and POS Terminal above before entering credentials.',
-            syncCatalog: 'Sync from Firestore',
-            orgContextLabel: 'Active Organization Sign-In Context',
+            branchRequiredMsg: 'Please select a store branch for this organization.',
+            terminalRequiredMsg: 'Please select an active POS terminal station.',
+            validationReady:
+              'Operational scope saved in AuthContext. Credential entry is unlocked.',
+            validationPending:
+              'Select Organization, Branch, and POS Terminal above before entering credentials.',
+            syncCatalog: 'Sync Firestore',
+            orgContextLabel: 'Saved AuthContext Operational Scope',
             adminLoginBtn: 'Admin Login',
-            adminPortalNote: 'Enterprise Administrator (RBAC Admin Role):',
+            adminPortalNote: 'Enterprise Administrator (Admin Role):',
             adminPortalLink: 'Use Dedicated Admin Login Path (/admin/login)',
+            focusMissingBtn: 'Select Missing Scope Field',
           },
     [isThai],
   );
 
-  // Reactive selected Organization, filtered Branches, selected Branch, filtered Terminals, and selected Terminal
+  // Derived selected Organization, Branch, and Terminal entities
   const selectedOrganization = useMemo(
-    () => orgs.find((o) => o.slug === organizationSlug) ?? null,
-    [orgs, organizationSlug],
+    () => orgs.find((o) => o.id === selectedOrgId || o.slug === selectedOrgId) ?? null,
+    [orgs, selectedOrgId],
   );
-
-  const branches = useMemo(() => {
-    if (!selectedOrganization) return [];
-    return allBranches.filter((b) => b.orgId === selectedOrganization.id);
-  }, [allBranches, selectedOrganization]);
 
   const selectedBranch = useMemo(
-    () => branches.find((b) => b.name === storeCode) ?? null,
-    [branches, storeCode],
+    () => branches.find((b) => b.id === selectedBranchId || b.name === selectedBranchId) ?? null,
+    [branches, selectedBranchId],
   );
-
-  const terminals = useMemo(() => {
-    if (!selectedBranch) return [];
-    return allTerminals.filter((t) => t.branchId === selectedBranch.id);
-  }, [allTerminals, selectedBranch]);
 
   const selectedTerminal = useMemo(
-    () => terminals.find((t) => t.code === registerId) ?? null,
-    [terminals, registerId],
+    () => terminals.find((t) => t.id === selectedTerminalId || t.code === selectedTerminalId) ?? null,
+    [terminals, selectedTerminalId],
   );
 
-  // Reactive Organization Context for the subsequent sign-in attempt
+  // Reactive Operational Scope
   const organizationContext = useMemo<OrganizationLoginContext | null>(() => {
     if (!selectedOrganization || !selectedBranch || !selectedTerminal) return null;
     return {
@@ -212,32 +226,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
       organizationSlug: selectedOrganization.slug,
       branchId: selectedBranch.id,
       branchName: selectedBranch.name,
-      branchAddress: selectedBranch.address,
+      branchAddress: selectedBranch.address || '',
       terminalId: selectedTerminal.id,
       terminalName: selectedTerminal.name,
       terminalCode: selectedTerminal.code,
     };
   }, [selectedOrganization, selectedBranch, selectedTerminal]);
 
-  // Reactive validation for Organization, Branch, and Terminal
-  const isOrgValid = useMemo(() => {
-    if (!organizationSlug.trim()) return false;
-    if (orgs.length === 0) return false;
-    return Boolean(selectedOrganization);
-  }, [organizationSlug, orgs.length, selectedOrganization]);
-
-  const isBranchValid = useMemo(() => {
-    if (!isOrgValid || !storeCode.trim()) return false;
-    if (branches.length === 0) return false;
-    return Boolean(selectedBranch);
-  }, [isOrgValid, storeCode, branches.length, selectedBranch]);
-
-  const isTerminalValid = useMemo(() => {
-    if (!isBranchValid || !registerId.trim()) return false;
-    if (terminals.length === 0) return false;
-    return Boolean(selectedTerminal);
-  }, [isBranchValid, registerId, terminals.length, selectedTerminal]);
-
+  // Mandatory field validation flags
+  const isOrgValid = Boolean(selectedOrgId && selectedOrganization);
+  const isBranchValid = Boolean(isOrgValid && selectedBranchId && selectedBranch);
+  const isTerminalValid = Boolean(isBranchValid && selectedTerminalId && selectedTerminal);
   const terminalReady = isOrgValid && isBranchValid && isTerminalValid && Boolean(organizationContext);
 
   const validationErrors = useMemo(
@@ -249,78 +248,95 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
     [isOrgValid, isBranchValid, isTerminalValid, copy],
   );
 
-  const canSubmit =
-    terminalReady &&
-    !isFetching &&
-    (loginMode === 'qr' ||
-      (loginMode === 'pin' ? pin.length >= 4 : Boolean(identity.trim()) && Boolean(secret)));
+  // Load organizations from Firestore on mount, and restore branch/terminal if previously saved
+  const loadFirestoreCatalog = useCallback(async () => {
+    setIsFetching(true);
+    setIsInitialLoading(true);
+    setSyncStage('organizations');
+    try {
+      const fetchedOrgs = await getOrganizations();
+      setOrgs(fetchedOrgs);
 
-  // Fetch organizations, branches, and terminals from Firestore on mount
-  const loadFirestoreCatalog = useCallback(
-    async (preferred?: { orgSlug?: string; branchName?: string; terminalCode?: string }) => {
-      setIsFetching(true);
-      try {
-        const catalog = await getSystemConfigCatalog();
-        setOrgs(catalog.organizations);
-        setAllBranches(catalog.branches);
-        setAllTerminals(catalog.terminals);
+      // Verify and restore active organization if one was already saved
+      const activeOrgId = selectedOrgId || operationalScope?.organizationId;
+      if (activeOrgId && fetchedOrgs.some((o) => o.id === activeOrgId || o.slug === activeOrgId)) {
+        const foundOrg = fetchedOrgs.find((o) => o.id === activeOrgId || o.slug === activeOrgId)!;
+        setSelectedOrgId(foundOrg.id);
 
-        const targetOrgSlug = preferred?.orgSlug ?? organizationSlug;
-        const matchedOrg =
-          catalog.organizations.find((o) => o.slug === targetOrgSlug) ||
-          catalog.organizations[0] ||
-          null;
+        setSyncStage('branches');
+        const fetchedBranches = await getBranches(foundOrg.id);
+        setBranches(fetchedBranches);
 
-        if (!matchedOrg) {
-          setOrganizationSlug('');
-          setStoreCode('');
-          setRegisterId('');
-          return;
+        const activeBranchId = selectedBranchId || operationalScope?.branchId;
+        if (activeBranchId && fetchedBranches.some((b) => b.id === activeBranchId || b.name === activeBranchId)) {
+          const foundBranch = fetchedBranches.find((b) => b.id === activeBranchId || b.name === activeBranchId)!;
+          setSelectedBranchId(foundBranch.id);
+
+          setSyncStage('terminals');
+          const fetchedTerminals = await getTerminals(foundBranch.id, foundOrg.id);
+          setTerminals(fetchedTerminals);
+
+          const activeTerminalId = selectedTerminalId || operationalScope?.terminalId;
+          if (activeTerminalId && fetchedTerminals.some((t) => t.id === activeTerminalId || t.code === activeTerminalId)) {
+            const foundTerminal = fetchedTerminals.find((t) => t.id === activeTerminalId || t.code === activeTerminalId)!;
+            setSelectedTerminalId(foundTerminal.id);
+
+            const scope: OperationalScope = {
+              organizationId: foundOrg.id,
+              organizationName: foundOrg.name,
+              organizationSlug: foundOrg.slug,
+              branchId: foundBranch.id,
+              branchName: foundBranch.name,
+              branchAddress: foundBranch.address || '',
+              terminalId: foundTerminal.id,
+              terminalName: foundTerminal.name,
+              terminalCode: foundTerminal.code,
+            };
+            setOperationalScope(scope);
+          }
         }
-
-        setOrganizationSlug(matchedOrg.slug);
-
-        const orgBranches = catalog.branches.filter((b) => b.orgId === matchedOrg.id);
-        const targetBranchName = preferred?.branchName ?? storeCode;
-        const matchedBranch =
-          orgBranches.find((b) => b.name === targetBranchName) || orgBranches[0] || null;
-
-        if (!matchedBranch) {
-          setStoreCode('');
-          setRegisterId('');
-          return;
-        }
-
-        setStoreCode(matchedBranch.name);
-
-        const branchTerminals = catalog.terminals.filter((t) => t.branchId === matchedBranch.id);
-        const targetTerminalCode = preferred?.terminalCode ?? registerId;
-        const matchedTerminal =
-          branchTerminals.find((t) => t.code === targetTerminalCode) ||
-          branchTerminals[0] ||
-          null;
-
-        setRegisterId(matchedTerminal ? matchedTerminal.code : '');
-      } catch {
-        addToast({
-          title: 'Error',
-          message: 'Failed to load system configuration from Firestore.',
-          type: 'error',
-        });
-      } finally {
-        setIsFetching(false);
       }
-    },
-    [organizationSlug, storeCode, registerId, addToast],
-  );
+      setSyncStage('ready');
+    } catch (err) {
+      console.error('Failed to load Firestore catalog:', err);
+      addToast({
+        title: isThai ? 'เกิดข้อผิดพลาด' : 'Error',
+        message: isThai ? 'ไม่สามารถดึงข้อมูลองค์กรจาก Firestore ได้' : 'Failed to load organization catalog.',
+        type: 'error',
+      });
+    } finally {
+      setIsFetching(false);
+      setIsInitialLoading(false);
+    }
+  }, [selectedOrgId, selectedBranchId, selectedTerminalId, operationalScope, isThai, addToast, setOperationalScope]);
 
+  const initialMountFetchRef = useRef(false);
   useEffect(() => {
+    if (initialMountFetchRef.current) return;
+    initialMountFetchRef.current = true;
     void loadFirestoreCatalog();
-  }, []);
+  }, [loadFirestoreCatalog]);
 
-  // Reactive handler when user selects a different Organization
-  const handleOrganizationChange = async (nextOrgSlug: string) => {
-    setOrganizationSlug(nextOrgSlug);
+  // Synchronize operationalScope into AuthContext whenever terminalReady or organizationContext changes
+  useEffect(() => {
+    if (isFetching) return;
+    if (terminalReady && organizationContext) {
+      setOperationalScope(organizationContext);
+    } else {
+      setOperationalScope(null);
+      setPin('');
+      setSecret('');
+    }
+  }, [isFetching, terminalReady, organizationContext, setOperationalScope]);
+
+  // Handler when user selects Organization dropdown
+  const handleOrganizationChange = async (nextOrgId: string) => {
+    setSelectedOrgId(nextOrgId);
+    setSelectedBranchId('');
+    setSelectedTerminalId('');
+    setBranches([]);
+    setTerminals([]);
+    setOperationalScope(null);
     setTouched((prev) => ({
       ...prev,
       organization: true,
@@ -328,102 +344,160 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
       register: false,
     }));
 
-    if (!nextOrgSlug) {
-      setStoreCode('');
-      setRegisterId('');
+    if (!nextOrgId) {
+      try {
+        window.localStorage.removeItem(TERMINAL_SCOPE_STORAGE_KEYS.organization);
+        window.localStorage.removeItem(TERMINAL_SCOPE_STORAGE_KEYS.store);
+        window.localStorage.removeItem(TERMINAL_SCOPE_STORAGE_KEYS.register);
+      } catch {}
       return;
     }
 
-    const nextOrg = orgs.find((o) => o.slug === nextOrgSlug);
-    if (!nextOrg) {
-      setStoreCode('');
-      setRegisterId('');
-      return;
-    }
+    const nextOrg = orgs.find((o) => o.id === nextOrgId || o.slug === nextOrgId);
+    if (!nextOrg) return;
 
-    // Immediately compute from cached Firestore branches, then refresh from Firestore
-    const cachedOrgBranches = allBranches.filter((b) => b.orgId === nextOrg.id);
-    const initialBranch =
-      cachedOrgBranches.find((b) => b.name === storeCode) || cachedOrgBranches[0] || null;
-    const nextBranchName = initialBranch ? initialBranch.name : '';
-    setStoreCode(nextBranchName);
-
-    if (initialBranch) {
-      const cachedBranchTerminals = allTerminals.filter((t) => t.branchId === initialBranch.id);
-      const initialTerminal =
-        cachedBranchTerminals.find((t) => t.code === registerId) ||
-        cachedBranchTerminals[0] ||
-        null;
-      setRegisterId(initialTerminal ? initialTerminal.code : '');
-    } else {
-      setRegisterId('');
-    }
-
+    setIsFetching(true);
+    setIsFetchingBranches(true);
     try {
       const freshBranches = await getBranches(nextOrg.id);
-      setAllBranches((prev) => {
-        const others = prev.filter((b) => b.orgId !== nextOrg.id);
-        return [...others, ...freshBranches];
+      setBranches(freshBranches);
+    } catch (err) {
+      console.error('Failed to load branches from Firestore:', err);
+      addToast({
+        title: isThai ? 'เกิดข้อผิดพลาด' : 'Error',
+        message: isThai ? 'ไม่สามารถดึงข้อมูลสาขาจาก Firestore ได้' : 'Could not fetch branches.',
+        type: 'error',
       });
-      const resolvedBranch =
-        freshBranches.find((b) => b.name === nextBranchName) || freshBranches[0] || null;
-      if (resolvedBranch) {
-        setStoreCode(resolvedBranch.name);
-        const freshTerminals = await getTerminals(resolvedBranch.id);
-        setAllTerminals((prev) => {
-          const others = prev.filter((t) => t.branchId !== resolvedBranch.id);
-          return [...others, ...freshTerminals];
-        });
-        const resolvedTerminal =
-          freshTerminals.find((t) => t.code === registerId) || freshTerminals[0] || null;
-        setRegisterId(resolvedTerminal ? resolvedTerminal.code : '');
-      } else {
-        setStoreCode('');
-        setRegisterId('');
-      }
-    } catch {
-      // Retain cached selection on network hiccup
+    } finally {
+      setIsFetching(false);
+      setIsFetchingBranches(false);
     }
   };
 
-  // Reactive handler when user selects a different Branch
-  const handleBranchChange = async (nextStoreCode: string) => {
-    setStoreCode(nextStoreCode);
+  // Handler when user selects Branch dropdown
+  const handleBranchChange = async (nextBranchId: string) => {
+    setSelectedBranchId(nextBranchId);
+    setSelectedTerminalId('');
+    setTerminals([]);
+    setOperationalScope(null);
     setTouched((prev) => ({
       ...prev,
       store: true,
       register: false,
     }));
 
-    if (!nextStoreCode || !selectedOrganization) {
-      setRegisterId('');
+    if (!nextBranchId || !selectedOrganization) {
+      try {
+        window.localStorage.removeItem(TERMINAL_SCOPE_STORAGE_KEYS.store);
+        window.localStorage.removeItem(TERMINAL_SCOPE_STORAGE_KEYS.register);
+      } catch {}
       return;
     }
 
-    const nextBranch = branches.find((b) => b.name === nextStoreCode);
-    if (!nextBranch) {
-      setRegisterId('');
-      return;
-    }
+    const nextBranch = branches.find((b) => b.id === nextBranchId || b.name === nextBranchId);
+    if (!nextBranch) return;
 
-    const cachedTerminals = allTerminals.filter((t) => t.branchId === nextBranch.id);
-    const initialTerminal =
-      cachedTerminals.find((t) => t.code === registerId) || cachedTerminals[0] || null;
-    setRegisterId(initialTerminal ? initialTerminal.code : '');
-
+    setIsFetching(true);
+    setIsFetchingTerminals(true);
     try {
-      const freshTerminals = await getTerminals(nextBranch.id);
-      setAllTerminals((prev) => {
-        const others = prev.filter((t) => t.branchId !== nextBranch.id);
-        return [...others, ...freshTerminals];
+      const freshTerminals = await getTerminals(nextBranch.id, selectedOrganization.id);
+      setTerminals(freshTerminals);
+    } catch (err) {
+      console.error('Failed to load terminals from Firestore:', err);
+      addToast({
+        title: isThai ? 'เกิดข้อผิดพลาด' : 'Error',
+        message: isThai ? 'ไม่สามารถดึงข้อมูลเครื่องขายจาก Firestore ได้' : 'Could not fetch terminals.',
+        type: 'error',
       });
-      const resolvedTerminal =
-        freshTerminals.find((t) => t.code === registerId) || freshTerminals[0] || null;
-      setRegisterId(resolvedTerminal ? resolvedTerminal.code : '');
-    } catch {
-      // Retain cached selection on network hiccup
+    } finally {
+      setIsFetching(false);
+      setIsFetchingTerminals(false);
     }
   };
+
+  // Handler when user selects Terminal dropdown
+  const handleTerminalChange = (nextTerminalId: string) => {
+    setSelectedTerminalId(nextTerminalId);
+    setTouched((prev) => ({
+      ...prev,
+      register: true,
+    }));
+
+    if (!nextTerminalId) {
+      setOperationalScope(null);
+      try {
+        window.localStorage.removeItem(TERMINAL_SCOPE_STORAGE_KEYS.register);
+      } catch {}
+      return;
+    }
+
+    const nextTerminal = terminals.find((t) => t.id === nextTerminalId || t.code === nextTerminalId);
+    if (nextTerminal && selectedOrganization && selectedBranch) {
+      const scope: OperationalScope = {
+        organizationId: selectedOrganization.id,
+        organizationName: selectedOrganization.name,
+        organizationSlug: selectedOrganization.slug,
+        branchId: selectedBranch.id,
+        branchName: selectedBranch.name,
+        branchAddress: selectedBranch.address || '',
+        terminalId: nextTerminal.id,
+        terminalName: nextTerminal.name,
+        terminalCode: nextTerminal.code,
+      };
+      setOperationalScope(scope);
+      try {
+        window.localStorage.setItem(TERMINAL_SCOPE_STORAGE_KEYS.organization, selectedOrganization.id);
+        window.localStorage.setItem(TERMINAL_SCOPE_STORAGE_KEYS.store, selectedBranch.id);
+        window.localStorage.setItem(TERMINAL_SCOPE_STORAGE_KEYS.register, nextTerminal.id);
+      } catch {}
+      addToast({
+        title: isThai ? 'บันทึกขอบเขตใน AuthContext สำเร็จ' : 'Saved to AuthContext',
+        message: `${selectedOrganization.name} › ${selectedBranch.name} › ${nextTerminal.name} (${nextTerminal.code})`,
+        type: 'success',
+      });
+    }
+  };
+
+  // Trigger visual error states & shake animation with framer-motion when user attempts to proceed without branch or terminal
+  const triggerMissingScopeError = (targetField?: 'organization' | 'store' | 'register') => {
+    setTouched({ organization: true, store: true, register: true });
+    setErrorShakeCount((prev) => prev + 1);
+
+    const missing =
+      targetField ||
+      (!isOrgValid
+        ? 'organization'
+        : !isBranchValid
+        ? 'store'
+        : 'register');
+
+    const targetId =
+      missing === 'organization'
+        ? 'login-org-select'
+        : missing === 'store'
+        ? 'login-branch-select'
+        : 'login-terminal-select';
+
+    const el = document.getElementById(targetId);
+    el?.focus();
+
+    addToast({
+      title: isThai ? 'ต้องระบุข้อมูลให้ครบ' : 'Selection Required',
+      message:
+        missing === 'organization'
+          ? copy.orgRequiredMsg
+          : missing === 'store'
+          ? copy.branchRequiredMsg
+          : copy.terminalRequiredMsg,
+      type: 'warning',
+    });
+  };
+
+  const canSubmit =
+    terminalReady &&
+    !isFetching &&
+    (loginMode === 'qr' ||
+      (loginMode === 'pin' ? pin.length >= 4 : Boolean(identity.trim()) && Boolean(secret)));
 
   useEffect(() => {
     const update = () =>
@@ -440,20 +514,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
 
   const persistTerminal = () => {
     if (!organizationContext) return;
+    setOperationalScope(organizationContext);
     try {
-      window.localStorage.setItem(STORAGE.organization, organizationContext.organizationSlug);
-      window.localStorage.setItem(STORAGE.store, organizationContext.branchName);
-      window.localStorage.setItem(STORAGE.register, organizationContext.terminalCode);
-    } catch {
-      // Ignore storage write error
-    }
+      window.localStorage.setItem(
+        TERMINAL_SCOPE_STORAGE_KEYS.organization,
+        organizationContext.organizationId,
+      );
+      window.localStorage.setItem(
+        TERMINAL_SCOPE_STORAGE_KEYS.store,
+        organizationContext.branchId,
+      );
+      window.localStorage.setItem(
+        TERMINAL_SCOPE_STORAGE_KEYS.register,
+        organizationContext.terminalId,
+      );
+    } catch {}
   };
 
   const handleScan = async (result: any) => {
     if (!result || isLoading) return;
     if (!terminalReady || !organizationContext) {
-      setTouched({ organization: true, store: true, register: true });
-      addToast({ title: copy.setup, message: copy.required, type: 'error' });
+      triggerMissingScopeError();
       return;
     }
     const decodedText = result[0]?.rawValue;
@@ -475,6 +556,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
           return;
         }
       }
+      persistTerminal();
       await login({
         organizationSlug: organizationContext.organizationSlug,
         storeCode: organizationContext.branchName,
@@ -483,7 +565,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
         passwordOrPin: credentials.secret,
         organizationContext,
       });
-      persistTerminal();
     } catch {
       addToast({
         title: 'Sign-in failed',
@@ -495,8 +576,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
 
   const handlePinInput = (digit: string) => {
     if (!terminalReady) {
-      setTouched({ organization: true, store: true, register: true });
-      addToast({ title: copy.setup, message: copy.required, type: 'error' });
+      triggerMissingScopeError();
       return;
     }
     if (pin.length < 6) setPin((prev) => prev + digit);
@@ -504,8 +584,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
 
   const handleForgotPin = async () => {
     if (!terminalReady || !organizationContext) {
-      setTouched({ organization: true, store: true, register: true });
-      addToast({ title: copy.setup, message: copy.required, type: 'error' });
+      triggerMissingScopeError();
       return;
     }
     const targetEmail = identity.trim();
@@ -537,22 +616,35 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
     }
   };
 
-  const handlePinClear = () => setPin('');
-  const handlePinDelete = () => setPin((prev) => prev.slice(0, -1));
+  const handlePinClear = () => {
+    if (!terminalReady) {
+      triggerMissingScopeError();
+      return;
+    }
+    setPin('');
+  };
+
+  const handlePinDelete = () => {
+    if (!terminalReady) {
+      triggerMissingScopeError();
+      return;
+    }
+    setPin((prev) => prev.slice(0, -1));
+  };
 
   const submit = async (event?: React.FormEvent) => {
     event?.preventDefault();
     if (isLoading) return;
 
+    if (!terminalReady || !organizationContext) {
+      triggerMissingScopeError();
+      return;
+    }
+
     setTouched({ organization: true, store: true, register: true });
 
     const finalIdentity = loginMode === 'pin' ? pin : identity.trim();
     const finalSecret = loginMode === 'pin' ? pin : secret;
-
-    if (!terminalReady || !organizationContext) {
-      addToast({ title: copy.setup, message: copy.required, type: 'error' });
-      return;
-    }
 
     if (!finalIdentity || !finalSecret) {
       addToast({ title: copy.setup, message: copy.required, type: 'error' });
@@ -560,6 +652,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
     }
 
     try {
+      persistTerminal();
       await login({
         organizationSlug: organizationContext.organizationSlug,
         storeCode: organizationContext.branchName,
@@ -568,7 +661,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
         passwordOrPin: finalSecret,
         organizationContext,
       });
-      persistTerminal();
     } catch {
       setPin('');
       setSecret('');
@@ -578,7 +670,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
 
   return (
     <main className="min-h-[100svh] bg-white text-slate-950 font-sans">
-      <div className="grid min-h-[100svh] lg:grid-cols-[48%_52%]">
+      <div className="grid min-h-[100svh] lg:grid-cols-[46%_54%]">
         {/* Visual Sidebar */}
         <section className="relative hidden overflow-hidden bg-[#07111f] text-white lg:flex flex-col">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,107,26,0.12),transparent_40%),radial-gradient(circle_at_80%_80%,rgba(16,91,145,0.2),transparent_40%)]" />
@@ -593,9 +685,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
 
           <div className="relative z-10 flex flex-col h-full p-12 xl:p-16">
             <header className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-2xl font-black text-[#08111d] shadow-xl">
-                P<span className="text-[#ff6b1a]">.</span>
-              </div>
+              <ProdxVectorMark size={56} className="shadow-2xl rounded-2xl" />
               <div>
                 <div className="text-3xl font-black tracking-tighter">
                   PRODX<span className="font-light text-slate-400">POS</span>
@@ -634,36 +724,65 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
                   : 'Empowering enterprises with unified sales, real-time inventory, and intelligent retail operations.'}
               </p>
 
-              {/* Live Organization Context Preview on Desktop Sidebar */}
-              {organizationContext && (
-                <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 max-w-md">
-                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#ff6b1a] mb-3">
-                    {copy.orgContextLabel}
+              {/* Live Persisted Operational Scope Preview or Skeleton on Desktop Sidebar */}
+              {isInitialLoading ? (
+                <div
+                  aria-busy="true"
+                  className="mt-8 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 max-w-md space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <Skeleton className="h-3 w-44 bg-white/15 rounded" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#ff6b1a] flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      {isThai ? 'กำลังซิงค์...' : 'Syncing...'}
+                    </span>
                   </div>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex items-center justify-between text-slate-300">
-                      <span className="text-slate-500 font-bold">{copy.organization}:</span>
-                      <span className="font-black text-white">
-                        {organizationContext.organizationName} ({organizationContext.organizationSlug})
-                      </span>
+                  <div className="space-y-2.5 pt-1">
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-3 w-16 bg-white/10 rounded" />
+                      <Skeleton className="h-3.5 w-40 bg-white/15 rounded" />
                     </div>
-                    <div className="flex items-center justify-between text-slate-300">
-                      <span className="text-slate-500 font-bold">{copy.store}:</span>
-                      <span className="font-black text-white">
-                        {organizationContext.branchName}
-                        {organizationContext.branchAddress
-                          ? ` · ${organizationContext.branchAddress}`
-                          : ''}
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-3 w-14 bg-white/10 rounded" />
+                      <Skeleton className="h-3.5 w-36 bg-white/15 rounded" />
                     </div>
-                    <div className="flex items-center justify-between text-slate-300">
-                      <span className="text-slate-500 font-bold">{copy.register}:</span>
-                      <span className="font-black text-emerald-400">
-                        {organizationContext.terminalName} ({organizationContext.terminalCode})
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-3 w-20 bg-white/10 rounded" />
+                      <Skeleton className="h-3.5 w-32 bg-emerald-400/20 rounded" />
                     </div>
                   </div>
                 </div>
+              ) : (
+                organizationContext && (
+                  <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 max-w-md">
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#ff6b1a] mb-3">
+                      {copy.orgContextLabel}
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-500 font-bold">{copy.organization}:</span>
+                        <span className="font-black text-white">
+                          {organizationContext.organizationName} ({organizationContext.organizationSlug})
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-500 font-bold">{copy.store}:</span>
+                        <span className="font-black text-white">
+                          {organizationContext.branchName}
+                          {organizationContext.branchAddress
+                            ? ` · ${organizationContext.branchAddress}`
+                            : ''}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-500 font-bold">{copy.register}:</span>
+                        <span className="font-black text-emerald-400">
+                          {organizationContext.terminalName} ({organizationContext.terminalCode})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )
               )}
             </div>
 
@@ -748,6 +867,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
                     <span className="text-slate-500">{organizationContext.organizationSlug}</span>
                     <span className="text-slate-300">/</span>
                     <span className="text-slate-500">{organizationContext.branchName}</span>
+                    <span className="text-slate-300">/</span>
+                    <span className="text-slate-500">{organizationContext.terminalCode}</span>
                   </>
                 )}
               </div>
@@ -756,66 +877,106 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
               </h2>
               <p className="mt-2 text-slate-500 text-sm leading-relaxed">{copy.subtitle}</p>
 
-              {/* Reactive Terminal Readiness & Organization Context Banner */}
-              <div
-                role="status"
-                aria-live="polite"
-                className={`mt-4 rounded-xl border p-3.5 transition-all ${
-                  terminalReady
-                    ? 'border-emerald-200 bg-emerald-50/70 text-emerald-900'
-                    : 'border-amber-200 bg-amber-50/70 text-amber-900'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 text-xs font-bold">
-                  {terminalReady ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                  )}
-                  <span>{terminalReady ? copy.validationReady : copy.validationPending}</span>
-                </div>
-                <div className="mt-2.5 grid grid-cols-3 gap-2">
-                  {[
-                    {
-                      label: copy.organization,
-                      valid: isOrgValid,
-                      value: selectedOrganization
-                        ? `${selectedOrganization.name} (${selectedOrganization.slug})`
-                        : organizationSlug,
-                    },
-                    {
-                      label: copy.store,
-                      valid: isBranchValid,
-                      value: selectedBranch ? selectedBranch.name : storeCode,
-                    },
-                    {
-                      label: copy.register,
-                      valid: isTerminalValid,
-                      value: selectedTerminal ? selectedTerminal.code : registerId,
-                    },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold border ${
-                        item.valid
-                          ? 'bg-white border-emerald-200 text-emerald-700'
-                          : 'bg-white/60 border-slate-200 text-slate-400'
-                      }`}
-                    >
-                      <CheckCircle2
-                        className={`w-3.5 h-3.5 shrink-0 ${
-                          item.valid ? 'text-emerald-500' : 'text-slate-300'
-                        }`}
-                      />
-                      <span className="truncate">{item.valid ? item.value : item.label}</span>
+              {/* Reactive Terminal Readiness & AuthContext Operational Scope Banner */}
+              {isInitialLoading ? (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  aria-busy="true"
+                  className="mt-4 rounded-xl border border-slate-200 bg-slate-50/90 p-3.5 space-y-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 text-[#ff6b1a] animate-spin shrink-0" />
+                      <span className="text-xs font-bold text-slate-700">
+                        {isThai
+                          ? 'กำลังดึงข้อมูลองค์กร สาขา และเครื่อง POS จาก Firestore...'
+                          : 'Fetching Organizations, Store Branches & POS Terminals from Firestore...'}
+                      </span>
                     </div>
-                  ))}
+                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">
+                      {syncStage === 'organizations'
+                        ? '1/3 ORGS'
+                        : syncStage === 'branches'
+                        ? '2/3 BRANCHES'
+                        : '3/3 TERMINALS'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[0, 1, 2].map((idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 rounded-lg bg-white border border-slate-200/80 px-2.5 py-1.5"
+                      >
+                        <Skeleton className="h-3.5 w-3.5 rounded-full shrink-0 bg-slate-200" />
+                        <Skeleton className="h-3 w-full rounded bg-slate-200" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className={`mt-4 rounded-xl border p-3.5 transition-all ${
+                    terminalReady
+                      ? 'border-emerald-200 bg-emerald-50/70 text-emerald-900'
+                      : 'border-amber-200 bg-amber-50/70 text-amber-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 text-xs font-bold">
+                    {terminalReady ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    )}
+                    <span>{terminalReady ? copy.validationReady : copy.validationPending}</span>
+                  </div>
+                  <div className="mt-2.5 grid grid-cols-3 gap-2">
+                    {[
+                      {
+                        label: copy.organization,
+                        valid: isOrgValid,
+                        value: selectedOrganization
+                          ? `${selectedOrganization.name} (${selectedOrganization.slug})`
+                          : copy.selectOrg,
+                      },
+                      {
+                        label: copy.store,
+                        valid: isBranchValid,
+                        value: selectedBranch ? selectedBranch.name : copy.selectBranch,
+                      },
+                      {
+                        label: copy.register,
+                        valid: isTerminalValid,
+                        value: selectedTerminal
+                          ? `${selectedTerminal.name} (${selectedTerminal.code})`
+                          : copy.selectTerminal,
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold border transition-colors ${
+                          item.valid
+                            ? 'bg-white border-emerald-200 text-emerald-700'
+                            : 'bg-white/60 border-slate-200 text-slate-400'
+                        }`}
+                      >
+                        <CheckCircle2
+                          className={`w-3.5 h-3.5 shrink-0 ${
+                            item.valid ? 'text-emerald-500' : 'text-slate-300'
+                          }`}
+                        />
+                        <span className="truncate">{item.valid ? item.value : item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Section 1: Dynamic Firestore-Backed Selection Fields for Organization, Branch, and Terminal */}
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 mb-6 space-y-4">
+            {/* Section 1: Mandatory Reactive Firestore-Backed Selection Fields with Skeleton & Refined Loading Overlay */}
+            <div className="relative rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 mb-6 space-y-4 shadow-2xs overflow-hidden">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
                   {copy.terminal}
@@ -823,175 +984,454 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
                 {isFetching && (
                   <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Firestore Sync…
+                    {isThai ? 'กำลังซิงค์ Firestore…' : 'Firestore Sync…'}
                   </span>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                {/* Organization Select */}
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="login-org-select"
-                    className="text-[11px] font-black uppercase tracking-wider text-slate-600 flex items-center justify-between"
+              <AnimatePresence mode="wait">
+                {isInitialLoading ? (
+                  /* ==================== SKELETON SCREEN + REFINED LOADING OVERLAY ==================== */
+                  <motion.div
+                    key="firestore-scope-skeleton"
+                    data-testid="login-firestore-loading-skeleton"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="space-y-4"
+                    aria-busy="true"
+                    aria-label={
+                      isThai
+                        ? 'กำลังโหลดข้อมูลองค์กร สาขา และเครื่องขาย POS จาก Firestore'
+                        : 'Loading Organizations, Branches, and Terminals from Firestore'
+                    }
                   >
-                    <span className="flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-primary" /> {copy.organization}
-                    </span>
-                    {isOrgValid && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="login-org-select"
-                      value={organizationSlug}
-                      onChange={(e) => void handleOrganizationChange(e.target.value)}
-                      onBlur={() => setTouched((prev) => ({ ...prev, organization: true }))}
-                      disabled={isFetching}
-                      aria-invalid={!isOrgValid}
-                      className={`w-full h-11 bg-white border-2 rounded-xl px-3 pr-8 text-xs font-bold text-slate-900 appearance-none outline-none transition-all disabled:opacity-50 ${
-                        !isOrgValid && touched.organization
-                          ? 'border-rose-300 focus:border-rose-500'
-                          : isOrgValid
-                          ? 'border-emerald-200 focus:border-primary'
-                          : 'border-slate-200 focus:border-primary'
-                      }`}
-                    >
-                      <option value="">{copy.selectOrg}</option>
-                      {orgs.map((o) => (
-                        <option key={o.id} value={o.slug}>
-                          {o.name} ({o.slug})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400 rotate-90" />
-                    </div>
-                  </div>
-                  {validationErrors.organization && (
-                    <p role="alert" className="text-[11px] font-bold text-rose-600 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      {validationErrors.organization}
-                    </p>
-                  )}
-                </div>
+                    {/* 3-Column Skeleton Dropdown Placeholders matching exact h-11 dimensions */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                      {[
+                        {
+                          icon: Building2,
+                          label: copy.organization,
+                          active: syncStage === 'organizations',
+                          done: syncStage === 'branches' || syncStage === 'terminals' || syncStage === 'ready',
+                        },
+                        {
+                          icon: Store,
+                          label: copy.store,
+                          active: syncStage === 'branches',
+                          done: syncStage === 'terminals' || syncStage === 'ready',
+                        },
+                        {
+                          icon: Monitor,
+                          label: copy.register,
+                          active: syncStage === 'terminals',
+                          done: syncStage === 'ready',
+                        },
+                      ].map((slot) => {
+                        const IconComp = slot.icon;
+                        return (
+                          <div key={slot.label} className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-slate-500">
+                                <IconComp className="w-3.5 h-3.5 text-[#ff6b1a]" />
+                                <span>{slot.label}</span>
+                              </span>
+                              {slot.done ? (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                              ) : slot.active ? (
+                                <Loader2 className="w-3.5 h-3.5 text-[#ff6b1a] animate-spin" />
+                              ) : (
+                                <Skeleton className="h-3 w-3 rounded-full bg-slate-200" />
+                              )}
+                            </div>
 
-                {/* Branch Select */}
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="login-branch-select"
-                    className="text-[11px] font-black uppercase tracking-wider text-slate-600 flex items-center justify-between"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <Store className="w-3.5 h-3.5 text-primary" /> {copy.store}
-                    </span>
-                    {isBranchValid && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="login-branch-select"
-                      value={storeCode}
-                      onChange={(e) => void handleBranchChange(e.target.value)}
-                      onBlur={() => setTouched((prev) => ({ ...prev, store: true }))}
-                      disabled={!isOrgValid || isFetching}
-                      aria-invalid={isOrgValid && !isBranchValid}
-                      className={`w-full h-11 bg-white border-2 rounded-xl px-3 pr-8 text-xs font-bold text-slate-900 appearance-none outline-none transition-all disabled:opacity-50 ${
-                        isOrgValid && !isBranchValid && touched.store
-                          ? 'border-rose-300 focus:border-rose-500'
-                          : isBranchValid
-                          ? 'border-emerald-200 focus:border-primary'
-                          : 'border-slate-200 focus:border-primary'
-                      }`}
-                    >
-                      <option value="">{copy.selectBranch}</option>
-                      {branches.map((b) => (
-                        <option key={b.id} value={b.name}>
-                          {b.name} {b.address ? `— ${b.address}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400 rotate-90" />
+                            <div className="relative h-11 w-full rounded-xl border-2 border-slate-200/90 bg-white px-3 flex items-center justify-between overflow-hidden">
+                              <div className="flex items-center gap-2 w-full pr-4">
+                                <Skeleton className="h-3.5 w-3/4 rounded bg-slate-200/90" />
+                              </div>
+                              <Skeleton className="h-3.5 w-3.5 rounded bg-slate-200 shrink-0" />
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                  {validationErrors.store && (
-                    <p role="alert" className="text-[11px] font-bold text-rose-600 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      {validationErrors.store}
-                    </p>
-                  )}
-                </div>
 
-                {/* Terminal Select */}
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="login-terminal-select"
-                    className="text-[11px] font-black uppercase tracking-wider text-slate-600 flex items-center justify-between"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <Monitor className="w-3.5 h-3.5 text-primary" /> {copy.register}
-                    </span>
-                    {isTerminalValid && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="login-terminal-select"
-                      value={registerId}
-                      onChange={(e) => {
-                        setRegisterId(e.target.value);
-                        setTouched((prev) => ({ ...prev, register: true }));
-                      }}
-                      onBlur={() => setTouched((prev) => ({ ...prev, register: true }))}
-                      disabled={!isBranchValid || isFetching}
-                      aria-invalid={isBranchValid && !isTerminalValid}
-                      className={`w-full h-11 bg-white border-2 rounded-xl px-3 pr-8 text-xs font-bold text-slate-900 appearance-none outline-none transition-all disabled:opacity-50 ${
-                        isBranchValid && !isTerminalValid && touched.register
-                          ? 'border-rose-300 focus:border-rose-500'
-                          : isTerminalValid
-                          ? 'border-emerald-200 focus:border-primary'
-                          : 'border-slate-200 focus:border-primary'
-                      }`}
-                    >
-                      <option value="">{copy.selectTerminal}</option>
-                      {terminals.map((t) => (
-                        <option key={t.id} value={t.code}>
-                          {t.name} ({t.code})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400 rotate-90" />
+                    {/* Refined Glassmorphic Firestore Telemetry Overlay Bar */}
+                    <div className="rounded-xl border border-slate-200/90 bg-white/90 backdrop-blur-xs px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                      <div className="flex items-center gap-2 text-[11px] font-bold text-slate-700">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ff6b1a] opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-[#ff6b1a]" />
+                        </span>
+                        <span>
+                          {syncStage === 'organizations'
+                            ? isThai
+                              ? 'กำลังโหลดรายชื่อองค์กร (Organizations)...'
+                              : 'Loading enterprise organizations...'
+                            : syncStage === 'branches'
+                            ? isThai
+                              ? 'กำลังโหลดข้อมูลสาขาหน้าร้าน (Store Branches)...'
+                              : 'Resolving store branches...'
+                            : isThai
+                            ? 'กำลังตรวจสอบเครื่องขาย POS (Terminals)...'
+                            : 'Binding POS terminal stations...'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-[10px] font-bold text-slate-500">
+                        <span
+                          className={
+                            syncStage === 'organizations'
+                              ? 'text-[#ff6b1a] font-black'
+                              : 'text-emerald-600'
+                          }
+                        >
+                          1. {copy.organization}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span
+                          className={
+                            syncStage === 'branches'
+                              ? 'text-[#ff6b1a] font-black'
+                              : syncStage === 'terminals' || syncStage === 'ready'
+                              ? 'text-emerald-600'
+                              : 'text-slate-400'
+                          }
+                        >
+                          2. {copy.store}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span
+                          className={
+                            syncStage === 'terminals'
+                              ? 'text-[#ff6b1a] font-black'
+                              : syncStage === 'ready'
+                              ? 'text-emerald-600'
+                              : 'text-slate-400'
+                          }
+                        >
+                          3. {copy.register}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  {validationErrors.register && (
-                    <p role="alert" className="text-[11px] font-bold text-rose-600 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      {validationErrors.register}
-                    </p>
-                  )}
-                </div>
-              </div>
+                  </motion.div>
+                ) : (
+                  /* ==================== INTERACTIVE DROPDOWN SELECTORS ==================== */
+                  <motion.div
+                    key="firestore-scope-interactive"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.2 }}
+                    className="grid grid-cols-1 sm:grid-cols-3 gap-3.5"
+                  >
+                    {/* 1. Organization Select Dropdown with framer-motion */}
+                    <motion.div
+                      key={`org-motion-field-${errorShakeCount}`}
+                      variants={dropdownShakeVariants}
+                      animate={!isOrgValid && touched.organization ? 'shake' : 'idle'}
+                      className="space-y-1.5"
+                    >
+                      <label
+                        htmlFor="login-org-select"
+                        className="text-[11px] font-black uppercase tracking-wider text-slate-600 flex items-center justify-between"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Building2 className={`w-3.5 h-3.5 ${!isOrgValid && touched.organization ? 'text-rose-600' : 'text-primary'}`} />
+                          <span className={!isOrgValid && touched.organization ? 'text-rose-700 font-black' : ''}>
+                            {copy.organization}
+                          </span>{' '}
+                          <span className="text-rose-500">*</span>
+                        </span>
+                        {isOrgValid ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : touched.organization ? (
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
+                        ) : null}
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="login-org-select"
+                          required
+                          aria-required="true"
+                          value={selectedOrgId}
+                          onChange={(e) => void handleOrganizationChange(e.target.value)}
+                          onBlur={() => setTouched((prev) => ({ ...prev, organization: true }))}
+                          disabled={isFetching}
+                          aria-invalid={!isOrgValid && touched.organization}
+                          className={`w-full h-11 bg-white border-2 rounded-xl px-3 pr-8 text-xs font-bold appearance-none outline-hidden transition-all disabled:opacity-50 ${
+                            !isOrgValid && touched.organization
+                              ? 'border-rose-500 bg-rose-50/25 ring-4 ring-rose-500/15 text-rose-950 focus:border-rose-600'
+                              : isOrgValid
+                              ? 'border-emerald-300 bg-emerald-50/15 text-slate-900 focus:border-primary'
+                              : 'border-slate-200 text-slate-900 focus:border-primary'
+                          }`}
+                        >
+                          <option value="">{copy.selectOrg}</option>
+                          {orgs.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name} ({o.slug})
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                          <ArrowRight className="w-3.5 h-3.5 text-slate-400 rotate-90" />
+                        </div>
+                      </div>
+                      <AnimatePresence>
+                        {!isOrgValid && touched.organization && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -6, height: 0 }}
+                            animate={{ opacity: 1, y: 0, height: 'auto' }}
+                            exit={{ opacity: 0, y: -6, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <p role="alert" className="text-[11px] font-bold text-rose-600 flex items-center gap-1.5 pt-0.5">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                              <span>{validationErrors.organization || copy.orgRequiredMsg}</span>
+                            </p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+
+                    {/* 2. Branch Select Dropdown with framer-motion + inline Skeleton overlay when fetching branches */}
+                    <motion.div
+                      key={`branch-motion-field-${errorShakeCount}`}
+                      variants={dropdownShakeVariants}
+                      animate={!isBranchValid && touched.store ? 'shake' : 'idle'}
+                      className="space-y-1.5"
+                    >
+                      <label
+                        htmlFor="login-branch-select"
+                        className="text-[11px] font-black uppercase tracking-wider text-slate-600 flex items-center justify-between"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Store className={`w-3.5 h-3.5 ${!isBranchValid && touched.store ? 'text-rose-600' : 'text-primary'}`} />
+                          <span className={!isBranchValid && touched.store ? 'text-rose-700 font-black' : ''}>
+                            {copy.store}
+                          </span>{' '}
+                          <span className="text-rose-500">*</span>
+                        </span>
+                        {isFetchingBranches ? (
+                          <Loader2 className="w-3.5 h-3.5 text-[#ff6b1a] animate-spin" />
+                        ) : isBranchValid ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : touched.store ? (
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
+                        ) : null}
+                      </label>
+                      <div className="relative">
+                        {isFetchingBranches ? (
+                          <div className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white px-3 flex items-center justify-between">
+                            <Skeleton className="h-3.5 w-3/4 rounded bg-slate-200" />
+                            <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin shrink-0" />
+                          </div>
+                        ) : (
+                          <>
+                            <select
+                              id="login-branch-select"
+                              required
+                              aria-required="true"
+                              value={selectedBranchId}
+                              onChange={(e) => void handleBranchChange(e.target.value)}
+                              onBlur={() => setTouched((prev) => ({ ...prev, store: true }))}
+                              disabled={!isOrgValid || isFetching}
+                              aria-invalid={!isBranchValid && touched.store}
+                              className={`w-full h-11 bg-white border-2 rounded-xl px-3 pr-8 text-xs font-bold appearance-none outline-hidden transition-all disabled:opacity-50 ${
+                                !isBranchValid && touched.store
+                                  ? 'border-rose-500 bg-rose-50/25 ring-4 ring-rose-500/15 text-rose-950 focus:border-rose-600'
+                                  : isBranchValid
+                                  ? 'border-emerald-300 bg-emerald-50/15 text-slate-900 focus:border-primary'
+                                  : 'border-slate-200 text-slate-900 focus:border-primary'
+                              }`}
+                            >
+                              <option value="">
+                                {!isOrgValid
+                                  ? isThai
+                                    ? '-- กรุณาเลือกองค์กรก่อน --'
+                                    : '-- Select Organization First --'
+                                  : copy.selectBranch}
+                              </option>
+                              {branches.map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name} {b.code ? `(${b.code})` : ''} {b.address ? `— ${b.address}` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                              <ArrowRight className="w-3.5 h-3.5 text-slate-400 rotate-90" />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      <AnimatePresence>
+                        {!isBranchValid && touched.store && !isFetchingBranches && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -6, height: 0 }}
+                            animate={{ opacity: 1, y: 0, height: 'auto' }}
+                            exit={{ opacity: 0, y: -6, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <p role="alert" className="text-[11px] font-bold text-rose-600 flex items-center gap-1.5 pt-0.5">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                              <span>{validationErrors.store || copy.branchRequiredMsg}</span>
+                            </p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+
+                    {/* 3. Terminal Select Dropdown with framer-motion + inline Skeleton overlay when fetching terminals */}
+                    <motion.div
+                      key={`terminal-motion-field-${errorShakeCount}`}
+                      variants={dropdownShakeVariants}
+                      animate={!isTerminalValid && touched.register ? 'shake' : 'idle'}
+                      className="space-y-1.5"
+                    >
+                      <label
+                        htmlFor="login-terminal-select"
+                        className="text-[11px] font-black uppercase tracking-wider text-slate-600 flex items-center justify-between"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Monitor className={`w-3.5 h-3.5 ${!isTerminalValid && touched.register ? 'text-rose-600' : 'text-primary'}`} />
+                          <span className={!isTerminalValid && touched.register ? 'text-rose-700 font-black' : ''}>
+                            {copy.register}
+                          </span>{' '}
+                          <span className="text-rose-500">*</span>
+                        </span>
+                        {isFetchingTerminals ? (
+                          <Loader2 className="w-3.5 h-3.5 text-[#ff6b1a] animate-spin" />
+                        ) : isTerminalValid ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : touched.register ? (
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
+                        ) : null}
+                      </label>
+                      <div className="relative">
+                        {isFetchingTerminals ? (
+                          <div className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white px-3 flex items-center justify-between">
+                            <Skeleton className="h-3.5 w-3/4 rounded bg-slate-200" />
+                            <Loader2 className="w-3.5 h-3.5 text-slate-400 animate-spin shrink-0" />
+                          </div>
+                        ) : (
+                          <>
+                            <select
+                              id="login-terminal-select"
+                              required
+                              aria-required="true"
+                              value={selectedTerminalId}
+                              onChange={(e) => handleTerminalChange(e.target.value)}
+                              onBlur={() => setTouched((prev) => ({ ...prev, register: true }))}
+                              disabled={!isBranchValid || isFetching}
+                              aria-invalid={!isTerminalValid && touched.register}
+                              className={`w-full h-11 bg-white border-2 rounded-xl px-3 pr-8 text-xs font-bold appearance-none outline-hidden transition-all disabled:opacity-50 ${
+                                !isTerminalValid && touched.register
+                                  ? 'border-rose-500 bg-rose-50/25 ring-4 ring-rose-500/15 text-rose-950 focus:border-rose-600'
+                                  : isTerminalValid
+                                  ? 'border-emerald-300 bg-emerald-50/15 text-slate-900 focus:border-primary'
+                                  : 'border-slate-200 text-slate-900 focus:border-primary'
+                              }`}
+                            >
+                              <option value="">
+                                {!isBranchValid
+                                  ? isThai
+                                    ? '-- กรุณาเลือกสาขาก่อน --'
+                                    : '-- Select Branch First --'
+                                  : copy.selectTerminal}
+                              </option>
+                              {terminals.map((t) => (
+                                <option key={t.id} value={t.id}>
+                                  {t.name} ({t.code})
+                                </option>
+                              ))}
+                            </select>
+                            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                              <ArrowRight className="w-3.5 h-3.5 text-slate-400 rotate-90" />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      <AnimatePresence>
+                        {!isTerminalValid && touched.register && !isFetchingTerminals && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -6, height: 0 }}
+                            animate={{ opacity: 1, y: 0, height: 'auto' }}
+                            exit={{ opacity: 0, y: -6, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <p role="alert" className="text-[11px] font-bold text-rose-600 flex items-center gap-1.5 pt-0.5">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                              <span>{validationErrors.register || copy.terminalRequiredMsg}</span>
+                            </p>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
-            {/* Section 2: Operator Authentication (Enforced by terminalReady) */}
+            {/* Section 2: Operator Authentication (Enforced strictly by terminalReady) */}
             <div
-              className={`relative rounded-2xl border p-5 transition-all ${
+              className={`relative rounded-2xl border p-5 transition-all shadow-2xs ${
                 terminalReady
                   ? 'border-slate-200 bg-white'
-                  : 'border-amber-200 bg-slate-50/80 opacity-65'
+                  : 'border-rose-200 bg-slate-50/80'
               }`}
             >
+              <AnimatePresence>
+                {!terminalReady && (
+                  <motion.div
+                    key={`locked-banner-${errorShakeCount}`}
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                      x: errorShakeCount > 0 ? [0, -8, 8, -6, 6, -3, 3, 0] : 0,
+                    }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.35 }}
+                    className="mb-4 rounded-xl border border-rose-300 bg-rose-50/90 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs"
+                  >
+                    <div className="flex items-center gap-2 text-xs font-bold text-rose-900">
+                      <Lock className="w-4 h-4 text-rose-600 shrink-0 animate-pulse" />
+                      <span>
+                        {isThai
+                          ? 'ต้องเลือกสาขาและเครื่องขาย POS ให้ครบถ้วนก่อนเข้าสู่ระบบ'
+                          : copy.required}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => triggerMissingScopeError()}
+                      className="px-3.5 py-1.5 rounded-lg bg-rose-600 text-white text-[11px] font-black hover:bg-rose-700 transition-colors shrink-0 shadow-xs active:scale-95 flex items-center gap-1.5"
+                    >
+                      <span>{copy.focusMissingBtn}</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
                   <Lock className="w-3.5 h-3.5 text-primary" />
                   {copy.credentials}
                 </h3>
                 {organizationContext ? (
-                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
                     {organizationContext.organizationSlug} / {organizationContext.branchName} /{' '}
                     {organizationContext.terminalCode}
                   </span>
                 ) : (
-                  <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
+                  <span className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <Lock className="w-3 h-3" />
                     {copy.setup}
                   </span>
                 )}
@@ -1208,44 +1648,31 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
             </div>
 
             {/* Dedicated Admin Login Path Callout */}
-            <div className="mt-6 pt-5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-slate-900 flex items-center justify-center text-[#ff6b1a] shrink-0">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="text-[11px] font-black text-slate-800 uppercase tracking-tight">
-                    {copy.adminPortalNote}
-                  </div>
-                  <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">
-                    {copy.serverNote}
-                  </div>
-                </div>
+            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <ShieldCheck className="w-4 h-4 text-[#ff6b1a] shrink-0" />
+                <span className="font-semibold">{copy.adminPortalNote}</span>
               </div>
               <button
                 type="button"
                 onClick={navigateToAdminLogin}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-slate-800 transition-colors shrink-0"
+                className="inline-flex items-center gap-1.5 text-xs font-black text-slate-900 hover:text-[#ff6b1a] transition-colors"
               >
-                <ShieldCheck className="w-3.5 h-3.5 text-[#ff6b1a]" />
                 <span>{copy.adminPortalLink}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
+
+            <footer className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] font-bold text-slate-400">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                {copy.security}
+              </div>
+              <div className="text-right">{copy.serverNote}</div>
+            </footer>
           </div>
         </section>
       </div>
-
-      {/* Tailwind Animations */}
-      <style>{`
-        @keyframes scan-pulse {
-            0% { top: 0; }
-            50% { top: 100%; }
-            100% { top: 0; }
-        }
-        .animate-scan-pulse {
-            animation: scan-pulse 3s ease-in-out infinite;
-        }
-      `}</style>
     </main>
   );
 };

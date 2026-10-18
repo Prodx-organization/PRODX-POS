@@ -8,18 +8,22 @@ const baseUrl = () => {
 };
 
 export interface IProductionOrderReadApi {
-  getOrders(storeId: string, limit?: number): Promise<readonly Order[]>;
+  getOrders(storeId: string, limit?: number, registerId?: string): Promise<readonly Order[]>;
 }
 
 export function createProductionOrderReadApi(token: string): IProductionOrderReadApi {
   return {
-    async getOrders(storeId, limit = 50) {
+    async getOrders(storeId, limit = 50, registerId?: string) {
       const host = baseUrl();
       if (host) {
         try {
-          const response = await fetch(`${host}/api/v1/orders?storeId=${encodeURIComponent(storeId)}&limit=${encodeURIComponent(String(limit))}`, {
+          let url = `${host}/api/v1/orders?storeId=${encodeURIComponent(storeId)}&limit=${encodeURIComponent(String(limit))}`;
+          if (registerId && registerId.trim()) {
+            url += `&registerId=${encodeURIComponent(registerId.trim())}`;
+          }
+          const response = await fetch(url, {
             credentials: 'include',
-            headers: { Accept: 'application/json', Authorization: `Bearer ${(token || '').trim()}` }
+            headers: { Accept: 'application/json', Authorization: `Bearer ${(token || '').trim()}` },
           });
           if (response.ok) {
             const body = await response.json().catch(() => null);
@@ -29,7 +33,7 @@ export function createProductionOrderReadApi(token: string): IProductionOrderRea
           // Fallback to mock
         }
       }
-      return mockOrderApi.getOrders(storeId, limit);
-    }
+      return mockOrderApi.getOrders(storeId, limit, registerId);
+    },
   };
 }

@@ -13,7 +13,8 @@ export type Permission =
   | 'shift:open' | 'shift:close' | 'shift:pay_movement'
   | 'inventory:read' | 'inventory:adjust'
   | 'customers:read' | 'customers:write'
-  | 'reports:read' | 'audit:read' | 'settings:manage';
+  | 'reports:read' | 'audit:read' | 'settings:manage'
+  | 'org:read' | 'org:manage' | 'branch:manage' | 'terminal:manage' | 'rbac:manage';
 
 export interface User {
   readonly id: string;
@@ -49,6 +50,18 @@ export interface Organization {
   readonly stores: readonly Store[];
 }
 
+export interface OperationalScope {
+  readonly organizationId: string;
+  readonly organizationName: string;
+  readonly organizationSlug: string;
+  readonly branchId: string;
+  readonly branchName: string;
+  readonly branchAddress: string;
+  readonly terminalId: string;
+  readonly terminalName: string;
+  readonly terminalCode: string;
+}
+
 export interface SessionContext {
   readonly organization: Organization;
   readonly currentStore: Store;
@@ -56,6 +69,72 @@ export interface SessionContext {
   readonly currentUser: User;
   readonly token: string;
   readonly expiresAt: string;
+  readonly operationalScope?: OperationalScope;
+}
+
+export const OPERATIONAL_SCOPE_STORAGE_KEY = 'prodx.terminal.organization_context';
+
+export function getStoredOperationalScope(): OperationalScope | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(OPERATIONAL_SCOPE_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const candidate = (parsed.organizationContext ?? parsed) as Record<string, unknown>;
+    if (
+      typeof candidate?.organizationId === 'string' &&
+      typeof candidate?.organizationSlug === 'string' &&
+      typeof candidate?.branchId === 'string' &&
+      typeof candidate?.branchName === 'string' &&
+      typeof candidate?.terminalId === 'string' &&
+      typeof candidate?.terminalCode === 'string'
+    ) {
+      return {
+        organizationId: candidate.organizationId,
+        organizationName:
+          typeof candidate.organizationName === 'string'
+            ? candidate.organizationName
+            : candidate.organizationSlug,
+        organizationSlug: candidate.organizationSlug,
+        branchId: candidate.branchId,
+        branchName: candidate.branchName,
+        branchAddress: typeof candidate.branchAddress === 'string' ? candidate.branchAddress : '',
+        terminalId: candidate.terminalId,
+        terminalName:
+          typeof candidate.terminalName === 'string'
+            ? candidate.terminalName
+            : candidate.terminalCode,
+        terminalCode: candidate.terminalCode,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveStoredOperationalScope(scope: OperationalScope | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!scope) {
+      window.localStorage.removeItem(OPERATIONAL_SCOPE_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(
+      OPERATIONAL_SCOPE_STORAGE_KEY,
+      JSON.stringify({
+        organizationSlug: scope.organizationSlug,
+        storeCode: scope.branchName,
+        registerId: scope.terminalCode,
+        organizationContext: scope,
+      }),
+    );
+    window.localStorage.setItem('prodx.terminal.organization', scope.organizationSlug);
+    window.localStorage.setItem('prodx.terminal.store', scope.branchName);
+    window.localStorage.setItem('prodx.terminal.register', scope.terminalCode);
+  } catch {
+    // Ignore localStorage quota/access errors
+  }
 }
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
@@ -63,11 +142,13 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'pos:checkout','pos:discount','pos:price_override','pos:void','pos:refund',
     'shift:open','shift:close','shift:pay_movement','inventory:read','inventory:adjust',
     'customers:read','customers:write','reports:read','audit:read','settings:manage',
+    'org:read','org:manage','branch:manage','terminal:manage','rbac:manage',
   ],
   manager: [
     'pos:checkout','pos:discount','pos:price_override','pos:void','pos:refund',
     'shift:open','shift:close','shift:pay_movement','inventory:read','inventory:adjust',
     'customers:read','customers:write','reports:read','audit:read','settings:manage',
+    'org:read',
   ],
   cashier: ['pos:checkout','pos:discount','shift:open','shift:close','inventory:read','customers:read','customers:write'],
 };
@@ -102,6 +183,11 @@ export const PERMISSION_DEFINITIONS: PermissionMeta[] = [
   permissionMeta('reports:read','reports','View Sales & Profit Dashboard','ดูแดชบอร์ดยอดขายและกำไร',true),
   permissionMeta('audit:read','reports','View Security & Audit Trail','ดู Audit Trail',true),
   permissionMeta('settings:manage','settings','System & Financial Settings','จัดการตั้งค่าระบบ',true),
+  permissionMeta('org:read','settings','View Organization Hierarchy','ดูข้อมูลโครงสร้างองค์กรและสาขา'),
+  permissionMeta('org:manage','settings','Manage Enterprise Organizations','จัดการตั้งค่าระดับองค์กร (Admin Only)',true),
+  permissionMeta('branch:manage','settings','Manage Store Branches','สร้าง แก้ไข และลบสาขาในองค์กร (Admin Only)',true),
+  permissionMeta('terminal:manage','settings','Manage POS Register Terminals','ลงทะเบียนและตั้งค่าเครื่องขาย POS (Admin Only)',true),
+  permissionMeta('rbac:manage','settings','Manage Enterprise RBAC & Security','จัดการตารางสิทธิ์ RBAC และนโยบายความปลอดภัยสูงสุด (Admin Only)',true),
 ];
 
 export const DEFAULT_STAFF_DIRECTORY: User[] = [

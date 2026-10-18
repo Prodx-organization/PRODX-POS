@@ -16,12 +16,14 @@ import { useOffline } from '../../context/OfflineContext';
 export interface AppShellProps {
   currentRoute: NavRoute;
   onNavigate: (route: NavRoute) => void;
+  onOpenAdminConsole?: () => void;
   children: React.ReactNode;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({
   currentRoute,
   onNavigate,
+  onOpenAdminConsole,
   children,
 }) => {
   const { isSyncActivityOpen, closeSyncActivity, toggleSyncActivity } = useOffline();
@@ -79,7 +81,11 @@ export const AppShell: React.FC<AppShellProps> = ({
 
       {/* Desktop Persistent Sidebar */}
       <div className="hidden lg:block h-full shrink-0 relative z-10 w-[280px] border-r border-border bg-card">
-        <Sidebar currentRoute={currentRoute} onNavigate={onNavigate} />
+        <Sidebar
+          currentRoute={currentRoute}
+          onNavigate={onNavigate}
+          onOpenAdminConsole={onOpenAdminConsole}
+        />
       </div>
 
       {/* Mobile Drawer Navigation */}
@@ -95,6 +101,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           <Sidebar
             currentRoute={currentRoute}
             onNavigate={onNavigate}
+            onOpenAdminConsole={onOpenAdminConsole}
             onCloseMobile={() => setIsMobileMenuOpen(false)}
           />
         </div>
@@ -106,6 +113,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         <TopNav
           currentRoute={currentRoute}
           onNavigate={onNavigate}
+          onOpenAdminConsole={onOpenAdminConsole}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           onOpenHoldModal={() => setIsHoldModalOpen(true)}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}

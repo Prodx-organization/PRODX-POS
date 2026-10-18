@@ -31,6 +31,7 @@ import {
   Check,
   X,
   Zap,
+  Lock,
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
@@ -41,6 +42,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
 import { GraphicIcon, GraphicIconColor } from '../../components/common/GraphicIcon';
+import { RbacGuard, useRbac } from '../../components/auth/RbacGuard';
 
 import {
   SettingsTabId,
@@ -264,6 +266,7 @@ const CATEGORIES: SettingsCategoryGroup[] = [
 export const SettingsScreen: React.FC = () => {
   const { language } = useLanguage();
   const { session, updateStoreProfile, staffUsers, rolePermissions } = useAuth();
+  const { isAdmin, canAccessSettingsTab } = useRbac();
   const { isOnline, outbox } = useOffline();
   const { addToast } = useToast();
   const { setSubLevels } = useBreadcrumb();
@@ -366,7 +369,9 @@ export const SettingsScreen: React.FC = () => {
   const [navSearchQuery, setNavSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [settingsMode, setSettingsMode] = useState<'quick' | 'advanced'>(() => {
-    return (localStorage.getItem('prodx_settings_mode') as 'quick' | 'advanced') || 'quick';
+    const saved = localStorage.getItem('prodx_settings_mode') as 'quick' | 'advanced' | null;
+    if (saved) return saved;
+    return session?.currentUser?.role === 'admin' ? 'advanced' : 'quick';
   });
 
   const handleToggleSettingsMode = (mode: 'quick' | 'advanced') => {
@@ -912,8 +917,8 @@ export const SettingsScreen: React.FC = () => {
   // Grouped & Filtered Navigation Items
   const filteredTabItems = useMemo(() => {
     return TAB_ITEMS.filter((tab) => {
-      // In Quick Mode, hide non-quick tabs unless searching
-      if (settingsMode === 'quick' && !navSearchQuery && !tab.isQuickTab) {
+      // In Quick Mode, hide non-quick tabs unless searching or user is Admin (Admin sees full org settings)
+      if (settingsMode === 'quick' && !isAdmin && !navSearchQuery && !tab.isQuickTab) {
         return false;
       }
 
@@ -928,7 +933,7 @@ export const SettingsScreen: React.FC = () => {
         tab.sublabel.en.toLowerCase().includes(query)
       );
     });
-  }, [categoryFilter, navSearchQuery, settingsMode]);
+  }, [categoryFilter, navSearchQuery, settingsMode, isAdmin]);
 
   return (
     <div
@@ -1299,6 +1304,18 @@ export const SettingsScreen: React.FC = () => {
                           </div>
 
                           <div className="flex items-center gap-1.5 shrink-0">
+                            {!canAccessSettingsTab(tab.id) && (
+                              <span
+                                className="inline-flex shrink-0"
+                                title={
+                                  language === 'th'
+                                    ? 'สงวนสิทธิ์เฉพาะ Admin ระดับองค์กร'
+                                    : 'Organization Admin Only'
+                                }
+                              >
+                                <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                              </span>
+                            )}
                             {tab.badge && (
                               <Badge
                                 variant={isActive ? 'primary' : 'neutral'}
@@ -1354,86 +1371,88 @@ export const SettingsScreen: React.FC = () => {
           {/* System Health Troubleshooting Widget */}
           <SystemHealthWidget />
 
-          {/* Active Tab Component Render */}
+          {/* Active Tab Component Render — Guarded by Granular Settings Tab RBAC Policy */}
           <div className="pb-28">
-            {activeTab === 'system_config' && <SystemConfigTab />}
-            {activeTab === 'general' && (
-              <GeneralSettingsTab
-                formData={storeForm}
-                onChangeField={(field, val) =>
-                  setStoreForm((prev) => ({ ...prev, [field]: val }))
-                }
-              />
-            )}
+            <RbacGuard settingsTab={activeTab} hideMode="denied-card">
+              {activeTab === 'system_config' && <SystemConfigTab />}
+              {activeTab === 'general' && (
+                <GeneralSettingsTab
+                  formData={storeForm}
+                  onChangeField={(field, val) =>
+                    setStoreForm((prev) => ({ ...prev, [field]: val }))
+                  }
+                />
+              )}
 
-            {activeTab === 'ai_assistant' && <AiAssistantSettingsTab />}
+              {activeTab === 'ai_assistant' && <AiAssistantSettingsTab />}
 
-            {activeTab === 'modules_control' && (
-              <ModulesControlSettingsTab
-                modules={modulesConfig}
-                onUpdateModules={handleUpdateModules}
-                onResetModules={handleResetModules}
-              />
-            )}
+              {activeTab === 'modules_control' && (
+                <ModulesControlSettingsTab
+                  modules={modulesConfig}
+                  onUpdateModules={handleUpdateModules}
+                  onResetModules={handleResetModules}
+                />
+              )}
 
-            {activeTab === 'system_tools' && (
-              <SystemToolsManagementTab
-                quickKeys={quickKeys}
-                onUpdateQuickKeys={handleUpdateQuickKeys}
-                paymentMethods={paymentMethods}
-                onUpdatePaymentMethods={handleUpdatePaymentMethods}
-                discountPresets={discountPresets}
-                onUpdateDiscountPresets={handleUpdateDiscountPresets}
-                taxBrackets={taxBrackets}
-                onUpdateTaxBrackets={handleUpdateTaxBrackets}
-                receiptTemplate={receiptTemplate}
-                onUpdateReceiptTemplate={handleUpdateReceiptTemplate}
-              />
-            )}
+              {activeTab === 'system_tools' && (
+                <SystemToolsManagementTab
+                  quickKeys={quickKeys}
+                  onUpdateQuickKeys={handleUpdateQuickKeys}
+                  paymentMethods={paymentMethods}
+                  onUpdatePaymentMethods={handleUpdatePaymentMethods}
+                  discountPresets={discountPresets}
+                  onUpdateDiscountPresets={handleUpdateDiscountPresets}
+                  taxBrackets={taxBrackets}
+                  onUpdateTaxBrackets={handleUpdateTaxBrackets}
+                  receiptTemplate={receiptTemplate}
+                  onUpdateReceiptTemplate={handleUpdateReceiptTemplate}
+                />
+              )}
 
-            {activeTab === 'loyalty_crm' && (
-              <LoyaltyCrmSettingsTab
-                loyaltyConfig={loyaltyConfig}
-                onChangeConfig={handleUpdateLoyaltyConfig}
-              />
-            )}
+              {activeTab === 'loyalty_crm' && (
+                <LoyaltyCrmSettingsTab
+                  loyaltyConfig={loyaltyConfig}
+                  onChangeConfig={handleUpdateLoyaltyConfig}
+                />
+              )}
 
-            {activeTab === 'appearance' && (
-              <AppearanceSettingsTab
-                cfdConfig={cfdConfig}
-                onChangeCfdField={(field, val) =>
-                  setCfdConfig((prev) => ({ ...prev, [field]: val }))
-                }
-              />
-            )}
+              {activeTab === 'appearance' && (
+                <AppearanceSettingsTab
+                  cfdConfig={cfdConfig}
+                  onChangeCfdField={(field, val) =>
+                    setCfdConfig((prev) => ({ ...prev, [field]: val }))
+                  }
+                />
+              )}
 
-            {activeTab === 'hardware' && <HardwareSettingsTab />}
+              {activeTab === 'hardware' && <HardwareSettingsTab />}
 
-            {activeTab === 'tax_accounting' && (
-              <TaxAccountingSettingsTab
-                formData={taxForm}
-                onChangeField={(field, val) =>
-                  setTaxForm((prev) => ({ ...prev, [field]: val }))
-                }
-              />
-            )}
+              {activeTab === 'tax_accounting' && (
+                <TaxAccountingSettingsTab
+                  formData={taxForm}
+                  onChangeField={(field, val) =>
+                    setTaxForm((prev) => ({ ...prev, [field]: val }))
+                  }
+                />
+              )}
 
-            {activeTab === 'security_roles' && (
-              <SecurityRolesSettingsTab
-                policies={securityPolicies}
-                onChangePolicy={(field, val) =>
-                  setSecurityPolicies((prev) => ({ ...prev, [field]: val }))
-                }
-              />
-            )}
+              {activeTab === 'security_roles' && (
+                <SecurityRolesSettingsTab
+                  policies={securityPolicies}
+                  onChangePolicy={(field, val) =>
+                    setSecurityPolicies((prev) => ({ ...prev, [field]: val }))
+                  }
+                />
+              )}
 
-            {activeTab === 'role_management' && <RoleManagementModule />}
+              {activeTab === 'role_management' && <RoleManagementModule />}
 
-            {activeTab === 'role_assignment' && <UserToRoleAssignmentTable />}
+              {activeTab === 'role_assignment' && <UserToRoleAssignmentTable />}
 
-            {activeTab === 'permission_sets' && <PermissionSetsManagement />}
+              {activeTab === 'permission_sets' && <PermissionSetsManagement />}
 
-            {activeTab === 'data_sync' && <DataSyncSettingsTab />}
+              {activeTab === 'data_sync' && <DataSyncSettingsTab />}
+            </RbacGuard>
           </div>
         </main>
       </div>

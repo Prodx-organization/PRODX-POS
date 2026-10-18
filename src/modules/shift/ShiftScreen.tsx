@@ -67,7 +67,7 @@ export const ShiftScreen: React.FC = () => {
   useEffect(() => {
     if (!session) return;
     const orderReadApi = createOrderReadApi(session.token);
-    orderReadApi.getOrders(session.currentStore.id, 200)
+    orderReadApi.getOrders(session.currentStore.id, 200, session.registerId)
       .then(list => setOrders(list))
       .catch((error) => {
         console.error('[ShiftScreen] Failed to load production orders:', error);
