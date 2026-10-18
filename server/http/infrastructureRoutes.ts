@@ -43,6 +43,72 @@ export function registerInfrastructureRoutes(app: Express, pool?: Pool) {
     }
   });
 
+  // High-precision real-time latency ping with performance.now() timestamps
+  app.get('/api/v1/infrastructure/latency-ping', async (req: Request, res: Response) => {
+    const serverReceiveTime = performance.now();
+    const clientSentTimestamp = req.query.clientTime ? Number(req.query.clientTime) : undefined;
+
+    // Cloud SQL query ping with server-side performance.now()
+    let sqlQueryDurationMs = 0;
+    let sqlSuccess = false;
+    let sqlError: string | undefined;
+
+    const sqlQueryStart = performance.now();
+    if (pool) {
+      try {
+        await pool.query('SELECT 1 AS ping');
+        sqlQueryDurationMs = Number((performance.now() - sqlQueryStart).toFixed(2));
+        sqlSuccess = true;
+      } catch (err: any) {
+        sqlQueryDurationMs = Number((performance.now() - sqlQueryStart).toFixed(2));
+        sqlError = err?.message || 'Cloud SQL query failed';
+      }
+    } else {
+      sqlError = 'PostgreSQL pool not available';
+    }
+
+    // Firestore backend probe ping with server-side performance.now()
+    const firestoreStart = performance.now();
+    let firestoreDurationMs = 0;
+    let firestoreSuccess = false;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2000);
+      const fsResp = await fetch(
+        'https://firestore.googleapis.com/v1/projects/modified-bit-mct7q/databases/ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990/documents',
+        { signal: controller.signal }
+      ).finally(() => clearTimeout(timer));
+      firestoreDurationMs = Number((performance.now() - firestoreStart).toFixed(2));
+      firestoreSuccess = fsResp.status === 200 || fsResp.status === 401 || fsResp.status === 403 || fsResp.status === 404;
+    } catch {
+      firestoreDurationMs = Number((performance.now() - firestoreStart).toFixed(2));
+    }
+
+    const serverProcessTimeMs = Number((performance.now() - serverReceiveTime).toFixed(2));
+
+    res.json({
+      success: true,
+      serverReceiveTimestamp: serverReceiveTime,
+      serverTimestampIso: new Date().toISOString(),
+      clientSentTimestamp,
+      serverProcessTimeMs,
+      cloudSql: {
+        success: sqlSuccess,
+        queryDurationMs: sqlQueryDurationMs,
+        error: sqlError,
+        engine: 'PostgreSQL 16 (Cloud SQL)',
+        region: 'asia-southeast1',
+        projectId: 'gen-lang-client-0282713343',
+      },
+      firestoreBackend: {
+        success: firestoreSuccess,
+        probeDurationMs: firestoreDurationMs,
+        databaseId: 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990',
+        region: 'asia-southeast1',
+      },
+    });
+  });
+
   // Get system infrastructure health
   app.get('/api/v1/infrastructure/health', (_req: Request, res: Response) => {
     try {

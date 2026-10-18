@@ -54,8 +54,8 @@ export async function validateOrgBranchTerminalBatch(
     const branch = branches.find(
       (b) =>
         b.id === branchCodeOrId ||
-        b.code.toLowerCase() === branchCodeOrId.toLowerCase() ||
-        b.name.toLowerCase() === branchCodeOrId.toLowerCase()
+        (b.code && b.code.toLowerCase() === branchCodeOrId.toLowerCase()) ||
+        (b.name && b.name.toLowerCase() === branchCodeOrId.toLowerCase())
     );
 
     if (!branch) {
@@ -71,8 +71,8 @@ export async function validateOrgBranchTerminalBatch(
     let terminal = terminals.find(
       (t) =>
         t.id === terminalCodeOrId ||
-        t.code.toLowerCase() === terminalCodeOrId.toLowerCase() ||
-        t.name.toLowerCase() === terminalCodeOrId.toLowerCase()
+        (t.code && t.code.toLowerCase() === terminalCodeOrId.toLowerCase()) ||
+        (t.name && t.name.toLowerCase() === terminalCodeOrId.toLowerCase())
     );
 
     const cleanTerm = terminalCodeOrId.trim().toUpperCase();

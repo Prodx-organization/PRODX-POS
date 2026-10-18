@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build",
+    "build": "vite build && esbuild server/entrypoint.ts --bundle --platform=node --format=esm --outfile=server/entrypoint.js --packages=external",
+    "start": "node server.ts",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "rm -rf dist server.js server/entrypoint.js",
     "lint": "tsc --noEmit",
     "server:check": "tsc -p tsconfig.server.json",
     "server:test": "node --import tsx --test server/**/*.test.ts",
@@ -17,6 +18,7 @@
     "theme:fix": "tsx theme-validator.ts",
     "server:start": "tsx server/entrypoint.ts",
     "db:migrate": "tsx scripts/migrate.ts",
+    "db:inspect-schema": "tsx scripts/validate-firestore-schema.ts",
     "telemetry:test": "node --import tsx --test src/services/devPerformanceTracker.test.ts"
   },
   "dependencies": {

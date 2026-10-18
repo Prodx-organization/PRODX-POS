@@ -103,3 +103,36 @@ test('HTTP GET /api/v1/infrastructure/system-health-check returns status-coded J
     await server.close();
   }
 });
+
+test('HTTP GET /api/v1/infrastructure/latency-ping returns high-precision performance.now() latency metrics', async () => {
+  const app = express();
+  app.use(express.json());
+
+  const mockPool = {
+    query: async () => ({
+      rows: [{ ping: 1 }],
+    }),
+  };
+
+  registerInfrastructureRoutes(app, mockPool as any);
+  const server = await start(app);
+
+  try {
+    const clientSendTime = performance.now();
+    const response = await fetch(`${server.baseUrl}/api/v1/infrastructure/latency-ping?clientTime=${clientSendTime}`);
+    assert.equal(response.status, 200);
+
+    const body = await response.json();
+    assert.equal(body.success, true);
+    assert.ok(typeof body.serverReceiveTimestamp === 'number');
+    assert.ok(typeof body.serverProcessTimeMs === 'number');
+    assert.equal(body.clientSentTimestamp, clientSendTime);
+    assert.equal(body.cloudSql.success, true);
+    assert.ok(typeof body.cloudSql.queryDurationMs === 'number');
+    assert.equal(body.cloudSql.projectId, 'gen-lang-client-0282713343');
+    assert.equal(body.firestoreBackend.databaseId, 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990');
+  } finally {
+    await server.close();
+  }
+});
+

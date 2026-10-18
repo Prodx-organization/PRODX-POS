@@ -12,6 +12,7 @@ import {
   DownloadCloud,
   Zap,
   Wifi,
+  WifiOff,
   ShieldAlert,
   Bluetooth,
   Printer,
@@ -56,6 +57,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useOffline } from '../../context/OfflineContext';
 import { HardwareTestSuite } from './HardwareTestSuite';
 import { NetworkTopologyMap } from './NetworkTopologyMap';
 import { NewDeviceSetupModal } from './NewDeviceSetupModal';
@@ -65,7 +67,9 @@ import { FloorPlanView } from './FloorPlanView';
 import { SystemAlertNotificationCenter } from './SystemAlertNotificationCenter';
 import { SystemNotificationToastCorner } from './SystemNotificationToastCorner';
 import { DiagnosticBatchBufferMonitor } from './DiagnosticBatchBufferMonitor';
+import { OfflineBufferSyncMonitor } from './OfflineBufferSyncMonitor';
 import { SystemHealthCheckCard } from './SystemHealthCheckCard';
+import { RealtimeLatencyDiagnosticPanel } from './RealtimeLatencyDiagnosticPanel';
 import { systemNotificationService } from '../../services/systemNotificationService';
 import { auditService, DiagnosticLogLevel } from '../../services/auditService';
 import { HardwarePeripheralStatus } from '../../types/hardware';
@@ -146,6 +150,7 @@ import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-ki
 export function InfrastructureDashboard() {
   const { addToast } = useToast();
   const { theme } = useTheme();
+  const { isOnline, isSimulatedOffline, pendingCount, syncLatencyMs, syncLatencyQuality } = useOffline();
   
   // Drag and drop state
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1662,6 +1667,12 @@ export function InfrastructureDashboard() {
         {/* End-to-End SystemHealthCheck Utility (Cloud SQL & Firestore Status-Coded JSON Ping) */}
         <SystemHealthCheckCard />
 
+        {/* Real-time Round-Trip Latency Diagnostic Panel (Cloud SQL & Firestore RTT via performance.now()) */}
+        <RealtimeLatencyDiagnosticPanel />
+
+        {/* Real-time OfflineBuffer Sync Queue & Connectivity Health Monitor */}
+        <OfflineBufferSyncMonitor />
+
         {/* Background Buffered Diagnostic Log & Firestore Batch Uploader Monitor */}
         <DiagnosticBatchBufferMonitor />
 
@@ -1723,11 +1734,33 @@ export function InfrastructureDashboard() {
 
         <div className="bg-card p-5 rounded-2xl border border-border border-crisp shadow-sm">
           <div className="flex items-center justify-between text-text/60 mb-2">
-            <span className="text-xs font-semibold uppercase">Network & Services</span>
-            <Wifi className="w-5 h-5 text-cyan-500" />
+            <span className="text-xs font-semibold uppercase">Network & Offline Buffer</span>
+            {isOnline ? (
+              <Wifi className="w-5 h-5 text-cyan-500" />
+            ) : (
+              <WifiOff className="w-5 h-5 text-rose-500" />
+            )}
           </div>
-          <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">100% Online</div>
-          <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">Zero Packet Loss / Cloud Sync</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-slate-800 dark:text-slate-100 font-mono tabular-nums">
+              {isOnline ? (syncLatencyMs !== null ? `${syncLatencyMs} ms` : 'Online') : 'Offline'}
+            </span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
+              isOnline
+                ? syncLatencyQuality === 'optimal'
+                  ? 'text-emerald-500 border-emerald-500/20 bg-emerald-500/10'
+                  : 'text-cyan-500 border-cyan-500/20 bg-cyan-500/10'
+                : 'text-rose-500 border-rose-500/20 bg-rose-500/10'
+            }`}>
+              {isOnline ? (isSimulatedOffline ? 'Sim Offline' : syncLatencyQuality.toUpperCase()) : 'Buffer Active'}
+            </span>
+          </div>
+          <p className="text-xs text-text/60 mt-1 flex items-center justify-between font-mono">
+            <span>Buffer Queue: {pendingCount}</span>
+            <span className={pendingCount === 0 ? 'text-emerald-500 font-semibold' : 'text-amber-500 font-semibold'}>
+              {pendingCount === 0 ? 'Zero Pending' : `${pendingCount} In Queue`}
+            </span>
+          </p>
         </div>
       </div>
 

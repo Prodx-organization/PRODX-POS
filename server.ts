@@ -3,14 +3,14 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'path';
-import { createProductionApp } from './server/entrypoint';
+import { createProductionApp } from './server/entrypoint.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
-  const port = 3000;
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   // Create the production Express app (the backend)
   // We pass undefined for vercelOidcToken for local dev
