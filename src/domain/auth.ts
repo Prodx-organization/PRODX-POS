@@ -56,6 +56,7 @@ export interface OperationalScope {
   readonly organizationSlug: string;
   readonly branchId: string;
   readonly branchName: string;
+  readonly branchCode: string;
   readonly branchAddress: string;
   readonly terminalId: string;
   readonly terminalName: string;
@@ -98,6 +99,7 @@ export function getStoredOperationalScope(): OperationalScope | null {
         organizationSlug: candidate.organizationSlug,
         branchId: candidate.branchId,
         branchName: candidate.branchName,
+        branchCode: typeof candidate.branchCode === 'string' ? candidate.branchCode : candidate.branchName,
         branchAddress: typeof candidate.branchAddress === 'string' ? candidate.branchAddress : '',
         terminalId: candidate.terminalId,
         terminalName:
@@ -191,7 +193,7 @@ export const PERMISSION_DEFINITIONS: PermissionMeta[] = [
 ];
 
 export const DEFAULT_STAFF_DIRECTORY: User[] = [
-  { id:'usr-admin-alex', name:'Alex Vance', email:'alex.vance@prodx.io', role:'admin', employeeCode:'EMP-001', permissions:ROLE_PERMISSIONS.admin, isActive:true, lastRoleAssignedAt:'2026-01-15T09:00:00.000Z', assignedBy:'System Root', roleAssignmentNote:'Store Owner & Primary Administrator' },
+  { id:'usr-admin-kamkokaew', name:'Kamkokaew Thodsawat', email:'kamkokaewthodsawat@gmail.com', role:'admin', employeeCode:'EMP-001', permissions:ROLE_PERMISSIONS.admin, isActive:true, lastRoleAssignedAt:'2026-01-15T09:00:00.000Z', assignedBy:'System Root', roleAssignmentNote:'Store Owner & Primary Administrator' },
   { id:'usr-manager-sarah', name:'Sarah Connor', email:'sarah.connor@prodx.io', role:'manager', employeeCode:'EMP-014', permissions:ROLE_PERMISSIONS.manager, isActive:true, lastRoleAssignedAt:'2026-02-01T10:30:00.000Z', assignedBy:'Alex Vance', roleAssignmentNote:'Promoted to Shift Supervisor & Floor Manager' },
   { id:'usr-cashier-john', name:'John Doe', email:'john.doe@prodx.io', role:'cashier', employeeCode:'EMP-108', permissions:ROLE_PERMISSIONS.cashier, isActive:true, lastRoleAssignedAt:'2026-03-10T14:15:00.000Z', assignedBy:'Sarah Connor', roleAssignmentNote:'Frontline register cashier' },
   { id:'usr-cashier-emily', name:'Emily Stone', email:'emily.stone@prodx.io', role:'cashier', employeeCode:'EMP-109', permissions:ROLE_PERMISSIONS.cashier, isActive:true, lastRoleAssignedAt:'2026-04-05T08:45:00.000Z', assignedBy:'Sarah Connor', roleAssignmentNote:'Registered cashier profile' },
@@ -199,8 +201,120 @@ export const DEFAULT_STAFF_DIRECTORY: User[] = [
 
 export const STAFF_STORAGE_KEY = 'prodx_pos_staff_directory';
 export const ROLE_PERMS_STORAGE_KEY = 'prodx_pos_role_permissions';
-let volatileStaffPins: Record<string, string> = {};
-let volatileStaffPasswords: Record<string, string> = {};
+export const ADMIN_CREDENTIAL_OVERRIDE_STORAGE_KEY = 'prodx_pos_admin_credential_override_v1';
+export const SYSTEM_OWNER_ADMIN_ID = 'usr-admin-kamkokaew';
+export const SYSTEM_OWNER_ADMIN_EMAIL = 'kamkokaewthodsawat@gmail.com';
+export const DEFAULT_SYSTEM_OWNER_PASSWORD = 'Qeawds&1991&';
+
+export const DEFAULT_STAFF_PASSWORDS: Record<string, string> = {
+  'usr-admin-kamkokaew': DEFAULT_SYSTEM_OWNER_PASSWORD,
+  'usr-manager-sarah': 'Manager@2026',
+  'usr-cashier-john': 'Cashier@2026',
+  'usr-cashier-emily': 'Cashier@2026',
+};
+
+export const DEFAULT_STAFF_PINS: Record<string, string> = {
+  'usr-admin-kamkokaew': '999999',
+  'usr-manager-sarah': '5678',
+  'usr-cashier-john': '0000',
+  'usr-cashier-emily': '1111',
+};
+
+let volatileStaffPins: Record<string, string> = { ...DEFAULT_STAFF_PINS };
+let volatileStaffPasswords: Record<string, string> = { ...DEFAULT_STAFF_PASSWORDS };
+
+export interface PersistedAdminCredentialRecord {
+  id: string;
+  email: string;
+  password: string;
+  passwordHash?: string;
+  passwordSalt?: string;
+  version: number;
+  updatedAt: number;
+  updatedBy: string;
+  reauthMethod: 'password' | 'webauthn_biometric';
+}
+
+export function isVerifiedSystemOwner(user?: Pick<User, 'email' | 'role'> | null): boolean {
+  if (!user) return false;
+  return (
+    user.role === 'admin' &&
+    user.email.trim().toLowerCase() === SYSTEM_OWNER_ADMIN_EMAIL.toLowerCase()
+  );
+}
+
+export async function computeAdminPasswordDigest(
+  password: string,
+  salt = 'prodx-system-owner-v1',
+): Promise<string> {
+  const input = `${salt}:${SYSTEM_OWNER_ADMIN_EMAIL}:${password}`;
+  if (typeof crypto !== 'undefined' && crypto.subtle?.digest) {
+    const encoded = new TextEncoder().encode(input);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  // Deterministic fallback hash if WebCrypto is unavailable
+  let h1 = 0xdeadbeef ^ input.length;
+  let h2 = 0x41c6ce57 ^ input.length;
+  for (let i = 0, ch; i < input.length; i++) {
+    ch = input.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (
+    (h2 >>> 0).toString(16).padStart(8, '0') +
+    (h1 >>> 0).toString(16).padStart(8, '0') +
+    (h2 >>> 0).toString(16).padStart(8, '0') +
+    (h1 >>> 0).toString(16).padStart(8, '0')
+  );
+}
+
+export function getPersistedAdminCredentialOverride(): PersistedAdminCredentialRecord | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(ADMIN_CREDENTIAL_OVERRIDE_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedAdminCredentialRecord;
+    if (
+      parsed &&
+      typeof parsed.password === 'string' &&
+      parsed.password.length > 0 &&
+      parsed.email?.toLowerCase() === SYSTEM_OWNER_ADMIN_EMAIL
+    ) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function savePersistedAdminCredentialOverride(
+  record: PersistedAdminCredentialRecord,
+): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(ADMIN_CREDENTIAL_OVERRIDE_STORAGE_KEY, JSON.stringify(record));
+  } catch (e) {
+    console.error('Failed to persist admin credential override', e);
+  }
+}
+
+export function resetAdminPasswordToDefault(): string {
+  volatileStaffPasswords[SYSTEM_OWNER_ADMIN_ID] = DEFAULT_SYSTEM_OWNER_PASSWORD;
+  volatileStaffPins[SYSTEM_OWNER_ADMIN_ID] = '999999';
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.removeItem(ADMIN_CREDENTIAL_OVERRIDE_STORAGE_KEY);
+    } catch {
+      // Ignore storage errors
+    }
+  }
+  return DEFAULT_SYSTEM_OWNER_PASSWORD;
+}
 
 export function getStoredStaffDirectory(): User[] {
   try { const raw = localStorage.getItem(STAFF_STORAGE_KEY); if (raw) return JSON.parse(raw); } catch (e) { console.error('Failed to parse staff directory from storage', e); }
@@ -221,23 +335,85 @@ export function saveStoredRolePermissions(matrix: Record<Role, Permission[]>): v
 }
 
 export function getStoredStaffPins(): Record<string, string> {
-  return { ...volatileStaffPins };
+  return { ...DEFAULT_STAFF_PINS, ...volatileStaffPins };
 }
 
 export function saveStoredStaffPins(pins: Record<string, string>): void {
-  volatileStaffPins = { ...pins };
+  volatileStaffPins = { ...DEFAULT_STAFF_PINS, ...pins };
 }
 
 export function getStoredStaffPasswords(): Record<string, string> {
-  return { ...volatileStaffPasswords };
+  const override = getPersistedAdminCredentialOverride();
+  const base = { ...DEFAULT_STAFF_PASSWORDS, ...volatileStaffPasswords };
+  if (override?.password) {
+    base[SYSTEM_OWNER_ADMIN_ID] = override.password;
+  }
+  return base;
 }
 
 export function saveStoredStaffPasswords(passwords: Record<string, string>): void {
-  volatileStaffPasswords = { ...passwords };
+  volatileStaffPasswords = { ...DEFAULT_STAFF_PASSWORDS, ...passwords };
 }
 
 export function updateStaffPassword(userId: string, newPassword: string): void {
   volatileStaffPasswords = { ...volatileStaffPasswords, [userId]: newPassword };
+  if (userId === SYSTEM_OWNER_ADMIN_ID) {
+    const existing = getPersistedAdminCredentialOverride();
+    savePersistedAdminCredentialOverride({
+      id: SYSTEM_OWNER_ADMIN_ID,
+      email: SYSTEM_OWNER_ADMIN_EMAIL,
+      password: newPassword,
+      passwordHash: existing?.passwordHash,
+      passwordSalt: existing?.passwordSalt,
+      version: (existing?.version || 1) + 1,
+      updatedAt: Date.now(),
+      updatedBy: SYSTEM_OWNER_ADMIN_EMAIL,
+      reauthMethod: existing?.reauthMethod || 'password',
+    });
+  }
 }
 
 export function hasPermission(user: User, permission: Permission): boolean { return user.permissions.includes(permission); }
+
+export function initializeDefaultAdminCredentials(): void {
+  try {
+    const staff = getStoredStaffDirectory();
+    let adminUser = staff.find(
+      (u) => u.email.toLowerCase() === SYSTEM_OWNER_ADMIN_EMAIL.toLowerCase(),
+    );
+    if (!adminUser) {
+      adminUser = {
+        id: SYSTEM_OWNER_ADMIN_ID,
+        name: 'Kamkokaew Thodsawat',
+        email: SYSTEM_OWNER_ADMIN_EMAIL,
+        role: 'admin',
+        employeeCode: 'EMP-001',
+        permissions: [...ROLE_PERMISSIONS.admin],
+        isActive: true,
+        lastRoleAssignedAt: new Date().toISOString(),
+        assignedBy: 'System Root',
+        roleAssignmentNote: 'Store Owner & Primary Administrator',
+      };
+      staff.unshift(adminUser);
+      saveStoredStaffDirectory(staff);
+    }
+
+    const persistedOverride = getPersistedAdminCredentialOverride();
+    const effectiveAdminPassword =
+      persistedOverride?.password || DEFAULT_SYSTEM_OWNER_PASSWORD;
+
+    volatileStaffPasswords = {
+      ...DEFAULT_STAFF_PASSWORDS,
+      ...volatileStaffPasswords,
+      [adminUser.id]: effectiveAdminPassword,
+    };
+
+    const pins = getStoredStaffPins();
+    if (!pins[adminUser.id]) {
+      pins[adminUser.id] = '999999';
+    }
+    saveStoredStaffPins(pins);
+  } catch (e) {
+    console.error('[AuthDomain] Failed to initialize default admin credentials:', e);
+  }
+}

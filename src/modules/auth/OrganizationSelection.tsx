@@ -4,19 +4,28 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
+  Clock,
+  Database,
+  HardDrive,
   Loader2,
   Monitor,
   RefreshCw,
   Store,
+  WifiOff,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
 import {
-  getSystemConfigCatalog,
-  getBranches,
-  getTerminals,
-} from '../../services/systemConfigService';
+  getBranchesByOrg,
+  getOrganizationSelectionCatalogWithFallback,
+  getTerminalsByBranch,
+  isSimulatedFirestoreTimeoutActive,
+  OrganizationCatalogSource,
+  OrganizationFallbackReason,
+  saveSelectionScopeToLocalStorage,
+  setSimulatedFirestoreTimeout,
+} from '../../services/organizationService';
 import { Organization, Branch, Terminal } from '../settings/types';
 import { OrganizationLoginContext } from '../../adapters/types';
 
@@ -41,6 +50,8 @@ export interface OrganizationSelectionState {
   isFetching: boolean;
   focusFirstMissing: () => void;
   refreshCatalog: () => Promise<void>;
+  catalogSource?: OrganizationCatalogSource;
+  degraded?: boolean;
 }
 
 export interface OrganizationSelectionProps {
@@ -83,6 +94,21 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
   const [allBranches, setAllBranches] = useState<Branch[]>([]);
   const [allTerminals, setAllTerminals] = useState<Terminal[]>([]);
   const [isFetching, setIsFetching] = useState(false);
+
+  // Resilience & Fallback Telemetry State
+  const [catalogSource, setCatalogSource] = useState<OrganizationCatalogSource>('firestore');
+  const [isDegraded, setIsDegraded] = useState(false);
+  const [isTimedOut, setIsTimedOut] = useState(false);
+  const [fallbackReason, setFallbackReason] = useState<OrganizationFallbackReason | undefined>(
+    undefined,
+  );
+  const [fallbackErrorMsg, setFallbackErrorMsg] = useState<string | undefined>(undefined);
+  const [latencyMs, setLatencyMs] = useState<number>(0);
+  const [cachedAt, setCachedAt] = useState<number | null>(null);
+  const [simulateTimeoutMode, setSimulateTimeoutMode] = useState<boolean>(() =>
+    isSimulatedFirestoreTimeoutActive(),
+  );
+
   const [touched, setTouched] = useState<{
     organization: boolean;
     store: boolean;
@@ -112,9 +138,18 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
             validationPending:
               'บังคับเลือกองค์กร สาขา และเครื่อง POS ให้ครบทั้ง 3 ส่วนก่อนจึงจะป้อนข้อมูลเข้าสู่ระบบได้',
             syncCatalog: 'ซิงค์ข้อมูลจาก Firestore',
+            sourceFirestore: 'เชื่อมต่อ Firestore สำเร็จ',
+            sourceLocalStorage: 'โหมดสำรองฉุกเฉิน: ดึงข้อมูลจาก LocalStorage Cache',
+            sourceDefaults: 'โหมดสำรองฉุกเฉิน: ใช้ข้อมูล Default ของระบบ',
+            timeoutBannerTitle:
+              'ตรวจพบ Firestore Connection Timeout — ระบบสลับไปใช้ข้อมูลสำรองจาก LocalStorage อัตโนมัติ',
+            timeoutBannerDesc:
+              'แคชข้อมูลองค์กร สาขา และเครื่อง POS ล่าสุดในเครื่องถูกนำมาใช้งานทันที เพื่อให้พนักงานแคชเชียร์เข้าสู่ระบบได้โดยไม่หยุดชะงัก',
+            simulateTimeoutBtn: 'จำลอง Timeout',
+            restoreOnlineBtn: 'ยกเลิกจำลอง Timeout',
           }
         : {
-            terminal: '1. Operational Scope Selection (Firestore — Mandatory)',
+            terminal: '1. Operational Scope Selection (Firestore + LocalStorage Fallback)',
             organization: 'Organization',
             store: 'Store / Branch',
             register: 'POS Terminal',
@@ -125,10 +160,19 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
             branchRequiredMsg: 'Please select a branch for this organization.',
             terminalRequiredMsg: 'Please select an active POS terminal.',
             validationReady:
-              'Operational scope persisted in AuthContext. Credential entry is unlocked.',
+              'Operational scope persisted in AuthContext & localStorage. Credential entry is unlocked.',
             validationPending:
               'Select Organization, Branch, and POS Terminal above before entering credentials.',
             syncCatalog: 'Sync from Firestore',
+            sourceFirestore: 'Live Firestore Connected',
+            sourceLocalStorage: 'Fallback Active: LocalStorage Cache',
+            sourceDefaults: 'Fallback Active: System Defaults',
+            timeoutBannerTitle:
+              'Firestore Connection Timeout Handled — Using LocalStorage Fallback Data',
+            timeoutBannerDesc:
+              'Cached Organization, Branch, and POS Terminal records were automatically restored from localStorage so terminal sign-in continues without interruption.',
+            simulateTimeoutBtn: 'Simulate Timeout',
+            restoreOnlineBtn: 'Restore Firestore',
           },
     [isThai],
   );
@@ -167,6 +211,7 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
       organizationSlug: selectedOrganization.slug,
       branchId: selectedBranch.id,
       branchName: selectedBranch.name,
+      branchCode: selectedBranch.code || '',
       branchAddress: selectedBranch.address,
       terminalId: selectedTerminal.id,
       terminalName: selectedTerminal.name,
@@ -222,18 +267,30 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
     }
   }, [externalTouchTrigger, focusFirstMissing]);
 
-  // Fetch organizations, branches, and terminals from Firestore on mount
+  // Fetch organizations, branches, and terminals via organizationService timeout + localStorage fallback handler
   const loadFirestoreCatalog = useCallback(
     async (preferred?: { orgSlug?: string; branchName?: string; terminalCode?: string }) => {
       setIsFetching(true);
       try {
-        const catalog = await getSystemConfigCatalog();
+        const catalog = await getOrganizationSelectionCatalogWithFallback();
         setOrgs(catalog.organizations);
         setAllBranches(catalog.branches);
         setAllTerminals(catalog.terminals);
+        setCatalogSource(catalog.source);
+        setIsDegraded(catalog.degraded);
+        setIsTimedOut(catalog.timedOut);
+        setFallbackReason(catalog.fallbackReason);
+        setFallbackErrorMsg(catalog.errorMessage);
+        setLatencyMs(catalog.latencyMs);
+        setCachedAt(catalog.cachedAt);
+
+        const savedScope = catalog.savedSelection;
 
         const targetOrgSlug =
-          preferred?.orgSlug ?? operationalScope?.organizationSlug ?? organizationSlug;
+          preferred?.orgSlug ??
+          operationalScope?.organizationSlug ??
+          savedScope?.organizationSlug ??
+          organizationSlug;
         const matchedOrg =
           catalog.organizations.find((o) => o.slug === targetOrgSlug) ||
           catalog.organizations[0] ||
@@ -250,7 +307,10 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
 
         const orgBranches = catalog.branches.filter((b) => b.orgId === matchedOrg.id);
         const targetBranchName =
-          preferred?.branchName ?? operationalScope?.branchName ?? storeCode;
+          preferred?.branchName ??
+          operationalScope?.branchName ??
+          savedScope?.branchName ??
+          storeCode;
         const matchedBranch =
           orgBranches.find((b) => b.name === targetBranchName) || orgBranches[0] || null;
 
@@ -264,24 +324,39 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
 
         const branchTerminals = catalog.terminals.filter((t) => t.branchId === matchedBranch.id);
         const targetTerminalCode =
-          preferred?.terminalCode ?? operationalScope?.terminalCode ?? registerId;
+          preferred?.terminalCode ??
+          operationalScope?.terminalCode ??
+          savedScope?.terminalCode ??
+          registerId;
         const matchedTerminal =
           branchTerminals.find((t) => t.code === targetTerminalCode) ||
           branchTerminals[0] ||
           null;
 
         setRegisterId(matchedTerminal ? matchedTerminal.code : '');
+
+        if (catalog.degraded) {
+          addToast({
+            title: isThai
+              ? 'สลับใช้ข้อมูลสำรองจาก LocalStorage'
+              : 'LocalStorage Fallback Activated',
+            message: isThai
+              ? `การเชื่อมต่อ Firestore เกินเวลา (${catalog.latencyMs}ms) ระบบดึงข้อมูลองค์กร/สาขา/เครื่อง POS จาก LocalStorage เรียบร้อยแล้ว`
+              : `Firestore connection timed out (${catalog.latencyMs}ms). Loaded Organization, Branch & Terminal catalog from localStorage.`,
+            type: 'warning',
+          });
+        }
       } catch {
         addToast({
           title: 'Error',
-          message: 'Failed to load system configuration from Firestore.',
+          message: 'Failed to load system configuration from Firestore and fallback cache.',
           type: 'error',
         });
       } finally {
         setIsFetching(false);
       }
     },
-    [organizationSlug, storeCode, registerId, operationalScope, addToast],
+    [organizationSlug, storeCode, registerId, operationalScope, addToast, isThai],
   );
 
   const initialFetchDoneRef = useRef(false);
@@ -291,11 +366,12 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
     void loadFirestoreCatalog();
   }, [loadFirestoreCatalog]);
 
-  // Update AuthContext operationalScope whenever selection changes
+  // Update AuthContext operationalScope and persist to localStorage whenever selection changes
   useEffect(() => {
     if (isFetching) return;
     if (terminalReady && organizationContext) {
       setOperationalScope(organizationContext);
+      saveSelectionScopeToLocalStorage(organizationContext);
     } else {
       setOperationalScope(null);
     }
@@ -309,8 +385,30 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
       isFetching,
       focusFirstMissing,
       refreshCatalog: () => loadFirestoreCatalog(),
+      catalogSource,
+      degraded: isDegraded,
     });
-  }, [terminalReady, organizationContext, isFetching, focusFirstMissing, loadFirestoreCatalog, onScopeChange]);
+  }, [
+    terminalReady,
+    organizationContext,
+    isFetching,
+    focusFirstMissing,
+    loadFirestoreCatalog,
+    catalogSource,
+    isDegraded,
+    onScopeChange,
+  ]);
+
+  const handleToggleSimulateTimeout = async () => {
+    const nextState = !simulateTimeoutMode;
+    setSimulateTimeoutMode(nextState);
+    setSimulatedFirestoreTimeout(nextState);
+    await loadFirestoreCatalog({
+      orgSlug: organizationSlug,
+      branchName: storeCode,
+      terminalCode: registerId,
+    });
+  };
 
   // Reactive handler when user selects a different Organization
   const handleOrganizationChange = async (nextOrgSlug: string) => {
@@ -335,7 +433,7 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
       return;
     }
 
-    // Immediately compute from cached Firestore branches, then refresh from Firestore
+    // Immediately compute from cached branches, then refresh via timeout-protected service
     const cachedOrgBranches = allBranches.filter((b) => b.orgId === nextOrg.id);
     const initialBranch =
       cachedOrgBranches.find((b) => b.name === storeCode) || cachedOrgBranches[0] || null;
@@ -354,7 +452,7 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
     }
 
     try {
-      const freshBranches = await getBranches(nextOrg.id);
+      const freshBranches = await getBranchesByOrg(nextOrg.id);
       setAllBranches((prev) => {
         const others = prev.filter((b) => b.orgId !== nextOrg.id);
         return [...others, ...freshBranches];
@@ -363,7 +461,7 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
         freshBranches.find((b) => b.name === nextBranchName) || freshBranches[0] || null;
       if (resolvedBranch) {
         setStoreCode(resolvedBranch.name);
-        const freshTerminals = await getTerminals(resolvedBranch.id);
+        const freshTerminals = await getTerminalsByBranch(resolvedBranch.id, nextOrg.id);
         setAllTerminals((prev) => {
           const others = prev.filter((t) => t.branchId !== resolvedBranch.id);
           return [...others, ...freshTerminals];
@@ -406,7 +504,7 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
     setRegisterId(initialTerminal ? initialTerminal.code : '');
 
     try {
-      const freshTerminals = await getTerminals(nextBranch.id);
+      const freshTerminals = await getTerminalsByBranch(nextBranch.id, selectedOrganization.id);
       setAllTerminals((prev) => {
         const others = prev.filter((t) => t.branchId !== nextBranch.id);
         return [...others, ...freshTerminals];
@@ -420,7 +518,7 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
   };
 
   return (
-    <div className="space-y-5 mb-6" data-testid="organization-selection">
+    <div className="space-y-4 mb-6" data-testid="organization-selection">
       {/* Reactive Terminal Readiness & AuthContext Operational Scope Banner */}
       <div
         role="status"
@@ -431,14 +529,43 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
             : 'border-amber-200 bg-amber-50/70 text-amber-900'
         }`}
       >
-        <div className="flex items-center gap-2.5 text-xs font-bold">
-          {terminalReady ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          ) : (
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-          )}
-          <span>{terminalReady ? copy.validationReady : copy.validationPending}</span>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2.5 text-xs font-bold">
+            {terminalReady ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            )}
+            <span>{terminalReady ? copy.validationReady : copy.validationPending}</span>
+          </div>
+
+          {/* Data Source & Latency Badge */}
+          <div className="flex items-center gap-1.5">
+            <span
+              data-testid="catalog-source-badge"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${
+                isDegraded
+                  ? 'bg-amber-100/90 border-amber-300 text-amber-900'
+                  : 'bg-emerald-100/80 border-emerald-300 text-emerald-800'
+              }`}
+            >
+              {isDegraded ? (
+                <HardDrive className="w-3 h-3 text-amber-700" />
+              ) : (
+                <Database className="w-3 h-3 text-emerald-700" />
+              )}
+              <span>
+                {catalogSource === 'firestore'
+                  ? copy.sourceFirestore
+                  : catalogSource === 'localStorage'
+                  ? copy.sourceLocalStorage
+                  : copy.sourceDefaults}
+              </span>
+              {latencyMs > 0 && <span className="font-mono opacity-75">({latencyMs}ms)</span>}
+            </span>
+          </div>
         </div>
+
         <div className="mt-2.5 grid grid-cols-3 gap-2">
           {[
             {
@@ -478,19 +605,72 @@ export const OrganizationSelection: React.FC<OrganizationSelectionProps> = ({
         </div>
       </div>
 
+      {/* Degraded / Connection Timeout Fallback Alert Banner */}
+      {isDegraded && (
+        <div
+          role="alert"
+          data-testid="firestore-fallback-alert"
+          className="rounded-xl border border-amber-300 bg-amber-50/90 p-3.5 text-amber-950 space-y-1.5"
+        >
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 text-xs font-black">
+              <WifiOff className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>{copy.timeoutBannerTitle}</span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] font-mono text-amber-800">
+              {fallbackReason && (
+                <span className="px-2 py-0.5 rounded bg-amber-200/70 font-bold uppercase">
+                  {isTimedOut ? 'TIMEOUT' : fallbackReason}
+                </span>
+              )}
+              {cachedAt && (
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Cache: {new Date(cachedAt).toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+          </div>
+          <p className="text-[11px] font-medium text-amber-800 leading-relaxed">
+            {copy.timeoutBannerDesc}
+          </p>
+          {fallbackErrorMsg && (
+            <p className="text-[10px] font-mono text-amber-700/90 truncate">
+              Diagnostic: {fallbackErrorMsg}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Mandatory Firestore-Backed Dropdowns for Organization, Branch, and Terminal */}
       <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5 space-y-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
             {copy.terminal}
           </h3>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {isFetching && (
               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 Firestore Sync…
               </span>
             )}
+            <button
+              type="button"
+              data-testid="simulate-firestore-timeout-btn"
+              onClick={() => void handleToggleSimulateTimeout()}
+              disabled={isFetching}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 border rounded-lg text-[10px] font-black transition-all disabled:opacity-50 ${
+                simulateTimeoutMode
+                  ? 'bg-amber-100 border-amber-400 text-amber-900 hover:bg-amber-200'
+                  : 'bg-white border-slate-200 text-slate-600 hover:border-amber-400 hover:text-amber-800'
+              }`}
+            >
+              <WifiOff className="w-3 h-3" />
+              <span>
+                {simulateTimeoutMode ? copy.restoreOnlineBtn : copy.simulateTimeoutBtn}
+              </span>
+            </button>
             <button
               type="button"
               onClick={() => void loadFirestoreCatalog()}

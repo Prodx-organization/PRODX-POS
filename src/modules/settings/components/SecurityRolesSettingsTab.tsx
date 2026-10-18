@@ -30,6 +30,7 @@ import { StaffManagementSection } from './StaffManagementSection';
 import { PermissionMatrixSection } from './PermissionMatrixSection';
 import { PermissionSetsManagement } from './PermissionSetsManagement';
 import { UserToRoleAssignmentTable } from './UserToRoleAssignmentTable';
+import { ManageRegisteredDevicesSection } from './ManageRegisteredDevicesSection';
 
 export interface SecurityRolesSettingsTabProps {
   policies: SecurityPoliciesState;
@@ -38,14 +39,22 @@ export interface SecurityRolesSettingsTabProps {
     value: SecurityPoliciesState[K]
   ) => void;
   defaultSubTab?: SubTab;
+  onOpenAdminPasswordReset?: () => void;
 }
 
-type SubTab = 'role_assignment' | 'staff' | 'matrix' | 'permission_sets' | 'governance';
+type SubTab =
+  | 'role_assignment'
+  | 'staff'
+  | 'matrix'
+  | 'permission_sets'
+  | 'governance'
+  | 'registered_devices';
 
 export const SecurityRolesSettingsTab: React.FC<SecurityRolesSettingsTabProps> = ({
   policies,
   onChangePolicy,
   defaultSubTab = 'role_assignment',
+  onOpenAdminPasswordReset,
 }) => {
   const { language } = useLanguage();
   const { session, inactivityTimeoutMinutes, setInactivityTimeoutMinutes, lockSystem } = useAuth();
@@ -100,6 +109,14 @@ export const SecurityRolesSettingsTab: React.FC<SecurityRolesSettingsTabProps> =
             descTh: 'พักหน้าจออัตโนมัติ, ผู้จัดการอนุมัติคำสั่ง',
             descEn: 'Auto-lock & supervisor PIN',
             icon: Lock,
+          },
+          {
+            id: 'registered_devices' as SubTab,
+            labelTh: 'จัดการอุปกรณ์ที่ลงทะเบียน (WebAuthn)',
+            labelEn: 'Manage Registered Devices',
+            descTh: 'เปลี่ยนชื่อหรือเพิกถอนคีย์ WebAuthn เมื่ออุปกรณ์สูญหาย',
+            descEn: 'Rename or revoke WebAuthn biometric keys',
+            icon: Fingerprint,
           },
         ].map((tab) => {
           const isSelected = activeSubTab === tab.id;
@@ -175,16 +192,32 @@ export const SecurityRolesSettingsTab: React.FC<SecurityRolesSettingsTabProps> =
                   </p>
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                onClick={() => setIsPinModalOpen(true)}
-                className="rounded-lg font-bold text-xs"
-                leftIcon={<KeyRound className="h-3.5 w-3.5" />}
-              >
-                {language === 'th' ? 'เปลี่ยนรหัส PIN ส่วนตัว' : 'Change Personal PIN'}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {session.currentUser.role === 'admin' && onOpenAdminPasswordReset && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={onOpenAdminPasswordReset}
+                    className="rounded-lg font-bold text-xs border-primary/40 text-primary hover:bg-primary/10"
+                    leftIcon={<ShieldCheck className="h-3.5 w-3.5 text-primary" />}
+                  >
+                    {language === 'th'
+                      ? 'รีเซ็ตรหัสผ่าน Admin (System Owner)'
+                      : 'Reset Admin Password'}
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setIsPinModalOpen(true)}
+                  className="rounded-lg font-bold text-xs"
+                  leftIcon={<KeyRound className="h-3.5 w-3.5" />}
+                >
+                  {language === 'th' ? 'เปลี่ยนรหัส PIN ส่วนตัว' : 'Change Personal PIN'}
+                </Button>
+              </div>
             </CardHeader>
 
             <CardBody className="p-5 space-y-4">
@@ -484,8 +517,14 @@ export const SecurityRolesSettingsTab: React.FC<SecurityRolesSettingsTabProps> =
               </div>
             </CardBody>
           </Card>
+
+          {/* Manage Registered Devices (WebAuthn / Passkeys) */}
+          <ManageRegisteredDevicesSection />
         </div>
       )}
+
+      {/* SubTab 5: Dedicated Manage Registered Devices View */}
+      {activeSubTab === 'registered_devices' && <ManageRegisteredDevicesSection />}
 
       {/* Change PIN Modal */}
       {isPinModalOpen && (
@@ -494,3 +533,4 @@ export const SecurityRolesSettingsTab: React.FC<SecurityRolesSettingsTabProps> =
     </div>
   );
 };
+

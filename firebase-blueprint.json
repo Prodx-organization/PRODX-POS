@@ -104,6 +104,39 @@
         "flushedAt": { "type": "number" }
       },
       "required": ["id", "batchId", "category", "level", "event", "message", "timestamp", "flushedAt"]
+    },
+    "AppErrorLog": {
+      "title": "AppErrorLog",
+      "description": "Client-side catch-all error logs synced for remote diagnosis",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 200 },
+        "message": { "type": "string", "maxLength": 1000 },
+        "module": { "type": "string", "maxLength": 64 },
+        "errorStack": { "type": "string", "maxLength": 2000 },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "type", "message", "timestamp"]
+    },
+    "AdminCredential": {
+      "title": "AdminCredential",
+      "description": "System owner administrator credential record with SHA-256 password digest and audit metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "minLength": 3, "maxLength": 120 },
+        "passwordHash": { "type": "string", "minLength": 16, "maxLength": 256 },
+        "passwordSalt": { "type": "string", "minLength": 8, "maxLength": 128 },
+        "isSystemOwner": { "type": "boolean" },
+        "updatedBy": { "type": "string", "maxLength": 120 },
+        "reauthMethod": { "type": "string", "enum": ["password", "webauthn_biometric"] },
+        "version": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "email", "passwordHash", "isSystemOwner", "updatedAt"]
     }
   },
   "firestore": {
@@ -126,6 +159,14 @@
     "/diagnostic_logs/{logId}": {
       "schema": { "$ref": "DiagnosticLog" },
       "description": "Batch-uploaded hardware and infrastructure diagnostic log events"
+    },
+    "/AppErrorLog/{logId}": {
+      "schema": { "$ref": "AppErrorLog" },
+      "description": "Client-side catch-all error logs for remote diagnosis"
+    },
+    "/admin_credentials/{adminId}": {
+      "schema": { "$ref": "AdminCredential" },
+      "description": "System owner administrator credentials collection"
     }
   }
 }

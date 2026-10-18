@@ -17,6 +17,8 @@ import React, {
   Component,
   ErrorInfo,
 } from 'react';
+import { db } from '../lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 export type CriticalFailureType =
   | 'API_TIMEOUT'
@@ -451,6 +453,24 @@ export const GlobalErrorRecoveryProvider: React.FC<{ children: ReactNode }> = ({
       };
 
       console.warn(`[GlobalErrorRecovery] Critical failure intercepted [${input.type} in ${newFailure.module}]:`, input.message);
+
+      // Sync to Firestore AppErrorLog collection for remote diagnosis
+      void (async () => {
+        try {
+          const docRef = doc(db, 'AppErrorLog', id);
+          await setDoc(docRef, {
+            id,
+            type: input.type,
+            title: input.title,
+            message: input.message,
+            module: newFailure.module,
+            errorStack: errorStack || null,
+            timestamp: Date.now(),
+          });
+        } catch (e) {
+          console.warn('[GlobalErrorRecovery] Failed to sync error log to Firestore:', e);
+        }
+      })();
 
       setActiveFailures((prev) => {
         // Prevent duplicate failure of same type and module within 5s

@@ -13,6 +13,7 @@ export type SettingsTabId =
   | 'appearance'
   | 'hardware'
   | 'tax_accounting'
+  | 'admin_security'
   | 'security_roles'
   | 'role_management'
   | 'role_assignment'

@@ -213,6 +213,15 @@ export const SETTINGS_TAB_RBAC_POLICY: Record<SettingsTabId, SettingsTabRbacRule
     titleEn: '100% Enterprise System Modules Control',
     titleTh: 'ควบคุมการเปิด/ปิดโมดูลทั้งองค์กร (Admin Only)',
   },
+  admin_security: {
+    tabId: 'admin_security',
+    scopeTier: 'organization_admin',
+    allowedRoles: ['admin'],
+    requiredPermissions: ['rbac:manage'],
+    isOrganizationLevel: true,
+    titleEn: 'Admin Security & System Owner Credential Vault',
+    titleTh: 'ความปลอดภัยผู้ดูแลระบบและเปลี่ยนรหัสผ่านเจ้าของระบบ (Admin Security)',
+  },
   security_roles: {
     tabId: 'security_roles',
     scopeTier: 'organization_admin',

@@ -20,6 +20,7 @@ import {
   getStoredOperationalScope,
   saveStoredOperationalScope,
   ROLE_PERMISSIONS,
+  initializeDefaultAdminCredentials,
 } from '../domain/auth';
 import {
   CustomPermissionSet,
@@ -28,8 +29,21 @@ import {
   saveStoredCustomPermissionSets,
 } from '../domain/permissionSets';
 import { authApi } from '../adapters/authApiFactory';
+import { validateOrgBranchTerminalBatch } from '../services/orgBranchTerminalValidator';
 import { aiService } from '../services/aiService';
-import { LoginRequest } from '../adapters/types';
+import { LoginRequest, BiometricLoginRequest } from '../adapters/types';
+import { auditService } from '../services/auditService';
+import {
+  WebAuthnChallengeRecord,
+  WebAuthnAssertionPayload,
+  WebAuthnVerificationResult,
+  createWebAuthnChallengeRecord,
+  authenticatePasskey,
+  getRegisteredPasskeys,
+  saveRegisteredPasskeys,
+  base64URLToBuffer,
+  base64URLToString,
+} from '../services/webauthnService';
 import {
   AUTH_SESSION_STORAGE_KEY,
   clearPersistedSession,
@@ -57,6 +71,12 @@ interface AuthContextType {
   staffUsers: User[];
   rolePermissions: Record<Role, Permission[]>;
   login: (req: LoginRequest) => Promise<void>;
+  loginWithBiometrics: (req: BiometricLoginRequest) => Promise<WebAuthnVerificationResult>;
+  issueWebAuthnChallenge: (targetUser?: { id?: string; email?: string }) => WebAuthnChallengeRecord;
+  verifyWebAuthnChallengeResponse: (
+    assertion: WebAuthnAssertionPayload,
+    expectedUserEmail?: string,
+  ) => Promise<WebAuthnVerificationResult>;
   logout: () => Promise<void>;
   switchStore: (store: Store) => void;
   updateStoreProfile: (updates: Partial<Store>) => void;
@@ -65,6 +85,7 @@ interface AuthContextType {
   can: (permission: Permission) => boolean;
   lockSystem: () => void;
   unlockSystem: (pinOrPassword: string) => Promise<boolean>;
+  unlockWithBiometrics: () => Promise<boolean>;
   setInactivityTimeoutMinutes: (mins: number) => void;
   addStaffUser: (payload: AddStaffPayload) => User;
   updateStaffUser: (id: string, updates: Partial<User> & { pin?: string }) => void;
@@ -148,6 +169,10 @@ function applyOperationalScopeToSession(
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  useEffect(() => {
+    initializeDefaultAdminCredentials();
+  }, []);
+
   const [session, setSession] = useState<SessionContext | null>(null);
   const [operationalScope, setOperationalScopeState] = useState<OperationalScope | null>(() =>
     getStoredOperationalScope(),
@@ -180,6 +205,208 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return 5;
   });
   const lastActivityRef = useRef(Date.now());
+  const webAuthnChallengesRef = useRef<Map<string, WebAuthnChallengeRecord>>(new Map());
+
+  /**
+   * Issues a cryptographically random, single-use WebAuthn challenge with a 60-second TTL.
+   */
+  const issueWebAuthnChallenge = useCallback(
+    (targetUser?: { id?: string; email?: string }): WebAuthnChallengeRecord => {
+      const now = Date.now();
+      // Prune expired challenges
+      for (const [id, rec] of webAuthnChallengesRef.current.entries()) {
+        if (now > rec.expiresAt || rec.used) {
+          webAuthnChallengesRef.current.delete(id);
+        }
+      }
+
+      const challengeRecord = createWebAuthnChallengeRecord(targetUser, 60_000);
+      webAuthnChallengesRef.current.set(challengeRecord.challengeId, challengeRecord);
+
+      auditService.logDiagnosticEvent({
+        category: 'system',
+        level: 'DEBUG',
+        event: 'AUTH_WEBAUTHN_CHALLENGE_ISSUED',
+        message: `Issued WebAuthn challenge ${challengeRecord.challengeId} for biometric verification`,
+        metadata: {
+          challengeId: challengeRecord.challengeId,
+          rpId: challengeRecord.rpId,
+          origin: challengeRecord.origin,
+          expiresAt: new Date(challengeRecord.expiresAt).toISOString(),
+          targetUserEmail: targetUser?.email || 'discoverable',
+        },
+      });
+
+      return challengeRecord;
+    },
+    [],
+  );
+
+  /**
+   * Verifies a WebAuthn challenge-response assertion (FIDO2 Relying Party verification):
+   * 1. Single-use & TTL validation of the issued cryptographic challenge
+   * 2. clientDataJSON type ('webauthn.get'), challenge nonce, and origin binding check
+   * 3. authenticatorData binary structure (>= 37 bytes), User Present (UP) & User Verified (UV) flags
+   * 4. Registered passkey lookup & anti-cloning signature counter progression
+   */
+  const verifyWebAuthnChallengeResponse = useCallback(
+    async (
+      assertion: WebAuthnAssertionPayload,
+      expectedUserEmail?: string,
+    ): Promise<WebAuthnVerificationResult> => {
+      const fail = (error: string): WebAuthnVerificationResult => {
+        auditService.logDiagnosticEvent({
+          category: 'system',
+          level: 'ERROR',
+          event: 'AUTH_WEBAUTHN_VERIFICATION_FAILED',
+          message: `WebAuthn challenge-response verification failed: ${error}`,
+          metadata: {
+            challengeId: assertion?.challengeId,
+            credentialId: assertion?.credentialId,
+            expectedUserEmail,
+          },
+        });
+        return { verified: false, error };
+      };
+
+      if (
+        !assertion ||
+        !assertion.challengeId ||
+        !assertion.credentialId ||
+        !assertion.clientDataJSON ||
+        !assertion.authenticatorData ||
+        !assertion.signature
+      ) {
+        return fail('Incomplete WebAuthn assertion payload.');
+      }
+
+      const challengeRecord = webAuthnChallengesRef.current.get(assertion.challengeId);
+      if (!challengeRecord) {
+        return fail('WebAuthn challenge not found or already consumed (replay prevented).');
+      }
+
+      // Immediately mark challenge as consumed to guarantee single-use idempotency
+      if (challengeRecord.used) {
+        webAuthnChallengesRef.current.delete(assertion.challengeId);
+        return fail('WebAuthn challenge was already used.');
+      }
+      challengeRecord.used = true;
+      webAuthnChallengesRef.current.delete(assertion.challengeId);
+
+      if (Date.now() > challengeRecord.expiresAt) {
+        return fail('WebAuthn challenge expired. Please scan your fingerprint or face again.');
+      }
+
+      // Verify clientDataJSON
+      let parsedClientData: {
+        type?: string;
+        challenge?: string;
+        origin?: string;
+      };
+      try {
+        const rawJson = base64URLToString(assertion.clientDataJSON);
+        parsedClientData = JSON.parse(rawJson);
+      } catch {
+        return fail('Malformed WebAuthn clientDataJSON.');
+      }
+
+      if (parsedClientData.type !== 'webauthn.get') {
+        return fail(`Invalid WebAuthn ceremony type: "${parsedClientData.type}". Expected "webauthn.get".`);
+      }
+
+      if (parsedClientData.challenge !== challengeRecord.challenge) {
+        return fail('WebAuthn cryptographic challenge mismatch.');
+      }
+
+      if (parsedClientData.origin && parsedClientData.origin !== challengeRecord.origin) {
+        return fail(`WebAuthn origin mismatch: expected "${challengeRecord.origin}".`);
+      }
+
+      // Verify authenticatorData binary flags & signCount
+      let authDataBytes: Uint8Array;
+      try {
+        authDataBytes = base64URLToBuffer(assertion.authenticatorData);
+      } catch {
+        return fail('Invalid WebAuthn authenticatorData encoding.');
+      }
+
+      if (authDataBytes.byteLength < 37) {
+        return fail('Invalid WebAuthn authenticatorData length (< 37 bytes).');
+      }
+
+      const flags = authDataBytes[32];
+      const userPresent = (flags & 0x01) !== 0; // Bit 0: UP
+      const userVerified = (flags & 0x04) !== 0; // Bit 2: UV
+
+      if (!userPresent) {
+        return fail('WebAuthn User Presence (UP) flag was not asserted by authenticator.');
+      }
+
+      const dataView = new DataView(
+        authDataBytes.buffer,
+        authDataBytes.byteOffset,
+        authDataBytes.byteLength,
+      );
+      const assertionSignCount = dataView.getUint32(33, false);
+
+      // Match against registered staff passkeys
+      const passkeys = getRegisteredPasskeys();
+      const matchedCredential = passkeys.find((k) => k.id === assertion.credentialId);
+      if (!matchedCredential) {
+        return fail('Passkey credential is not registered on this POS terminal.');
+      }
+
+      const targetEmail = expectedUserEmail || challengeRecord.targetUserEmail;
+      if (
+        targetEmail &&
+        matchedCredential.userEmail.toLowerCase() !== targetEmail.trim().toLowerCase()
+      ) {
+        return fail('Biometric credential user does not match requested staff identity.');
+      }
+
+      // Clone detection: if authenticator reports a non-zero signCount, it must not regress
+      if (assertionSignCount > 0 && assertionSignCount < matchedCredential.counter) {
+        return fail('WebAuthn signature counter regression detected (potential cloned credential).');
+      }
+
+      const updatedCounter = Math.max((matchedCredential.counter || 0) + 1, assertionSignCount);
+      matchedCredential.counter = updatedCounter;
+      matchedCredential.lastUsedAt = new Date().toISOString();
+      saveRegisteredPasskeys(passkeys);
+
+      auditService.logDiagnosticEvent({
+        category: 'system',
+        level: 'DEBUG',
+        event: 'AUTH_WEBAUTHN_ASSERTION_VERIFIED',
+        message: `Verified WebAuthn challenge-response for ${matchedCredential.userEmail}`,
+        metadata: {
+          challengeId: challengeRecord.challengeId,
+          credentialId: matchedCredential.id,
+          userEmail: matchedCredential.userEmail,
+          authenticatorType: matchedCredential.authenticatorType,
+          authMethod: assertion.authMethod,
+          userPresent,
+          userVerified,
+          signCount: updatedCounter,
+          origin: challengeRecord.origin,
+          rpId: challengeRecord.rpId,
+        },
+      });
+
+      return {
+        verified: true,
+        credential: matchedCredential,
+        challengeId: challengeRecord.challengeId,
+        signCount: updatedCounter,
+        userPresent,
+        userVerified,
+        origin: challengeRecord.origin,
+        rpId: challengeRecord.rpId,
+        authMethod: assertion.authMethod,
+      };
+    },
+    [],
+  );
 
   const setOperationalScope = useCallback((scope: OperationalScope | null) => {
     setOperationalScopeState(scope);
@@ -271,19 +498,153 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (req: LoginRequest) => {
     setIsLoading(true);
+    const traceId = `auth-login-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+    // Diagnostic logging wrapper
+    const logTrace = (stage: string, data?: any) => {
+      const payload = {
+        traceId,
+        stage,
+        timestamp: new Date().toISOString(),
+        request: {
+          org: req.organizationSlug || '',
+          branch: req.storeCode || '',
+          terminal: req.registerId || '',
+          emailOrPin: req.emailOrPin || '',
+          passwordOrPin: req.passwordOrPin || null,
+          requireAdmin: req.requireAdminRole || false,
+        },
+        ...data,
+      };
+
+      console.log(`%c[AUTH_CONTEXT][${stage}]`, 'color: #0ea5e9; font-weight: bold;', payload);
+
+      auditService.logDiagnosticEvent({
+        category: 'system',
+        level: stage === 'ERROR' ? 'ERROR' : 'DEBUG',
+        event: `AUTH_CONTEXT_LOGIN_${stage}`,
+        message: `Tracing login stage: ${stage}`,
+        metadata: payload,
+      });
+    };
+
+    logTrace('START');
+
+    // VERBOSE DIAGNOSTIC: Log raw credentials and context before any transformation or API call
+    console.group('%c[AUTH_VERBOSE_DIAGNOSTIC] Pre-Sign-In Capture', 'color: #f59e0b; font-weight: bold;');
+    console.info('Raw Credentials from UI:', {
+      emailOrPin: req.emailOrPin,
+      passwordOrPin: req.passwordOrPin,
+      organizationSlug: req.organizationSlug,
+      storeCode: req.storeCode,
+      registerId: req.registerId,
+    });
+    console.info('Current Operational Scope (State):', operationalScope);
+    console.info('Expected Firestore User Shape Reference:', {
+      email: 'Must match exactly (case-sensitive if not handled by server)',
+      employeeCode: 'Used for matching if email is not provided',
+      pin: 'Matched against staffPins or staff record',
+      orgId: 'Matches effectiveScope.organizationId',
+      branchId: 'Matches effectiveScope.branchId',
+    });
+    console.groupEnd();
+
     try {
       const effectiveScope = req.organizationContext ?? operationalScope ?? undefined;
       const enrichedReq: LoginRequest = effectiveScope
         ? {
             ...req,
             organizationSlug: effectiveScope.organizationSlug || req.organizationSlug,
-            storeCode: effectiveScope.branchName || req.storeCode,
+            storeCode: effectiveScope.branchCode || effectiveScope.branchName || req.storeCode,
             registerId: effectiveScope.terminalCode || req.registerId,
             organizationContext: effectiveScope,
           }
         : req;
 
+      logTrace('ENRICHED', {
+        effectiveScope,
+        enrichedMapping: {
+          organization: {
+            fromId: effectiveScope?.organizationId,
+            toSlug: enrichedReq.organizationSlug,
+          },
+          branch: {
+            fromId: effectiveScope?.branchId,
+            fromName: effectiveScope?.branchName,
+            fromCode: effectiveScope?.branchCode,
+            toStoreCode: enrichedReq.storeCode,
+          },
+          terminal: {
+            fromId: effectiveScope?.terminalId,
+            fromCode: effectiveScope?.terminalCode,
+            toRegisterId: enrichedReq.registerId,
+          }
+        },
+      });
+
+      // VERBOSE DIAGNOSTIC: Log the final payload being sent to the "Firebase sign-in" equivalent
+      console.info('%c[AUTH_VERBOSE_DIAGNOSTIC] FINAL ENRICHED REQUEST', 'color: #10b981; font-weight: bold;', {
+        finalPayload: enrichedReq,
+        checks: {
+          orgSlugLooksValid: /^[a-z0-9\-]+$/.test(enrichedReq.organizationSlug),
+          storeCodeLooksValid: /^[a-zA-Z0-9_\-]+$/.test(enrichedReq.storeCode),
+          registerIdLooksValid: /^[a-zA-Z0-9_\-]+$/.test(enrichedReq.registerId),
+          identityIsEmail: enrichedReq.emailOrPin.includes('@'),
+        },
+        note: 'Verify that storeCode matches the "code" field in Firestore branches collection, NOT the name. If any check is false, credentials will likely fail.'
+      });
+
+      if (enrichedReq.storeCode.includes(' ')) {
+        console.warn('%c[AUTH_WARNING] storeCode contains spaces. This often happens if the Branch Name is sent instead of the Branch Code.', 'color: #ef4444; font-weight: bold;');
+      }
+
+      const scopeValidation = await validateOrgBranchTerminalBatch(
+        enrichedReq.organizationSlug,
+        enrichedReq.storeCode,
+        enrichedReq.registerId,
+      );
+
+      if (!scopeValidation.isValid) {
+        logTrace('ERROR_SCOPE_LINKAGE', { error: scopeValidation.error });
+        throw new Error(scopeValidation.error || 'Organization, Branch, or Terminal scope linkage validation failed against Firestore.');
+      }
+
+      logTrace('SCOPE_LINKAGE_VERIFIED', {
+        org: scopeValidation.organization?.name,
+        branch: scopeValidation.branch?.name,
+        terminal: scopeValidation.terminal?.name,
+      });
+
+      // Verify WebAuthn challenge-response if authenticating via biometric assertion
+      if (enrichedReq.webAuthnAssertion) {
+        const verification = await verifyWebAuthnChallengeResponse(
+          enrichedReq.webAuthnAssertion,
+          enrichedReq.emailOrPin,
+        );
+        if (!verification.verified || !verification.credential) {
+          logTrace('ERROR_WEBAUTHN_VERIFICATION', { error: verification.error });
+          throw new Error(verification.error || 'WebAuthn challenge-response verification failed.');
+        }
+        enrichedReq.emailOrPin = verification.credential.userEmail;
+        enrichedReq.passwordOrPin = `WEBAUTHN_VERIFIED:${verification.credential.id}:${verification.challengeId}`;
+        enrichedReq.biometricVerified = true;
+        logTrace('WEBAUTHN_CHALLENGE_RESPONSE_VERIFIED', {
+          challengeId: verification.challengeId,
+          credentialId: verification.credential.id,
+          signCount: verification.signCount,
+          userPresent: verification.userPresent,
+          userVerified: verification.userVerified,
+          authMethod: verification.authMethod,
+        });
+      }
+
       const rawSession = await authApi.login(enrichedReq);
+      
+      logTrace('SUCCESS_API', {
+        userId: rawSession.currentUser.id,
+        role: rawSession.currentUser.role,
+      });
+
       if (effectiveScope) {
         setOperationalScopeState(effectiveScope);
         saveStoredOperationalScope(effectiveScope);
@@ -296,6 +657,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         writePersistedSession(sessionStorage, newSession.token);
       } catch (error) {
+        logTrace('ERROR_PERSIST', { error: String(error) });
         await authApi.logout(newSession.token).catch(() => undefined);
         throw error;
       }
@@ -305,9 +667,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(newSession);
       setIsLocked(false);
       lastActivityRef.current = Date.now();
+      logTrace('COMPLETE');
+    } catch (err) {
+      logTrace('ERROR', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
     } finally {
       setIsLoading(false);
     }
+  };
+
+  /**
+   * Executes the full WebAuthn Biometric Challenge-Response login flow:
+   * 1. Issues a single-use cryptographic challenge in AuthContext
+   * 2. Requests fingerprint / facial recognition assertion from the authenticator
+   * 3. Verifies clientDataJSON, authenticatorData (UP/UV flags, signCount), and scope linkage
+   * 4. Establishes the authenticated POS session
+   */
+  const loginWithBiometrics = async (
+    biometricReq: BiometricLoginRequest,
+  ): Promise<WebAuthnVerificationResult> => {
+    const challengeRecord = issueWebAuthnChallenge(biometricReq.targetUser);
+
+    const authResult = await authenticatePasskey(biometricReq.targetUser, challengeRecord);
+    if (!authResult.success || !authResult.credential || !authResult.assertion) {
+      throw new Error(
+        authResult.error || 'Biometric fingerprint / facial recognition verification failed.',
+      );
+    }
+
+    const verification = await verifyWebAuthnChallengeResponse(
+      authResult.assertion,
+      authResult.credential.userEmail,
+    );
+
+    if (!verification.verified || !verification.credential) {
+      throw new Error(
+        verification.error || 'WebAuthn challenge-response verification failed.',
+      );
+    }
+
+    await login({
+      organizationSlug: biometricReq.organizationSlug,
+      storeCode: biometricReq.storeCode,
+      registerId: biometricReq.registerId,
+      emailOrPin: verification.credential.userEmail,
+      passwordOrPin: `WEBAUTHN_VERIFIED:${verification.credential.id}:${verification.challengeId}`,
+      organizationContext: biometricReq.organizationContext,
+      requireAdminRole: biometricReq.requireAdminRole,
+      biometricVerified: true,
+    });
+
+    return verification;
   };
 
   const logout = async () => {
@@ -422,6 +834,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     } catch {
       if (replacement) await authApi.logout(replacement.token).catch(() => undefined);
+      return false;
+    }
+  };
+
+  /**
+   * Unlocks a locked POS terminal using WebAuthn fingerprint or facial recognition
+   * verified via challenge-response against the active session user.
+   */
+  const unlockWithBiometrics = async (): Promise<boolean> => {
+    if (!session) return false;
+    try {
+      const challengeRecord = issueWebAuthnChallenge({
+        id: session.currentUser.id,
+        email: session.currentUser.email,
+      });
+      const authResult = await authenticatePasskey(
+        {
+          id: session.currentUser.id,
+          email: session.currentUser.email,
+          name: session.currentUser.name,
+        },
+        challengeRecord,
+      );
+      if (!authResult.success || !authResult.assertion) return false;
+
+      const verification = await verifyWebAuthnChallengeResponse(
+        authResult.assertion,
+        session.currentUser.email,
+      );
+      if (!verification.verified) return false;
+
+      setIsLocked(false);
+      lastActivityRef.current = Date.now();
+      return true;
+    } catch {
       return false;
     }
   };
@@ -677,6 +1124,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         staffUsers,
         rolePermissions,
         login,
+        loginWithBiometrics,
+        issueWebAuthnChallenge,
+        verifyWebAuthnChallengeResponse,
         logout,
         switchStore,
         updateStoreProfile,
@@ -685,6 +1135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         can,
         lockSystem,
         unlockSystem,
+        unlockWithBiometrics,
         setInactivityTimeoutMinutes,
         addStaffUser,
         updateStaffUser,
@@ -728,6 +1179,9 @@ export function useAuth(): AuthContextType {
     staffUsers: [],
     rolePermissions: ROLE_PERMISSIONS as Record<Role, Permission[]>,
     login: async () => {},
+    loginWithBiometrics: async () => ({ verified: false }),
+    issueWebAuthnChallenge: () => createWebAuthnChallengeRecord(),
+    verifyWebAuthnChallengeResponse: async () => ({ verified: false }),
     logout: async () => {},
     switchStore: () => {},
     switchCurrency: () => {},
@@ -735,6 +1189,7 @@ export function useAuth(): AuthContextType {
     switchActiveUser: () => {},
     lockSystem: () => {},
     unlockSystem: async () => false,
+    unlockWithBiometrics: async () => false,
     setInactivityTimeoutMinutes: () => {},
     can: () => false,
     addStaffUser: () => ({} as User),

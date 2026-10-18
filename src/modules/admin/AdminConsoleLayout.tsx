@@ -18,7 +18,9 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { ProdxVectorMark } from '../../components/common/ProdxLogo';
+import { AdminSyncStatusIndicator } from '../../components/admin/AdminSyncStatusIndicator';
 import { AdminLoginScreen } from './AdminLoginScreen';
+import { useAdminInactivityTimeout } from '../../hooks/useAdminInactivityTimeout';
 
 export type AdminConsoleSection =
   | 'overview'
@@ -45,6 +47,9 @@ export const AdminConsoleLayout: React.FC<AdminConsoleLayoutProps> = ({
   const { session, logout } = useAuth();
   const { language, setLanguage } = useLanguage();
   const isThai = language === 'th';
+
+  // 15 minutes inactivity timeout for admin session security
+  useAdminInactivityTimeout({ timeoutMinutes: 15, warningMinutes: 14 });
 
   const handleReturnToPos = () => {
     if (onExitAdminMode) {
@@ -195,20 +200,20 @@ export const AdminConsoleLayout: React.FC<AdminConsoleLayoutProps> = ({
   return (
     <div className="min-h-[100svh] bg-slate-100 text-slate-900 flex flex-col font-sans">
       {/* Top Executive Admin Header */}
-      <header className="sticky top-0 z-30 h-16 bg-slate-950 text-white border-b border-slate-800 px-4 sm:px-8 flex items-center justify-between">
-        <div className="flex items-center gap-3.5">
-          <ProdxVectorMark size={40} className="shadow-lg shadow-[#ff6b1a]/15 rounded-xl" />
-          <div>
+      <header className="sticky top-0 z-30 h-14 sm:h-16 bg-slate-950 text-white border-b border-slate-800 px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+          <ProdxVectorMark size={36} className="shadow-lg shadow-[#ff6b1a]/15 rounded-xl shrink-0" />
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-black tracking-tight text-base sm:text-lg">
+              <span className="font-black tracking-tight text-sm sm:text-base lg:text-lg truncate">
                 PRODX <span className="text-[#ff6b1a]">ADMIN CONSOLE</span>
               </span>
-              <span className="hidden md:inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-300">
+              <span className="hidden md:inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-300 shrink-0">
                 <ShieldCheck className="h-3 w-3" />
                 RBAC: ADMIN VERIFIED
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 hidden sm:block">
+            <p className="text-[11px] text-slate-400 hidden sm:block truncate">
               {isThai
                 ? 'ระบบบริหารจัดการระดับองค์กร (แยกจากหน้าจอขาย POS มาตรฐาน)'
                 : 'Enterprise Administration & Full Configuration Console · Isolated from POS Navigation'}
@@ -216,9 +221,12 @@ export const AdminConsoleLayout: React.FC<AdminConsoleLayoutProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          {/* Live Firestore Write Queue & Synchronization Conflict Indicator */}
+          <AdminSyncStatusIndicator variant="header" />
+
           {/* Active Admin Identity Badge */}
-          <div className="hidden lg:flex items-center gap-2.5 rounded-xl bg-slate-900 border border-slate-800 px-3 py-1.5">
+          <div className="hidden xl:flex items-center gap-2.5 rounded-xl bg-slate-900 border border-slate-800 px-3 py-1.5">
             <UserCheck className="h-4 w-4 text-emerald-400" />
             <div className="text-xs">
               <div className="font-bold text-white leading-none">{currentUser.name}</div>
@@ -232,7 +240,7 @@ export const AdminConsoleLayout: React.FC<AdminConsoleLayoutProps> = ({
           <button
             type="button"
             onClick={() => setLanguage(isThai ? 'en' : 'th')}
-            className="h-9 px-3 rounded-xl border border-slate-800 bg-slate-900 hover:bg-slate-800 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-colors"
+            className="min-h-[38px] sm:h-9 px-2.5 sm:px-3 rounded-xl border border-slate-800 bg-slate-900 hover:bg-slate-800 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <Globe2 className="h-3.5 w-3.5 text-slate-400" />
             <span>{isThai ? 'EN' : 'ไทย'}</span>
@@ -242,17 +250,18 @@ export const AdminConsoleLayout: React.FC<AdminConsoleLayoutProps> = ({
           <button
             type="button"
             onClick={handleReturnToPos}
-            className="h-9 px-3.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-black text-white flex items-center gap-1.5 transition-colors"
+            className="min-h-[38px] sm:h-9 px-2.5 sm:px-3.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-black text-white flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            <span>{isThai ? 'สลับไปหน้า POS' : 'POS Terminal'}</span>
+            <span className="hidden min-[420px]:inline">{isThai ? 'สลับไปหน้า POS' : 'POS Terminal'}</span>
+            <span className="min-[420px]:hidden">POS</span>
           </button>
 
           {/* Sign Out */}
           <button
             type="button"
             onClick={() => void logout()}
-            className="h-9 px-3.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-black text-white flex items-center gap-1.5 transition-colors"
+            className="min-h-[38px] sm:h-9 px-2.5 sm:px-3.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-black text-white flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <LogOut className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{isThai ? 'ออกจากระบบ' : 'Sign Out'}</span>
@@ -260,11 +269,11 @@ export const AdminConsoleLayout: React.FC<AdminConsoleLayoutProps> = ({
         </div>
       </header>
 
-      {/* Main Console Body with Dedicated Admin Rail */}
-      <div className="flex-1 flex flex-col lg:flex-row">
-        <aside className="w-full lg:w-72 bg-slate-900 text-slate-200 border-b lg:border-b-0 lg:border-r border-slate-800 p-4 lg:p-5 flex flex-col justify-between shrink-0">
-          <div className="space-y-4">
-            <div className="px-2">
+      {/* Main Console Body with Responsive Mobile/Tablet Top Bar & Desktop Admin Rail */}
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+        <aside className="sticky top-14 sm:top-16 lg:static z-20 w-full lg:w-72 bg-slate-900 text-slate-200 border-b lg:border-b-0 lg:border-r border-slate-800 px-3 py-2.5 sm:p-3.5 lg:p-5 flex flex-col justify-between shrink-0">
+          <div className="space-y-2 lg:space-y-4">
+            <div className="hidden lg:block px-2">
               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
                 {isThai ? 'หมวดหมู่การตั้งค่าผู้ดูแลระบบ' : 'Admin Console Modules'}
               </div>
@@ -272,7 +281,7 @@ export const AdminConsoleLayout: React.FC<AdminConsoleLayoutProps> = ({
 
             <nav
               aria-label="Administrator Console Navigation"
-              className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-1 gap-2"
+              className="flex lg:grid lg:grid-cols-1 gap-2 overflow-x-auto no-scrollbar pb-0.5 lg:pb-0"
             >
               {navItems.map((item) => {
                 const Icon = item.icon;
@@ -282,21 +291,23 @@ export const AdminConsoleLayout: React.FC<AdminConsoleLayoutProps> = ({
                     key={item.id}
                     type="button"
                     onClick={() => onSelectSection(item.id)}
-                    className={`w-full text-left rounded-xl p-3 transition-all flex items-start gap-3 border ${
+                    className={`shrink-0 lg:w-full text-left rounded-xl px-3 py-2 lg:p-3 transition-all flex items-center lg:items-start gap-2.5 lg:gap-3 border cursor-pointer ${
                       active
                         ? 'bg-[#ff6b1a] text-white border-[#ff6b1a] shadow-lg shadow-[#ff6b1a]/20'
                         : 'bg-slate-950/50 text-slate-300 border-slate-800/80 hover:bg-slate-800/70 hover:text-white'
                     }`}
                   >
                     <Icon
-                      className={`h-5 w-5 shrink-0 mt-0.5 ${
+                      className={`h-4 w-4 lg:h-5 lg:w-5 shrink-0 lg:mt-0.5 ${
                         active ? 'text-white' : 'text-[#ff6b1a]'
                       }`}
                     />
                     <div className="min-w-0">
-                      <div className="text-xs font-black leading-tight truncate">{item.label}</div>
+                      <div className="text-xs font-black leading-tight whitespace-nowrap lg:whitespace-normal lg:truncate">
+                        {item.label}
+                      </div>
                       <div
-                        className={`text-[10px] mt-0.5 leading-snug hidden sm:block ${
+                        className={`text-[10px] mt-0.5 leading-snug hidden lg:block ${
                           active ? 'text-white/85' : 'text-slate-400'
                         }`}
                       >

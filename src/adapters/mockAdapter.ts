@@ -96,9 +96,9 @@ const SEED_ORG: Organization = {
 // Seed Users with distinct RBAC roles
 export const SEED_USERS: User[] = [
   {
-    id: 'usr-admin-alex',
-    name: 'Alex Vance',
-    email: 'alex.vance@prodx.io',
+    id: 'usr-admin-kamkokaew',
+    name: 'Kamkokaew Thodsawat',
+    email: 'kamkokaewthodsawat@gmail.com',
     role: 'admin',
     employeeCode: 'EMP-001',
     permissions: ROLE_PERMISSIONS.admin,
@@ -639,6 +639,7 @@ function resolveSessionOrganizationAndStore(req: {
     organizationSlug: string;
     branchId: string;
     branchName: string;
+    branchCode: string;
     branchAddress: string;
     terminalId: string;
     terminalName: string;
@@ -647,8 +648,23 @@ function resolveSessionOrganizationAndStore(req: {
 }): { organization: Organization; currentStore: Store; registerId: string } {
   const ctx = req.organizationContext;
   const effectiveOrgSlug = (ctx?.organizationSlug || req.organizationSlug || SEED_ORG.slug).trim();
-  const effectiveStoreCode = (ctx?.branchName || req.storeCode || SEED_STORES[0].code).trim();
+  const effectiveStoreCode = (ctx?.branchCode || ctx?.branchName || req.storeCode || SEED_STORES[0].code).trim();
   const effectiveRegisterId = (ctx?.terminalCode || req.registerId || 'Terminal-001').trim();
+
+  console.info(`${LOG_PREFIX} [RESOLVE_SCOPE] Mapping details:`, {
+    input: {
+      ctxOrgSlug: ctx?.organizationSlug,
+      reqOrgSlug: req.organizationSlug,
+      ctxBranchCode: ctx?.branchCode,
+      ctxBranchName: ctx?.branchName,
+      reqStoreCode: req.storeCode,
+    },
+    effective: {
+      orgSlug: effectiveOrgSlug,
+      storeCode: effectiveStoreCode,
+      registerId: effectiveRegisterId,
+    }
+  });
 
   const matchedSeedStore =
     SEED_STORES.find((s) => s.code.toLowerCase() === effectiveStoreCode.toLowerCase()) ||
@@ -702,22 +718,31 @@ function resolveSessionOrganizationAndStore(req: {
 export class MockAuthApi implements IAuthApi {
   async login(req: LoginRequest): Promise<SessionContext> {
     await delay();
-    console.info(`${LOG_PREFIX} Login attempt:`, {
-      org: req.organizationSlug,
-      store: req.storeCode,
-      register: req.registerId,
-      context: req.organizationContext,
-    });
+    const term = (req.emailOrPin || '').trim();
+    const passOrPin = (req.passwordOrPin || '').trim();
 
     const { organization, currentStore: store, registerId } = resolveSessionOrganizationAndStore(req);
+
+    console.info(`${LOG_PREFIX} [AUTH_DEBUG] Login attempt details:`, {
+      input: {
+        orgSlug: req.organizationSlug,
+        storeCode: req.storeCode,
+        registerId: req.registerId,
+        emailOrPin: term,
+        passwordOrPin: passOrPin, 
+      },
+      resolved: {
+        org: organization.slug,
+        store: store.code,
+        registerId,
+      }
+    });
+
     const staffList = typeof window !== 'undefined' ? getStoredStaffDirectory() : DEFAULT_STAFF_DIRECTORY;
     const staffPins = typeof window !== 'undefined' ? getStoredStaffPins() : {};
     const staffPasswords = typeof window !== 'undefined' ? getStoredStaffPasswords() : {};
     const rolePerms = typeof window !== 'undefined' ? getStoredRolePermissions() : ROLE_PERMISSIONS;
 
-    const term = (req.emailOrPin || '').trim();
-    const passOrPin = (req.passwordOrPin || '').trim();
-    
     // Find user by email or pin match, or construct Guest user
     let user: User;
     if (term.toLowerCase() === 'guest' || term === 'GUEST-POS') {
@@ -767,11 +792,13 @@ export class MockAuthApi implements IAuthApi {
         }
       }
 
-      // Validate credentials if authenticating via password
+      // Validate credentials if authenticating via password or WebAuthn assertion
       if (matched && passOrPin && !term.match(/^\d{4}$/)) {
         const correctPassword = staffPasswords[matched.id];
         const correctPin = staffPins[matched.id];
+        const isWebAuthnAssertion = passOrPin.startsWith('WEBAUTHN_VERIFIED:');
         const isValid =
+          isWebAuthnAssertion ||
           (typeof correctPassword === 'string' && correctPassword.length > 0 && passOrPin === correctPassword) ||
           (typeof correctPin === 'string' && correctPin.length > 0 && passOrPin === correctPin);
         if (!isValid) {

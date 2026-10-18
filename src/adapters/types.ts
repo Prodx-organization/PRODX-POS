@@ -6,6 +6,7 @@
  */
 
 import { User, SessionContext, Store } from '../domain/auth';
+import type { WebAuthnAssertionPayload } from '../services/webauthnService';
 import {
   Product,
   Category,
@@ -27,6 +28,7 @@ export interface OrganizationLoginContext {
   organizationSlug: string;
   branchId: string;
   branchName: string;
+  branchCode: string;
   branchAddress: string;
   terminalId: string;
   terminalName: string;
@@ -40,6 +42,17 @@ export interface LoginRequest {
   passwordOrPin?: string;
   registerId: string;
   organizationContext?: OrganizationLoginContext;
+  requireAdminRole?: boolean;
+  webAuthnAssertion?: WebAuthnAssertionPayload;
+  biometricVerified?: boolean;
+}
+
+export interface BiometricLoginRequest {
+  organizationSlug: string;
+  storeCode: string;
+  registerId: string;
+  organizationContext?: OrganizationLoginContext;
+  targetUser?: { id: string; email: string; name: string };
   requireAdminRole?: boolean;
 }
 

@@ -11,6 +11,7 @@ import { Tabs } from '../../components/common/Tabs';
 import { Modal } from '../../components/common/Modal';
 import { Shield, RefreshCw, AlertTriangle, AlertOctagon, CheckCircle, Terminal, Copy, Check, Building2, Layers } from 'lucide-react';
 import { OrganizationAuditLogTab } from '../admin/OrganizationAuditLogTab';
+import { AdminActivityHeatmap } from './AdminActivityHeatmap';
 
 export const AuditScreen: React.FC = () => {
   const { session } = useAuth();
@@ -89,6 +90,12 @@ export const AuditScreen: React.FC = () => {
           {t.audit.refreshLogs}
         </Button>
       </div>
+
+      {/* 30-Day Admin Activity Heatmap (Recharts) */}
+      <AdminActivityHeatmap
+        storeLogs={logs}
+        orgId={session?.organization?.id}
+      />
 
       {/* Audit Domain Source Switcher */}
       <div className="flex items-center gap-2 border-b border-border/60 pb-3 flex-wrap">

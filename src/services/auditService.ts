@@ -130,6 +130,24 @@ function sanitizeString(value: string | undefined, maxLen: number, fallback = ''
 }
 
 /**
+ * Recursively removes 'undefined' values from an object to prevent Firestore errors.
+ * Replaces 'undefined' with 'null'.
+ */
+function sanitizeForFirestore(data: any): any {
+  if (data === undefined) return null;
+  if (data === null || typeof data !== 'object') return data;
+  if (Array.isArray(data)) return data.map(sanitizeForFirestore);
+
+  const result: Record<string, any> = {};
+  for (const key in data) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
+      result[key] = sanitizeForFirestore(data[key]);
+    }
+  }
+  return result;
+}
+
+/**
  * Default Firestore batch uploader using atomic `writeBatch(db)`
  */
 async function defaultFirestoreBatchUploader(
@@ -164,7 +182,7 @@ async function defaultFirestoreBatchUploader(
     if (item.branchId) payload.branchId = sanitizeString(item.branchId, 128);
     if (item.terminalId) payload.terminalId = sanitizeString(item.terminalId, 128);
     if (item.metadata && Object.keys(item.metadata).length > 0) {
-      payload.metadata = item.metadata;
+      payload.metadata = sanitizeForFirestore(item.metadata);
     }
 
     batch.set(docRef, payload);

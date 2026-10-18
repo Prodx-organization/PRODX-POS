@@ -49,6 +49,7 @@ import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useConfirmation } from '../../context/ConfirmationDialogContext';
 import { Button } from '../../components/common/Button';
+import { AdminSyncStatusIndicator } from '../../components/admin/AdminSyncStatusIndicator';
 import { OrganizationAuditLogTab } from './OrganizationAuditLogTab';
 import {
   OrganizationFormDialog,
@@ -589,6 +590,9 @@ export const OrganizationManagementModule: React.FC<OrganizationManagementModule
           </div>
         </div>
       </div>
+
+      {/* Live Firestore Write Queue & Offline Buffer Conflict Status Banner */}
+      <AdminSyncStatusIndicator variant="banner" />
 
       {/* KPI Stats Overview Bar */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

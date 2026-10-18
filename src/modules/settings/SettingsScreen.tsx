@@ -32,6 +32,7 @@ import {
   X,
   Zap,
   Lock,
+  KeyRound,
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
@@ -89,6 +90,14 @@ import { SettingsKeyboardShortcutsModal } from './components/SettingsKeyboardSho
 import { SystemDiagnosticOverlay } from './components/SystemDiagnosticOverlay';
 import { SystemHealthWidget } from './components/SystemHealthWidget';
 import { SettingsMenuSelector } from './components/SettingsMenuSelector';
+import { AdminResetPasswordModal } from './components/AdminResetPasswordModal';
+import { AdminSecuritySettingsTab } from './components/AdminSecuritySettingsTab';
+import { ManageRegisteredDevicesSection } from './components/ManageRegisteredDevicesSection';
+import { isVerifiedSystemOwner, SYSTEM_OWNER_ADMIN_EMAIL } from '../../domain/auth';
+import {
+  resetSystemOwnerAdminPasswordInDatabase,
+  ResetSystemOwnerPasswordResult,
+} from '../../services/adminCredentialService';
 
 const TAB_ITEMS: SettingsTabItem[] = [
   // 1. Store & POS Config
@@ -174,6 +183,19 @@ const TAB_ITEMS: SettingsTabItem[] = [
   },
 
   // 4. Security & System Admin
+  {
+    id: 'admin_security',
+    label: { th: 'ความปลอดภัยผู้ดูแลระบบ (Admin Security)', en: 'Admin Security' },
+    sublabel: {
+      th: 'เปลี่ยนรหัสผ่าน Admin, ยืนยันตัวตนซ้ำ, ตรวจสอบแฮช SHA-256',
+      en: 'Change Admin Password, re-authentication & hash check',
+    },
+    iconName: 'KeyRound',
+    graphicColor: 'amber',
+    badge: 'OWNER',
+    category: 'security_admin',
+    isQuickTab: true,
+  },
   {
     id: 'security_roles',
     label: { th: 'ความปลอดภัยและนโยบาย', en: 'Security & PIN Governance' },
@@ -355,6 +377,36 @@ export const SettingsScreen: React.FC = () => {
     setShowDailyExportBanner(false);
   };
 
+  const clearThemeLocalStorageAndReset = useCallback(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('prodx_pos_theme_preset');
+        window.localStorage.removeItem('prodx_custom_accent_color');
+
+        const configStr = window.localStorage.getItem('PRODX_STORE_CONFIG_STATE');
+        if (configStr) {
+          try {
+            const config = JSON.parse(configStr);
+            if (config.theme) {
+              config.theme.presetId = 'enterprise_obsidian';
+              config.theme.mode = 'system';
+            }
+            if (config.branding) {
+              config.branding.customAccentColor = null;
+              config.branding.customLogo = null;
+            }
+            window.localStorage.setItem('PRODX_STORE_CONFIG_STATE', JSON.stringify(config));
+          } catch {
+            // ignore
+          }
+        }
+      }
+      window.location.reload();
+    } catch (e) {
+      console.error('[SettingsScreen] Failed to clear theme keys from localStorage:', e);
+    }
+  }, []);
+
   const [activeTab, setActiveTab] = useState<SettingsTabId>(() => {
     const savedTargetTab = localStorage.getItem('prodx_pos_settings_tab') as SettingsTabId | null;
     if (savedTargetTab) {
@@ -366,7 +418,75 @@ export const SettingsScreen: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [isDiagnosticOverlayOpen, setIsDiagnosticOverlayOpen] = useState(false);
+  const [isAdminResetPasswordModalOpen, setIsAdminResetPasswordModalOpen] = useState(false);
   const [navSearchQuery, setNavSearchQuery] = useState('');
+
+  /**
+   * Secure Reset Password function for the System Owner Administrator ('kamkokaewthodsawat@gmail.com').
+   * Enforces mandatory re-authentication (current password or WebAuthn biometrics) and updates
+   * the hardcoded admin credentials in the Firestore database and local authentication store.
+   */
+  const handleAdminResetPassword = useCallback(
+    async (params: {
+      currentPassword?: string;
+      biometricVerified?: boolean;
+      newPassword: string;
+    }): Promise<ResetSystemOwnerPasswordResult> => {
+      const actor = session?.currentUser;
+      if (!actor || !isVerifiedSystemOwner(actor)) {
+        const denyMsg =
+          language === 'th'
+            ? `ปฏิเสธการเข้าถึง: อนุญาตเฉพาะเจ้าของระบบ (${SYSTEM_OWNER_ADMIN_EMAIL}) เท่านั้น`
+            : `Access Denied: Only the verified System Owner (${SYSTEM_OWNER_ADMIN_EMAIL}) can update admin credentials.`;
+        addToast({
+          title: language === 'th' ? 'ไม่มีสิทธิ์ดำเนินการ' : 'Unauthorized Operation',
+          message: denyMsg,
+          type: 'error',
+        });
+        return { success: false, error: denyMsg };
+      }
+
+      const result = await resetSystemOwnerAdminPasswordInDatabase({
+        actor,
+        currentPassword: params.currentPassword,
+        biometricVerified: params.biometricVerified,
+        newPassword: params.newPassword,
+        orgId: session?.organization.id,
+        branchId: session?.currentStore.code,
+      });
+
+      if (!result.success) {
+        addToast({
+          title:
+            language === 'th'
+              ? 'รีเซ็ตรหัสผ่านผู้ดูแลระบบไม่สำเร็จ'
+              : 'Admin Password Reset Failed',
+          message:
+            result.error ||
+            (language === 'th'
+              ? 'การยืนยันตัวตนซ้ำไม่ผ่านหรือไม่สามารถอัปเดตฐานข้อมูลได้'
+              : 'Re-authentication failed or database update was rejected.'),
+          type: 'error',
+        });
+        return result;
+      }
+
+      addToast({
+        title:
+          language === 'th'
+            ? 'อัปเดตรหัสผ่านผู้ดูแลระบบสำเร็จ'
+            : 'System Owner Admin Password Updated',
+        message:
+          language === 'th'
+            ? `อัปเดตข้อมูลรหัสผ่านของ ${SYSTEM_OWNER_ADMIN_EMAIL} ลงในฐานข้อมูลเรียบร้อยแล้ว (v${result.version})`
+            : `Updated hardcoded admin credentials for ${SYSTEM_OWNER_ADMIN_EMAIL} in database (v${result.version}).`,
+        type: 'success',
+      });
+
+      return result;
+    },
+    [session, language, addToast],
+  );
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [settingsMode, setSettingsMode] = useState<'quick' | 'advanced'>(() => {
     const saved = localStorage.getItem('prodx_settings_mode') as 'quick' | 'advanced' | null;
@@ -903,6 +1023,8 @@ export const SettingsScreen: React.FC = () => {
         return ReceiptText;
       case 'ShieldCheck':
         return ShieldCheck;
+      case 'KeyRound':
+        return KeyRound;
       case 'UserCheck':
         return UserCheck;
       case 'Layers':
@@ -1169,6 +1291,46 @@ export const SettingsScreen: React.FC = () => {
             <span className="text-[10px] uppercase font-bold text-text/50">({session?.currentUser.role})</span>
           </div>
 
+          {session?.currentUser.role === 'admin' && (
+            <>
+              <button
+                type="button"
+                id="settings-admin-security-tab-btn"
+                onClick={() => setActiveTab('admin_security')}
+                title={
+                  language === 'th'
+                    ? 'เปิดแท็บความปลอดภัยผู้ดูแลระบบและเปลี่ยนรหัสผ่าน Admin'
+                    : 'Open Admin Security Tab & Change Admin Password'
+                }
+                className={`h-9 px-3 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-2xs active-scale whitespace-nowrap ${
+                  activeTab === 'admin_security'
+                    ? 'border-amber-500 bg-amber-500 text-slate-950'
+                    : 'border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                }`}
+              >
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                <span>{language === 'th' ? 'Admin Security' : 'Admin Security'}</span>
+              </button>
+
+              <button
+                type="button"
+                id="settings-reset-admin-password-btn"
+                onClick={() => setIsAdminResetPasswordModalOpen(true)}
+                title={
+                  language === 'th'
+                    ? 'รีเซ็ตรหัสผ่านผู้ดูแลระบบสูงสุด (System Owner Re-Authentication)'
+                    : 'Reset System Owner Admin Password (Requires Re-Authentication)'
+                }
+                className="h-9 px-3 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer shadow-2xs active-scale whitespace-nowrap"
+              >
+                <KeyRound className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  {language === 'th' ? 'เปลี่ยนรหัสผ่าน Admin' : 'Change Admin Password'}
+                </span>
+              </button>
+            </>
+          )}
+
           <button
             type="button"
             onClick={() => setIsDiagnosticOverlayOpen(true)}
@@ -1422,6 +1584,7 @@ export const SettingsScreen: React.FC = () => {
                   onChangeCfdField={(field, val) =>
                     setCfdConfig((prev) => ({ ...prev, [field]: val }))
                   }
+                  onClearThemeLocalStorageAndReset={clearThemeLocalStorageAndReset}
                 />
               )}
 
@@ -1436,12 +1599,20 @@ export const SettingsScreen: React.FC = () => {
                 />
               )}
 
+              {activeTab === 'admin_security' && (
+                <AdminSecuritySettingsTab
+                  onChangeAdminPassword={handleAdminResetPassword}
+                  onOpenResetModal={() => setIsAdminResetPasswordModalOpen(true)}
+                />
+              )}
+
               {activeTab === 'security_roles' && (
                 <SecurityRolesSettingsTab
                   policies={securityPolicies}
                   onChangePolicy={(field, val) =>
                     setSecurityPolicies((prev) => ({ ...prev, [field]: val }))
                   }
+                  onOpenAdminPasswordReset={() => setIsAdminResetPasswordModalOpen(true)}
                 />
               )}
 
@@ -1453,6 +1624,12 @@ export const SettingsScreen: React.FC = () => {
 
               {activeTab === 'data_sync' && <DataSyncSettingsTab />}
             </RbacGuard>
+
+            {activeTab !== 'admin_security' && activeTab !== 'security_roles' && (
+              <div className="mt-6">
+                <ManageRegisteredDevicesSection />
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -1484,6 +1661,15 @@ export const SettingsScreen: React.FC = () => {
         <SystemDiagnosticOverlay
           isOpen={isDiagnosticOverlayOpen}
           onClose={() => setIsDiagnosticOverlayOpen(false)}
+        />
+      )}
+
+      {/* System Owner Admin Re-Authentication & Reset Password Modal */}
+      {isAdminResetPasswordModalOpen && (
+        <AdminResetPasswordModal
+          isOpen={isAdminResetPasswordModalOpen}
+          onClose={() => setIsAdminResetPasswordModalOpen(false)}
+          onResetAdminPassword={handleAdminResetPassword}
         />
       )}
     </div>
