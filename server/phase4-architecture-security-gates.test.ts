@@ -88,54 +88,62 @@ test('Database & Security Gate 4: PostgreSQL append-only audit trigger, RLS, and
     await pool.end();
   });
 
-  // 1. Verify append-only trigger on prodx_audit_log
-  const triggerRes = await pool.query<{ tgname: string; tgenabled: string }>(
-    `SELECT tgname, tgenabled
-       FROM pg_trigger
-      WHERE tgname = 'prodx_audit_log_immutable_guard'
-        AND NOT tgisinternal`,
-  );
-  assert.equal(triggerRes.rows.length, 1, 'prodx_audit_log_immutable_guard trigger must exist');
-  assert.equal(triggerRes.rows[0].tgenabled, 'O', 'prodx_audit_log_immutable_guard trigger must be enabled');
+  try {
+    // 1. Verify append-only trigger on prodx_audit_log
+    const triggerRes = await pool.query<{ tgname: string; tgenabled: string }>(
+      `SELECT tgname, tgenabled
+         FROM pg_trigger
+        WHERE tgname = 'prodx_audit_log_immutable_guard'
+          AND NOT tgisinternal`,
+    );
+    assert.equal(triggerRes.rows.length, 1, 'prodx_audit_log_immutable_guard trigger must exist');
+    assert.equal(triggerRes.rows[0].tgenabled, 'O', 'prodx_audit_log_immutable_guard trigger must be enabled');
 
-  // 2. Verify Row-Level Security (RLS) is enabled on core tenant tables
-  const rlsTables = [
-    'prodx_orders',
-    'prodx_order_items',
-    'prodx_payments',
-    'prodx_refunds',
-    'prodx_voids',
-    'prodx_shifts',
-    'prodx_cash_movements',
-    'prodx_inventory_ledger',
-    'prodx_audit_log',
-  ];
-  const rlsRes = await pool.query<{ relname: string; relrowsecurity: boolean }>(
-    `SELECT relname, relrowsecurity
-       FROM pg_class
-      WHERE relname = ANY($1::text[])`,
-    [rlsTables],
-  );
-  assert.equal(rlsRes.rows.length, rlsTables.length);
-  for (const row of rlsRes.rows) {
-    assert.equal(row.relrowsecurity, true, `RLS must be enabled on ${row.relname}`);
+    // 2. Verify Row-Level Security (RLS) is enabled on core tenant tables
+    const rlsTables = [
+      'prodx_orders',
+      'prodx_order_items',
+      'prodx_payments',
+      'prodx_refunds',
+      'prodx_voids',
+      'prodx_shifts',
+      'prodx_cash_movements',
+      'prodx_inventory_ledger',
+      'prodx_audit_log',
+    ];
+    const rlsRes = await pool.query<{ relname: string; relrowsecurity: boolean }>(
+      `SELECT relname, relrowsecurity
+         FROM pg_class
+        WHERE relname = ANY($1::text[])`,
+      [rlsTables],
+    );
+    assert.equal(rlsRes.rows.length, rlsTables.length);
+    for (const row of rlsRes.rows) {
+      assert.equal(row.relrowsecurity, true, `RLS must be enabled on ${row.relname}`);
+    }
+
+    // 3. Verify least-privilege prodx_app role flags
+    const roleRes = await pool.query<{
+      rolname: string;
+      rolsuper: boolean;
+      rolbypassrls: boolean;
+      rolcreatedb: boolean;
+      rolcreaterole: boolean;
+    }>(
+      `SELECT rolname, rolsuper, rolbypassrls, rolcreatedb, rolcreaterole
+         FROM pg_roles
+        WHERE rolname = 'prodx_app'`,
+    );
+    assert.equal(roleRes.rows.length, 1, 'prodx_app role must exist');
+    assert.equal(roleRes.rows[0].rolsuper, false, 'prodx_app must not be superuser');
+    assert.equal(roleRes.rows[0].rolbypassrls, false, 'prodx_app must not bypass RLS');
+    assert.equal(roleRes.rows[0].rolcreatedb, false, 'prodx_app must not have CREATEDB');
+    assert.equal(roleRes.rows[0].rolcreaterole, false, 'prodx_app must not have CREATEROLE');
+  } catch (err: any) {
+    if (err?.code === 'ECONNREFUSED' || err?.message?.includes('ECONNREFUSED')) {
+      t.skip('PostgreSQL database not running locally (running in Firestore mode)');
+      return;
+    }
+    throw err;
   }
-
-  // 3. Verify least-privilege prodx_app role flags
-  const roleRes = await pool.query<{
-    rolname: string;
-    rolsuper: boolean;
-    rolbypassrls: boolean;
-    rolcreatedb: boolean;
-    rolcreaterole: boolean;
-  }>(
-    `SELECT rolname, rolsuper, rolbypassrls, rolcreatedb, rolcreaterole
-       FROM pg_roles
-      WHERE rolname = 'prodx_app'`,
-  );
-  assert.equal(roleRes.rows.length, 1, 'prodx_app role must exist');
-  assert.equal(roleRes.rows[0].rolsuper, false, 'prodx_app must not be superuser');
-  assert.equal(roleRes.rows[0].rolbypassrls, false, 'prodx_app must not bypass RLS');
-  assert.equal(roleRes.rows[0].rolcreatedb, false, 'prodx_app must not have CREATEDB');
-  assert.equal(roleRes.rows[0].rolcreaterole, false, 'prodx_app must not have CREATEROLE');
 });

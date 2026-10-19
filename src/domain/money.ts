@@ -26,7 +26,7 @@ const roundHalfUpDivide = (numerator: bigint, denominator: bigint): bigint => {
 
 /**
  * Exact decimal string/number to integer cents/satang parser using BigInt arithmetic.
- * Never uses binary floating-point multiplication (parseFloat(x) * 100).
+ * Never uses binary floating-point multiplication or IEEE-754 approximations.
  */
 export function parseDecimalToCents(input: string | number): number {
   const clean = String(input ?? '').replace(/[^0-9.-]/g, '').trim();

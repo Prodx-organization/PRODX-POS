@@ -1,29 +1,30 @@
 import 'dotenv/config';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import { createPostgresAuthentication } from './auth/composition';
-import { createPostgresAuthorization } from './auth/production-authorization';
-import { asSqlExecutor, createProductionPostgresPool } from './db/postgres';
-import { createTransactionalPostgresExecutor } from './db/transaction';
-import { createAIGatewayService } from './ai/production-composition';
-import { registerCheckoutRoute } from './http/checkout-route';
-import { registerAuthRoutes } from './http/auth-route';
-import { createApp } from './http/createApp';
-import { registerRefundRoute } from './http/refund-route';
-import { registerAuditRoute } from './http/audit-route';
-import { registerShiftRoute } from './http/shift-route';
-import { registerTimeclockRoute } from './http/timeclock-route';
-import { registerCatalogRoute } from './http/catalog-route';
-import { registerCatalogImportRoute } from './http/catalog-import-route';
-import { registerCatalogPricingRoute } from './http/catalog-pricing-route';
-import { registerPaymentLifecycleRoute } from './http/payment-lifecycle-route';
-import { registerSyncRoute } from './http/sync-route';
-import { registerSupervisorAuthorizationRoute } from './http/supervisor-authorization-route';
-import { registerOrderReadRoute } from './http/order-read-route';
-import { registerVoidRoute } from './http/void-route';
-import { registerInventoryAdjustmentRoute } from './http/inventory-adjustment-route';
-import { registerInfrastructureRoutes, registerPublicInfrastructureRoutes } from './http/infrastructureRoutes';
-import { installAIHttpRoute } from './ai/http-route';
+import { createPostgresAuthentication } from './auth/composition.ts';
+import { createPostgresAuthorization } from './auth/production-authorization.ts';
+import { asSqlExecutor, createProductionPostgresPool, resolveConfiguredDatabaseUrl } from './db/postgres.ts';
+import { createTransactionalPostgresExecutor } from './db/transaction.ts';
+import { createAIGatewayService } from './ai/production-composition.ts';
+import { pingFirestore } from './services/systemHealthCheckService.ts';
+import { registerCheckoutRoute } from './http/checkout-route.ts';
+import { registerAuthRoutes } from './http/auth-route.ts';
+import { createApp } from './http/createApp.ts';
+import { registerRefundRoute } from './http/refund-route.ts';
+import { registerAuditRoute } from './http/audit-route.ts';
+import { registerShiftRoute } from './http/shift-route.ts';
+import { registerTimeclockRoute } from './http/timeclock-route.ts';
+import { registerCatalogRoute } from './http/catalog-route.ts';
+import { registerCatalogImportRoute } from './http/catalog-import-route.ts';
+import { registerCatalogPricingRoute } from './http/catalog-pricing-route.ts';
+import { registerPaymentLifecycleRoute } from './http/payment-lifecycle-route.ts';
+import { registerSyncRoute } from './http/sync-route.ts';
+import { registerSupervisorAuthorizationRoute } from './http/supervisor-authorization-route.ts';
+import { registerOrderReadRoute } from './http/order-read-route.ts';
+import { registerVoidRoute } from './http/void-route.ts';
+import { registerInventoryAdjustmentRoute } from './http/inventory-adjustment-route.ts';
+import { registerInfrastructureRoutes, registerPublicInfrastructureRoutes } from './http/infrastructureRoutes.ts';
+import { installAIHttpRoute } from './ai/http-route.ts';
 
 export type ProductionAppOptions = {
   vercelOidcToken?: string;
@@ -39,24 +40,48 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
 
   const app = createApp({
     readinessCheck: async () => {
+      // PRODX-POS Readiness: We require at least one authoritative data store to be responsive.
+      // While PostgreSQL is the primary transactional store, we also support Firestore
+      // for audit logs and management entities.
+      
+      let postgresOk = false;
+      let firestoreOk = false;
+      let postgresError: any = null;
+      let firestoreError: any = null;
+
+      // 1. Check PostgreSQL (if configured)
+      const connectionString = resolveConfiguredDatabaseUrl();
+      if (connectionString) {
+        try {
+          await sql.query<{ ok: number }>('SELECT 1 AS ok');
+          postgresOk = true;
+        } catch (error: unknown) {
+          postgresError = error;
+        }
+      }
+
+      // 2. Check Firestore
       try {
-        await sql.query<{ ok: number }>('SELECT 1 AS ok');
+        const firestoreResult = await pingFirestore();
+        firestoreOk = firestoreResult.statusCode === 200;
       } catch (error: unknown) {
-        const candidate = error && typeof error === 'object'
-          ? error as { code?: unknown; syscall?: unknown; port?: unknown }
-          : {};
-        throw Object.assign(new Error('Database readiness query failed.'), {
-          stage: 'database_query',
-          ...(typeof candidate.code === 'string' ? { code: candidate.code } : {}),
-          ...(candidate.syscall === 'getaddrinfo' || candidate.syscall === 'connect' ||
-              candidate.syscall === 'read' || candidate.syscall === 'write'
-            ? { syscall: candidate.syscall }
-            : {}),
-          ...(typeof candidate.port === 'number' && Number.isInteger(candidate.port) &&
-              candidate.port >= 1 && candidate.port <= 65535
-            ? { port: candidate.port }
-            : {}),
+        firestoreError = error;
+      }
+
+      // If both are down, the service is truly not ready.
+      if (!postgresOk && !firestoreOk) {
+        const error = new Error('Database readiness check failed: Both PostgreSQL and Firestore are unreachable.');
+        Object.assign(error, {
+          postgres: postgresError ? { code: postgresError.code, syscall: postgresError.syscall } : 'unconfigured',
+          firestore: firestoreError ? { message: firestoreError.message } : 'failed',
         });
+        throw error;
+      }
+
+      if (!postgresOk) {
+        console.warn('PRODX POS starting in DEGRADED mode (PostgreSQL unreachable, Firestore OK).');
+      } else if (!firestoreOk) {
+        console.warn('PRODX POS starting in DEGRADED mode (Firestore unreachable, PostgreSQL OK).');
       }
     },
     configurePublicRoutes: (configuredApp) => {

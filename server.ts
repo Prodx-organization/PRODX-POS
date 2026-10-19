@@ -10,7 +10,7 @@ const __dirname = dirname(__filename);
 
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
-  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  const port = Number.parseInt(process.env.PORT ?? '3000', 10);
 
   // Create the production Express app (the backend)
   const { app: backendApp } = await createProductionApp();
