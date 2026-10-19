@@ -28,6 +28,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { ProdxLogo } from '../common/ProdxLogo';
+import { StaffAvatar } from '../common/StaffAvatar';
 import { NavRoute } from './Sidebar';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
 import { ConnectivityStatusIndicator } from './ConnectivityStatusIndicator';
@@ -349,23 +350,12 @@ export const TopNav: React.FC<TopNavProps> = ({
                 <span className="text-[10px] font-bold text-text/50 uppercase leading-tight">{session.currentUser.role}</span>
               </div>
               {/* User Profile Avatar with Online Status Indicator Dot */}
-              <div className="relative shrink-0">
-                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-[11px] font-bold text-white shadow-xs">
-                  {session.currentUser.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
-                </div>
-                <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
-                  <span
-                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                      isOnline ? 'bg-emerald-400' : 'bg-amber-400'
-                    }`}
-                  />
-                  <span
-                    className={`relative inline-flex rounded-full h-2.5 w-2.5 border-2 border-card ${
-                      isOnline ? 'bg-emerald-500' : 'bg-amber-500'
-                    }`}
-                  />
-                </span>
-              </div>
+              <StaffAvatar
+                name={session.currentUser.name}
+                size="sm"
+                showStatusIndicator
+                isOnline={isOnline}
+              />
             </button>
 
             {isUserMenuOpen && (

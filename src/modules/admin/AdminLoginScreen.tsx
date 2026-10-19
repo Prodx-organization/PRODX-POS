@@ -291,13 +291,13 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
 
           <div className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-4 space-y-2.5 text-xs">
             <div className="flex items-center justify-between text-slate-300">
-              <span className="text-slate-500 font-bold">
+              <span className="text-slate-400 font-bold">
                 {isThai ? 'เส้นทางความปลอดภัย:' : 'Security Route:'}
               </span>
               <span className="font-mono font-bold text-[#ff6b1a]">/admin/login</span>
             </div>
             <div className="flex items-center justify-between text-slate-300">
-              <span className="text-slate-500 font-bold">
+              <span className="text-slate-400 font-bold">
                 {isThai ? 'เงื่อนไขสิทธิ์ (RBAC):' : 'Required Role:'}
               </span>
               <span className="rounded bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
@@ -305,7 +305,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
               </span>
             </div>
             <div className="flex items-center justify-between text-slate-300">
-              <span className="text-slate-500 font-bold">
+              <span className="text-slate-400 font-bold">
                 {isThai ? 'รองรับอุปกรณ์:' : 'Device Ergonomics:'}
               </span>
               <span className="font-semibold text-white">Mobile · Tablet · POS · Desktop</span>
@@ -313,7 +313,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
           </div>
         </div>
 
-        <div className="relative z-10 pt-6 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 font-bold">
+        <div className="relative z-10 pt-6 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 font-bold">
           <span className="text-slate-300">PostgreSQL &amp; RBAC Security Gate</span>
           <span>PRODX Enterprise v2.0</span>
         </div>
@@ -472,14 +472,14 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
           <form onSubmit={handleAdminLogin} className="space-y-4">
             {/* Organization Scope Selector */}
             <label className="block">
-              <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                 <Building2 className="h-3.5 w-3.5 text-[#ff6b1a]" />
                 {isThai ? 'องค์กรหลักที่ต้องการจัดการ' : 'Primary Organization Scope'}
               </span>
               <select
                 value={selectedOrgSlug}
                 onChange={(e) => setSelectedOrgSlug(e.target.value)}
-                className="w-full h-11 sm:h-12 mt-1.5 rounded-xl bg-slate-950 border border-slate-800 px-3.5 text-xs sm:text-sm font-bold text-white focus:border-[#ff6b1a] outline-none"
+                className="w-full h-11 sm:h-12 mt-1.5 rounded-xl bg-slate-950 border border-slate-700 px-3.5 text-xs sm:text-sm font-bold text-white focus:border-[#ff6b1a] focus:ring-2 focus:ring-[#ff6b1a]/40 outline-none"
               >
                 {orgs.length === 0 ? (
                   <option value="prodx">PRODX Retail Group (prodx)</option>
@@ -496,7 +496,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
             {authMode === 'credentials' ? (
               <div className="space-y-3.5">
                 <label className="block">
-                  <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                     <Mail className="h-3.5 w-3.5" />
                     {isThai ? 'อีเมลผู้ดูแลระบบ (Admin Email)' : 'Administrator Email'}
                   </span>
@@ -505,11 +505,11 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="kamkokaewthodsawat@gmail.com"
-                    className="w-full h-11 sm:h-12 mt-1.5 rounded-xl bg-slate-950 border border-slate-800 px-4 text-sm font-bold text-white focus:border-[#ff6b1a] outline-none"
+                    className="w-full h-11 sm:h-12 mt-1.5 rounded-xl bg-slate-950 border border-slate-700 px-4 text-sm font-bold text-white placeholder:text-slate-400 focus:border-[#ff6b1a] focus:ring-2 focus:ring-[#ff6b1a]/40 outline-none"
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                     <Lock className="h-3.5 w-3.5" />
                     {isThai ? 'รหัสผ่าน / รหัส PIN ผู้ดูแลระบบ' : 'Admin Password / Security PIN'}
                   </span>
@@ -519,12 +519,12 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter admin password or PIN"
-                      className="w-full h-11 sm:h-12 rounded-xl bg-slate-950 border border-slate-800 pl-4 pr-12 text-sm font-bold text-white focus:border-[#ff6b1a] outline-none"
+                      className="w-full h-11 sm:h-12 rounded-xl bg-slate-950 border border-slate-700 pl-4 pr-12 text-sm font-bold text-white placeholder:text-slate-400 focus:border-[#ff6b1a] focus:ring-2 focus:ring-[#ff6b1a]/40 outline-none"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((prev) => !prev)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-white cursor-pointer"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-300 hover:text-white rounded-lg focus-visible:ring-2 focus-visible:ring-[#ff6b1a] cursor-pointer"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -566,7 +566,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
                   <button
                     type="button"
                     onClick={() => setAdminPin('')}
-                    className="h-11 sm:h-12 rounded-xl border border-slate-800 bg-slate-950/60 hover:bg-rose-950/40 hover:text-rose-300 text-xs font-black uppercase text-slate-400 transition-all cursor-pointer"
+                    className="h-11 sm:h-12 rounded-xl border border-slate-700 bg-slate-900 hover:bg-rose-950/40 hover:text-rose-200 text-xs font-black uppercase text-slate-200 transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-400"
                   >
                     Clear
                   </button>
@@ -580,7 +580,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
                   <button
                     type="button"
                     onClick={() => setAdminPin((prev) => prev.slice(0, -1))}
-                    className="h-11 sm:h-12 rounded-xl border border-slate-800 bg-slate-950/60 hover:bg-slate-800 text-slate-300 flex items-center justify-center transition-all cursor-pointer"
+                    className="h-11 sm:h-12 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 text-slate-200 flex items-center justify-center transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-[#ff6b1a]"
                   >
                     <Delete className="h-4 w-4" />
                   </button>
@@ -591,7 +591,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
             <button
               disabled={isLoading}
               type="submit"
-              className="w-full h-12 mt-2 bg-[#ff6b1a] rounded-xl font-black text-sm text-white hover:bg-[#eb5b0c] flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-[#ff6b1a]/20 cursor-pointer active:scale-[0.99]"
+              className="w-full h-12 mt-2 bg-[#ea580c] rounded-xl font-black text-sm text-white hover:bg-[#c2410c] flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-[#ea580c]/30 cursor-pointer active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#ff6b1a] focus-visible:ring-offset-2"
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -607,7 +607,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
               type="button"
               disabled={isLoading}
               onClick={handleAdminGoogleSignIn}
-              className="w-full h-11 rounded-xl border border-slate-700 bg-slate-950 hover:bg-slate-800 text-xs font-bold text-white flex items-center justify-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
+              className="w-full h-11 rounded-xl border border-slate-700 bg-slate-950 hover:bg-slate-800 text-xs font-bold text-white flex items-center justify-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[#ff6b1a]"
             >
               <img
                 src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
@@ -626,7 +626,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
             <button
               type="button"
               onClick={onBackToPos}
-              className="w-full h-11 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 text-xs font-bold text-slate-300 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+              className="w-full h-11 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 text-xs font-bold text-slate-300 flex items-center justify-center gap-2 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#ff6b1a]"
             >
               <Monitor className="h-3.5 w-3.5 text-slate-400" />
               <span>
@@ -638,7 +638,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
           )}
         </div>
 
-        <footer className="w-full max-w-xl mx-auto pt-4 text-center text-[11px] text-slate-500 font-semibold">
+        <footer className="w-full max-w-xl mx-auto pt-4 text-center text-[11px] text-slate-400 font-semibold">
           {isThai
             ? 'ป้องกันด้วยระบบตรวจสอบสิทธิ์ RBAC และบันทึก Audit Trail อัตโนมัติ'
             : 'Protected by Enterprise RBAC Verification & Immutable Audit Logging'}

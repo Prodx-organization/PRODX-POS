@@ -34,11 +34,11 @@ export const QrBadgeScannerPanel: React.FC<QrBadgeScannerPanelProps> = ({
       </div>
 
       <div>
-        <div className="inline-flex items-center gap-1.5 text-primary font-black text-xs uppercase tracking-wider mb-0.5">
-          <Camera className="w-3.5 h-3.5" />
+        <div className="inline-flex items-center gap-1.5 text-blue-700 font-black text-xs uppercase tracking-wider mb-0.5">
+          <Camera className="w-4 h-4 text-blue-700" />
           <span>{isThai ? 'สแกนบัตรพนักงาน (QR)' : 'Scan Employee Badge'}</span>
         </div>
-        <p className="text-[11px] text-slate-500">
+        <p className="text-[11px] text-slate-700 font-medium">
           {isThai ? 'วางบัตรพนักงานหน้ากล้องเพื่อยืนยันตัวตนทันที' : 'Place badge in front of camera.'}
         </p>
       </div>
@@ -47,9 +47,9 @@ export const QrBadgeScannerPanel: React.FC<QrBadgeScannerPanelProps> = ({
         <button
           type="button"
           onClick={() => onSwitchMode('pin')}
-          className="text-xs font-bold text-slate-600 hover:text-primary transition-colors cursor-pointer inline-flex items-center gap-1"
+          className="text-xs font-bold text-slate-700 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-[#ff6b1a] rounded-lg p-1 transition-colors cursor-pointer inline-flex items-center gap-1.5"
         >
-          <KeyRound className="w-3.5 h-3.5 text-primary" />
+          <KeyRound className="w-4 h-4 text-blue-700" />
           <span>{isThai ? 'กลับไปใช้แป้น PIN' : 'Switch to PIN Pad'}</span>
         </button>
       </div>

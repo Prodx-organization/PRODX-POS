@@ -211,7 +211,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const stored = localStorage.getItem('prodx_pos_auto_logout_timeout');
       if (stored !== null) return Number(stored);
     } catch {}
-    return 15;
+    return 30;
   });
 
   const setAutoLogoutTimeoutMinutes = (mins: number) => {
@@ -1215,7 +1215,7 @@ export function useAuth(): AuthContextType {
     isLoading: false,
     isLocked: false,
     inactivityTimeoutMinutes: 15,
-    autoLogoutTimeoutMinutes: 15,
+    autoLogoutTimeoutMinutes: 30,
     setAutoLogoutTimeoutMinutes: () => {},
     staffUsers: [],
     rolePermissions: ROLE_PERMISSIONS as Record<Role, Permission[]>,

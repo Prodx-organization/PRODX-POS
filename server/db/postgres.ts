@@ -7,7 +7,7 @@ const LOCAL_POSTGRES_SOCKET = '/tmp/pgrun/.s.PGSQL.5432';
 const LOCAL_FALLBACK_DATABASE_URL = 'postgresql://postgres@127.0.0.1:5432/prodx_pos';
 
 const shouldResolveProductionDatabaseUrl = (): boolean =>
-  (process.env.VERCEL === '1' || process.env.K_SERVICE !== undefined) && process.env.NODE_ENV === 'production';
+  process.env.VERCEL === '1' && process.env.NODE_ENV === 'production';
 
 export const resolveConfiguredDatabaseUrl = (
   rawUrl: string | undefined = process.env.DATABASE_URL,

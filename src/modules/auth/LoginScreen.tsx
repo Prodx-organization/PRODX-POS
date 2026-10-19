@@ -422,7 +422,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
   const handleBiometricLogin = useCallback(
     async (targetRecord?: PasskeyCredentialRecord) => {
       if (isLoading || isBiometricVerifying) return;
-      if (!terminalReady || !organizationContext) return;
+      if (!terminalReady || !organizationContext) {
+        setIsScopeBarExpanded(true);
+        addToast({
+          title: isThai ? 'กรุณาเลือกเครื่องขาย' : 'Scope Required',
+          message: isThai ? 'กรุณาเลือกสาขาและเครื่องขาย POS ก่อนเริ่มเข้ากะ' : 'Please select POS terminal scope first.',
+          type: 'warning',
+        });
+        return;
+      }
 
       const chosenPasskey =
         targetRecord ||
@@ -479,29 +487,29 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
             <div className="text-2xl font-black tracking-tighter">
               PRODX<span className="font-light text-slate-400">POS</span>
             </div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">
+            <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">
               Enterprise POS Engine
             </div>
           </div>
         </div>
 
         <div className="relative z-10 max-w-md my-auto space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-md bg-primary/10 border border-primary/20 px-3 py-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-primary">{copy.verified}</span>
+          <div className="inline-flex items-center gap-2 rounded-md bg-sky-500/10 border border-sky-500/30 px-3 py-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-300">{copy.verified}</span>
           </div>
           <h1 className="text-4xl xl:text-5xl font-black tracking-tight leading-tight">
             {isThai ? 'จุดชำระเงินอัจฉริยะ' : 'High-Performance'} <br />
-            <span className="text-primary">{isThai ? 'ระดับองค์กร' : 'Retail POS Station'}</span>
+            <span className="text-[#ff6b1a]">{isThai ? 'ระดับองค์กร' : 'Retail POS Station'}</span>
           </h1>
-          <p className="text-sm text-slate-400 leading-relaxed">
+          <p className="text-sm text-slate-300 leading-relaxed">
             {isThai
               ? 'ระบบจัดการหน้าร้านความเร็วสูง รองรับออฟไลน์ซิงค์และบันทึกความปลอดภัยระดับสูงสุด'
               : 'Empowering enterprise retail with rapid checkout, offline resilience, and secure auditing.'}
           </p>
         </div>
 
-        <div className="relative z-10 pt-6 border-t border-white/10 flex items-center justify-between text-xs text-slate-500 font-bold">
+        <div className="relative z-10 pt-6 border-t border-white/10 flex items-center justify-between text-xs text-slate-400 font-bold">
           <span>POS Terminal Operator Authentication</span>
           <div>© PRODX POS</div>
         </div>
@@ -515,14 +523,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
             <span className="font-black text-lg">PRODX<span className="text-primary">POS</span></span>
           </div>
           <div className="flex items-center gap-2 ml-auto">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-lg text-xs font-bold text-slate-600">
-              <Clock3 className="w-3.5 h-3.5 text-primary" />
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs font-bold text-slate-800">
+              <Clock3 className="w-3.5 h-3.5 text-slate-700" />
               <span>{clock}</span>
             </div>
             <button
               type="button"
               onClick={navigateToAdminLogin}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-black hover:bg-slate-800 transition-all shadow-xs cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] bg-slate-900 text-white rounded-lg text-xs font-black hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-[#ff6b1a] focus-visible:ring-offset-2 transition-all shadow-xs cursor-pointer"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-[#ff6b1a]" />
               <span>{copy.adminLoginBtn}</span>
@@ -530,9 +538,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
             <button
               type="button"
               onClick={() => setLanguage(isThai ? 'en' : 'th')}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-black text-slate-700 hover:border-primary cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] border-2 border-slate-300 rounded-lg text-xs font-black text-slate-900 hover:border-slate-900 focus-visible:ring-2 focus-visible:ring-[#ff6b1a] focus-visible:ring-offset-2 cursor-pointer"
             >
-              <Globe2 className="w-3.5 h-3.5" />
+              <Globe2 className="w-3.5 h-3.5 text-slate-800" />
               <span>{copy.language}</span>
             </button>
           </div>
@@ -541,11 +549,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
         {/* Dynamic Body: Zero-Scroll Compact Layout */}
         <div className="flex-1 flex flex-col justify-center max-w-[440px] mx-auto w-full py-4 space-y-4">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-1">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[#c2410c] dark:text-[#ff8c42] mb-1">
               {copy.eyebrow}
             </div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">{copy.title}</h2>
-            <p className="text-xs text-slate-500">{copy.subtitle}</p>
+            <p className="text-xs text-slate-600 font-medium">{copy.subtitle}</p>
           </div>
 
           {/* Compact Terminal Scope Bar */}
@@ -603,6 +611,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
                   setLoginMode('email');
                 }}
                 onTriggerScopeError={() => setIsScopeBarExpanded(true)}
+                hasRegisteredBiometrics={enrolledPasskeys.length > 0}
+                isBiometricVerifying={isBiometricVerifying}
+                activePasskey={
+                  enrolledPasskeys.find((k) => k.id === selectedPasskeyId) ||
+                  enrolledPasskeys[0]
+                }
+                onQuickBiometricSignIn={() => void handleBiometricLogin()}
               />
             )}
 
@@ -651,7 +666,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onOpenAdminLogin }) =>
           </div>
         </div>
 
-        <footer className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 shrink-0">
+        <footer className="pt-3 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-600 font-medium shrink-0">
           <div>PRODX POS v2.5 · Enterprise Edition</div>
           <div className="flex items-center gap-1.5">
             <Lock className="w-3 h-3 text-emerald-600" />

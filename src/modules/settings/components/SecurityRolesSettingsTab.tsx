@@ -386,8 +386,8 @@ export const SecurityRolesSettingsTab: React.FC<SecurityRolesSettingsTabProps> =
                 {[
                   { mins: 0, labelTh: 'ปิดการตั้งค่า', labelEn: 'Disabled' },
                   { mins: 5, labelTh: '5 นาที', labelEn: '5 Min' },
-                  { mins: 15, labelTh: '15 นาที (แนะนำ)', labelEn: '15 Min (Default)' },
-                  { mins: 30, labelTh: '30 นาที', labelEn: '30 Min' },
+                  { mins: 15, labelTh: '15 นาที', labelEn: '15 Min' },
+                  { mins: 30, labelTh: '30 นาที (แนะนำ)', labelEn: '30 Min (Default)' },
                   { mins: 60, labelTh: '60 นาที', labelEn: '60 Min' },
                 ].map((item) => {
                   const isSelected = autoLogoutTimeoutMinutes === item.mins;
