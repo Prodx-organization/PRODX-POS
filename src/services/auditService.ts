@@ -18,7 +18,7 @@ import {
   Unsubscribe,
   writeBatch,
 } from 'firebase/firestore';
-import { db, OperationType } from '../lib/firebase';
+import { db, OperationType, handleFirestoreError } from '../lib/firebase';
 
 export type DiagnosticLogLevel = 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL';
 
@@ -188,7 +188,11 @@ async function defaultFirestoreBatchUploader(
     batch.set(docRef, payload);
   }
 
-  await batch.commit();
+  try {
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, DIAGNOSTIC_LOGS_COLLECTION);
+  }
 }
 
 export class BufferedAuditDiagnosticService {

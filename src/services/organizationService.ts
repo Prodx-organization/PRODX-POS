@@ -25,6 +25,8 @@ import { Organization, Branch, Terminal, OrganizationAuditLog } from '../modules
 import { assertOrganizationAdminAccess } from '../security/rbacMiddleware';
 import { auditService } from './auditService';
 import { firestoreSyncStatusService } from './firestoreSyncStatusService';
+import type { KeyValueStorageLike } from '../domain/storage';
+export type { KeyValueStorageLike };
 
 export interface OrganizationActorContext {
   id?: string;
@@ -353,12 +355,6 @@ export const DEFAULT_TERMINALS: Terminal[] = [
 // Pluggable Storage & Resilience State Management
 // ============================================================================
 
-export interface KeyValueStorageLike {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-  removeItem(key: string): void;
-}
-
 let customStorageAdapter: KeyValueStorageLike | null = null;
 let configuredTimeoutMs = DEFAULT_FIRESTORE_TIMEOUT_MS;
 let simulatedTimeoutActive = false;
@@ -505,7 +501,7 @@ export function readOrganizationsFromLocalStorage(): Organization[] | null {
   if (!storage) return null;
   try {
     const raw = storage.getItem(ORGANIZATION_STORAGE_KEYS.ORGANIZATIONS_CACHE);
-    if (!raw) return null;
+    if (typeof raw !== 'string') return null;
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return null;
     const valid = parsed.filter(isValidOrganizationRecord);
@@ -533,7 +529,7 @@ export function readBranchesFromLocalStorage(orgId?: string): Branch[] | null {
   if (!storage) return null;
   try {
     const raw = storage.getItem(ORGANIZATION_STORAGE_KEYS.BRANCHES_CACHE);
-    if (!raw) return null;
+    if (typeof raw !== 'string') return null;
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return null;
     const valid = parsed.filter(isValidBranchRecord);
@@ -575,7 +571,7 @@ export function readTerminalsFromLocalStorage(branchId?: string, orgId?: string)
   if (!storage) return null;
   try {
     const raw = storage.getItem(ORGANIZATION_STORAGE_KEYS.TERMINALS_CACHE);
-    if (!raw) return null;
+    if (typeof raw !== 'string') return null;
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return null;
     const valid = parsed.filter(isValidTerminalRecord);
@@ -625,7 +621,7 @@ function readCatalogCacheMetaFromLocalStorage(): CatalogCacheMeta | null {
   if (!storage) return null;
   try {
     const raw = storage.getItem(ORGANIZATION_STORAGE_KEYS.CATALOG_META);
-    if (!raw) return null;
+    if (typeof raw !== 'string') return null;
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed.updatedAt === 'number') {
       return parsed as CatalogCacheMeta;
@@ -698,15 +694,20 @@ export function readSelectionScopeFromLocalStorage(): OrganizationSelectionSaved
   if (!storage) return null;
   try {
     const raw = storage.getItem(ORGANIZATION_STORAGE_KEYS.SELECTED_SCOPE);
-    if (raw) {
+    if (typeof raw === 'string') {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
         return parsed as OrganizationSelectionSavedScope;
       }
     }
-    const orgSlug = storage.getItem(ORGANIZATION_STORAGE_KEYS.TERMINAL_ORG_SLUG)?.trim();
-    const branchName = storage.getItem(ORGANIZATION_STORAGE_KEYS.TERMINAL_STORE_NAME)?.trim();
-    const terminalCode = storage.getItem(ORGANIZATION_STORAGE_KEYS.TERMINAL_REGISTER_CODE)?.trim();
+    const rawOrgSlug = storage.getItem(ORGANIZATION_STORAGE_KEYS.TERMINAL_ORG_SLUG);
+    const rawBranchName = storage.getItem(ORGANIZATION_STORAGE_KEYS.TERMINAL_STORE_NAME);
+    const rawTerminalCode = storage.getItem(ORGANIZATION_STORAGE_KEYS.TERMINAL_REGISTER_CODE);
+
+    const orgSlug = typeof rawOrgSlug === 'string' ? rawOrgSlug.trim() : undefined;
+    const branchName = typeof rawBranchName === 'string' ? rawBranchName.trim() : undefined;
+    const terminalCode = typeof rawTerminalCode === 'string' ? rawTerminalCode.trim() : undefined;
+
     if (orgSlug || branchName || terminalCode) {
       return {
         organizationSlug: orgSlug || undefined,

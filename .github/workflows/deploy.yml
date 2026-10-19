@@ -1,0 +1,103 @@
+name: Production Deployment & Build Cache
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy-and-cache:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Cache node_modules
+      uses: actions/cache@v4
+      id: cache-node-modules
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-modules-
+
+    - name: Install dependencies (if cache miss)
+      if: steps.cache-node-modules.outputs.cache-hit != 'true'
+      run: npm install
+
+    - name: Cache Vite & Dist Build Artifacts
+      uses: actions/cache@v4
+      id: cache-dist
+      with:
+        path: |
+          node_modules/.vite
+          dist
+          build
+        key: ${{ runner.os }}-build-artifacts-${{ hashFiles('src/**','server.ts','vite.config.ts','package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-build-artifacts-
+
+    - name: Run checks and tests in parallel
+      run: |
+        echo "Running TypeScript check, server type check, and unit tests in parallel..."
+        npx tsc --noEmit &
+        PID1=$!
+        npm run server:check &
+        PID2=$!
+        npm run server:test &
+        PID3=$!
+        
+        # Wait for all parallel jobs to complete and capture exit codes
+        wait $PID1 || exit 1
+        wait $PID2 || exit 1
+        wait $PID3 || exit 1
+        echo "All parallel validation checks passed successfully!"
+
+
+    - name: Build production application
+      if: steps.cache-dist.outputs.cache-hit != 'true'
+      run: npm run build
+
+    - name: Verify final deployment artifacts
+      run: |
+        ls -la dist/ || ls -la build/
+        test -f dist/index.html || test -f build/index.html
+        test -f dist/index.js || test -f build/index.js
+        echo "Deployment build artifacts verified successfully with persistent caching!"
+
+    - name: Commit bundle report to build-reports branch
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        
+        # Create or checkout build-reports branch
+        git checkout --orphan build-reports || git checkout build-reports || git checkout -b build-reports
+        
+        # Keep only stats.html and metafile.json if available
+        mkdir -p reports
+        if [ -f dist/stats.html ]; then
+          cp dist/stats.html reports/stats-$(git rev-parse --short HEAD).html
+          cp dist/stats.html reports/latest-stats.html
+        fi
+        if [ -f dist/metafile.json ]; then
+          cp dist/metafile.json reports/metafile-$(git rev-parse --short HEAD).json
+        fi
+        
+        git add reports/
+        git commit -m "chore(reports): update bundle visualizer report for $(git rev-parse --short HEAD)" || echo "No changes to commit"
+        git push origin build-reports --force || echo "Push to build-reports skipped or restricted"
+

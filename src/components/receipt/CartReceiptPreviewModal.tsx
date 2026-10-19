@@ -321,7 +321,7 @@ export const CartReceiptPreviewModal: React.FC<CartReceiptPreviewModalProps> = (
                 </div>
               ) : (
                 items.map((item) => {
-                  const itemDiscountCents = Math.round((item.unitPrice.amountInCents * item.quantity * item.discountBps) / 10000);
+                  const itemDiscountCents = Number((BigInt(item.unitPrice.amountInCents) * BigInt(item.quantity) * BigInt(item.discountBps) + 5000n) / 10000n);
                   const itemDiscountMoney = createMoney(itemDiscountCents, item.unitPrice.currency);
                   return (
                     <div key={item.product.id} className="space-y-0.5">

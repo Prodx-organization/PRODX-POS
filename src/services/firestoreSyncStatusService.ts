@@ -8,7 +8,7 @@
 
 import { doc, getDoc, setDoc, deleteDoc, Unsubscribe } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { KeyValueStorageLike } from './organizationService';
+import type { KeyValueStorageLike } from '../domain/storage';
 
 export type SyncEntityCollection =
   | 'organizations'
@@ -226,19 +226,19 @@ export class AdminFirestoreSyncStatusService {
     if (!this.storage) return;
     try {
       const rawQueue = this.storage.getItem(STORAGE_KEYS.WRITE_QUEUE);
-      if (rawQueue) {
+      if (typeof rawQueue === 'string') {
         const parsed = JSON.parse(rawQueue);
         if (Array.isArray(parsed)) {
           this.queue = parsed;
         }
       }
       const rawTotal = this.storage.getItem(STORAGE_KEYS.TOTAL_SYNCED);
-      if (rawTotal) {
+      if (typeof rawTotal === 'string') {
         const num = Number(rawTotal);
         if (Number.isFinite(num) && num >= 0) this.totalSyncedCount = num;
       }
       const rawLast = this.storage.getItem(STORAGE_KEYS.LAST_SYNCED_AT);
-      if (rawLast) {
+      if (typeof rawLast === 'string') {
         const ts = Number(rawLast);
         if (Number.isFinite(ts) && ts > 0) this.lastSyncedAt = ts;
       }

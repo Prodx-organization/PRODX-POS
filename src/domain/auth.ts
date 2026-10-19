@@ -213,14 +213,7 @@ export const DEFAULT_STAFF_PASSWORDS: Record<string, string> = {
   'usr-cashier-emily': 'Cashier@2026',
 };
 
-export const DEFAULT_STAFF_PINS: Record<string, string> = {
-  'usr-admin-kamkokaew': '999999',
-  'usr-manager-sarah': '5678',
-  'usr-cashier-john': '0000',
-  'usr-cashier-emily': '1111',
-};
-
-let volatileStaffPins: Record<string, string> = { ...DEFAULT_STAFF_PINS };
+let volatileStaffPins: Record<string, string> = {};
 let volatileStaffPasswords: Record<string, string> = { ...DEFAULT_STAFF_PASSWORDS };
 
 export interface PersistedAdminCredentialRecord {
@@ -335,11 +328,11 @@ export function saveStoredRolePermissions(matrix: Record<Role, Permission[]>): v
 }
 
 export function getStoredStaffPins(): Record<string, string> {
-  return { ...DEFAULT_STAFF_PINS, ...volatileStaffPins };
+  return { ...volatileStaffPins };
 }
 
 export function saveStoredStaffPins(pins: Record<string, string>): void {
-  volatileStaffPins = { ...DEFAULT_STAFF_PINS, ...pins };
+  volatileStaffPins = { ...pins };
 }
 
 export function getStoredStaffPasswords(): Record<string, string> {

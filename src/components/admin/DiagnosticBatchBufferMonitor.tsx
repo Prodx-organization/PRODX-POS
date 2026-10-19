@@ -135,7 +135,7 @@ export const DiagnosticBatchBufferMonitor: React.FC = () => {
           <button
             type="button"
             onClick={handleEnqueueSingleLog}
-            className="px-3 py-2 min-h-[38px] rounded-xl text-xs font-bold bg-background hover:bg-slate-100 dark:hover:bg-slate-800 text-text border border-border flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+            className="px-3 py-2 min-h-[38px] rounded-xl text-xs font-bold bg-background hover:bg-background text-text border border-border flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
           >
             <Plus className="w-3.5 h-3.5 text-indigo-500" />
             <span>พัก Log ลงบัฟเฟอร์ (+1)</span>
@@ -168,7 +168,7 @@ export const DiagnosticBatchBufferMonitor: React.FC = () => {
           <button
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
-            className="px-3 py-2 min-h-[38px] rounded-xl text-xs font-semibold bg-background hover:bg-slate-100 dark:hover:bg-slate-800 text-text/80 border border-border flex items-center gap-1 transition-all cursor-pointer"
+            className="px-3 py-2 min-h-[38px] rounded-xl text-xs font-semibold bg-background hover:bg-background text-text/80 border border-border flex items-center gap-1 transition-all cursor-pointer"
           >
             <span>{expanded ? 'ซ่อนรายละเอียด' : 'ดูคิวบัฟเฟอร์'}</span>
             {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}

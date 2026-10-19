@@ -12,6 +12,7 @@ import { StatusBar } from './StatusBar';
 import { OfflineBanner } from './OfflineBanner';
 import { BackgroundLayer } from './BackgroundLayer';
 import { Drawer } from '../common/Drawer';
+import { ToastContainer } from '../common/ToastContainer';
 import { HoldOrdersModal } from '../../modules/pos/HoldOrdersModal';
 import { CommandPalette } from '../common/CommandPalette';
 import { LockScreenModal } from '../auth/LockScreenModal';
@@ -255,6 +256,9 @@ export const AppShell: React.FC<AppShellProps> = ({
         isOpen={isSyncActivityOpen}
         onClose={closeSyncActivity}
       />
+
+      {/* Global Toast Notifications Container */}
+      <ToastContainer />
     </div>
   );
 };

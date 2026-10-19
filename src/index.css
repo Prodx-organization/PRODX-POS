@@ -690,6 +690,15 @@
   }
 }
 
+@keyframes shimmer-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 .animate-card-entrance {
   animation: card-entrance 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -702,6 +711,10 @@
   background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0) 100%);
   background-size: 200% 100%;
   animation: shimmer-sweep 2.5s infinite;
+}
+
+.animate-shimmer-slide {
+  animation: shimmer-slide 1.6s infinite ease-in-out;
 }
 
 @keyframes topology-dash-flow {

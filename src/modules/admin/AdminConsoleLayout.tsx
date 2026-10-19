@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Store,
   UserCheck,
+  TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -21,15 +22,10 @@ import { ProdxVectorMark } from '../../components/common/ProdxLogo';
 import { AdminSyncStatusIndicator } from '../../components/admin/AdminSyncStatusIndicator';
 import { AdminLoginScreen } from './AdminLoginScreen';
 import { useAdminInactivityTimeout } from '../../hooks/useAdminInactivityTimeout';
-
-export type AdminConsoleSection =
-  | 'overview'
-  | 'organizations'
-  | 'branches'
-  | 'terminals'
-  | 'rbac'
-  | 'audit'
-  | 'infrastructure';
+import { AdminContentSkeleton, AdminConsoleSkeleton } from './AdminConsoleSkeleton';
+import type { AdminConsoleSection } from '../../domain/routes';
+export type { AdminConsoleSection };
+export { AdminContentSkeleton, AdminConsoleSkeleton };
 
 export interface AdminConsoleLayoutProps {
   activeSection: AdminConsoleSection;
@@ -195,6 +191,12 @@ export const AdminConsoleLayout: React.FC<AdminConsoleLayoutProps> = ({
       sublabel: isThai ? 'ตรวจสอบสถานะระบบและการซิงค์' : 'Database, sync & runtime diagnostics',
       icon: Activity,
     },
+    {
+      id: 'bundle_trends',
+      label: isThai ? 'แนวโน้มขนาด Bundle' : 'Bundle Size Trends',
+      sublabel: isThai ? 'วิเคราะห์ข้อมูล metafile และประวัติขนาด' : 'Metafile chunk growth & size history',
+      icon: TrendingUp,
+    },
   ];
 
   return (
@@ -334,8 +336,12 @@ export const AdminConsoleLayout: React.FC<AdminConsoleLayoutProps> = ({
           </div>
         </aside>
 
-        {/* Workspace Content */}
-        <main className="flex-1 min-w-0 overflow-y-auto">{children}</main>
+        {/* Workspace Content with Skeleton Screen Loading Animation during component lazy-loading */}
+        <main className="flex-1 min-w-0 overflow-y-auto">
+          <React.Suspense fallback={<AdminContentSkeleton />}>
+            {children}
+          </React.Suspense>
+        </main>
       </div>
     </div>
   );

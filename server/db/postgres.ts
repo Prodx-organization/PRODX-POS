@@ -1,10 +1,26 @@
+import { existsSync } from 'node:fs';
 import { Pool, type PoolConfig, type QueryResultRow } from 'pg';
 import type { SqlExecutor } from '../auth/postgres-repository';
 
 const DEFAULT_DB_BROKER_URL = 'https://sjgwesmmpegtzsqqqhvd.supabase.co/functions/v1/prodx-db-broker';
+const LOCAL_POSTGRES_SOCKET = '/tmp/pgrun/.s.PGSQL.5432';
+const LOCAL_FALLBACK_DATABASE_URL = 'postgresql://postgres@127.0.0.1:5432/prodx_pos';
 
 const shouldResolveProductionDatabaseUrl = (): boolean =>
   process.env.VERCEL === '1' && process.env.NODE_ENV === 'production';
+
+export const resolveConfiguredDatabaseUrl = (
+  rawUrl: string | undefined = process.env.DATABASE_URL,
+): string | undefined => {
+  const trimmed = rawUrl?.trim();
+  if (!trimmed || trimmed === 'postgresql://...' || trimmed === 'postgres://...') {
+    if (!shouldResolveProductionDatabaseUrl() && existsSync(LOCAL_POSTGRES_SOCKET)) {
+      return LOCAL_FALLBACK_DATABASE_URL;
+    }
+    return undefined;
+  }
+  return trimmed;
+};
 
 export type ProductionDatabaseTarget = 'supabase_session_pooler' | 'supabase_direct' | 'other' | 'invalid';
 
@@ -24,7 +40,7 @@ export const resolveProductionDatabaseUrl = async (
   vercelOidcToken?: string,
 ): Promise<string | undefined> => {
   if (!shouldResolveProductionDatabaseUrl()) {
-    return process.env.DATABASE_URL;
+    return resolveConfiguredDatabaseUrl(process.env.DATABASE_URL);
   }
 
   const oidcToken = vercelOidcToken ?? process.env.VERCEL_OIDC_TOKEN;
@@ -54,7 +70,7 @@ export const resolveProductionDatabaseUrl = async (
 };
 
 export const createPostgresPool = (config: PoolConfig = {}): Pool => {
-  const connectionString = config.connectionString ?? process.env.DATABASE_URL;
+  const connectionString = resolveConfiguredDatabaseUrl(config.connectionString ?? process.env.DATABASE_URL);
   if (!connectionString) {
     if (process.env.NODE_ENV === 'production') {
       throw new Error('DATABASE_URL is required to create the PostgreSQL pool.');

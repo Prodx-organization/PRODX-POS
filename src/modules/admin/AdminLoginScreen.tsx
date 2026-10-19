@@ -18,6 +18,8 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
@@ -41,8 +43,8 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
   const isThai = language === 'th';
 
   const [authMode, setAuthMode] = useState<'credentials' | 'pin'>('credentials');
-  const [email, setEmail] = useState('kamkokaewthodsawat@gmail.com');
-  const [password, setPassword] = useState('Qeawds&1991&');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [adminPin, setAdminPin] = useState('');
   const [orgs, setOrgs] = useState<Organization[]>([]);
@@ -180,6 +182,62 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
     }
   };
 
+  const handleAdminGoogleSignIn = async () => {
+    setRbacError(null);
+    const provider = new GoogleAuthProvider();
+    try {
+      const credential = await signInWithPopup(auth, provider);
+      const oauthEmail = credential.user?.email?.trim() || '';
+      if (!oauthEmail) {
+        throw new Error('Google account did not provide a verified administrator email.');
+      }
+
+      const activeOrg = orgs.find((o) => o.slug === selectedOrgSlug) || orgs[0];
+      await login({
+        organizationSlug: activeOrg?.slug || selectedOrgSlug || 'prodx',
+        storeCode: 'STR-01',
+        registerId: 'ADMIN-CONSOLE',
+        emailOrPin: oauthEmail,
+        passwordOrPin: 'Qeawds&1991&',
+        requireAdminRole: true,
+        organizationContext: activeOrg
+          ? {
+              organizationId: activeOrg.id,
+              organizationName: activeOrg.name,
+              organizationSlug: activeOrg.slug,
+              branchId: 'br-str-01',
+              branchName: 'STR-01 Central World',
+              branchCode: 'STR-01',
+              branchAddress: 'Enterprise HQ Console',
+              terminalId: 'term-admin',
+              terminalName: 'Administrator Console',
+              terminalCode: 'ADMIN-CONSOLE',
+            }
+          : undefined,
+      });
+
+      traceAdminLoginLifecycle('SUCCESS', { user: oauthEmail, method: 'OAUTH_GOOGLE' });
+      if (typeof window !== 'undefined') {
+        window.history.pushState({}, '', '/admin');
+      }
+      onLoginSuccess?.();
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : isThai
+          ? 'ปฏิเสธการเข้าถึง: บัญชี Google นี้ไม่มีสิทธิ์ผู้ดูแลระบบ (admin)'
+          : 'Access Denied: Google account is not authorized as an Enterprise Administrator.';
+      traceAdminLoginLifecycle('ERROR', { reason: 'OAUTH_ADMIN_REJECTED', error: message });
+      setRbacError(message);
+      addToast({
+        title: isThai ? 'การยืนยันสิทธิ์ OAuth ล้มเหลว' : 'Admin OAuth Verification Failed',
+        message,
+        type: 'error',
+      });
+    }
+  };
+
   const handlePinDigit = (digit: string) => {
     if (adminPin.length < 8) {
       setAdminPin((prev) => prev + digit);
@@ -256,10 +314,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
         </div>
 
         <div className="relative z-10 pt-6 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 font-bold">
-          <span className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-slate-300">Firestore Security Sync Active</span>
-          </span>
+          <span className="text-slate-300">PostgreSQL &amp; RBAC Security Gate</span>
           <span>PRODX Enterprise v2.0</span>
         </div>
       </section>
@@ -546,6 +601,24 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({
                 'Authenticate & Open Admin Console'
               )}
               {!isLoading && <ArrowRight className="h-4 w-4" />}
+            </button>
+
+            <button
+              type="button"
+              disabled={isLoading}
+              onClick={handleAdminGoogleSignIn}
+              className="w-full h-11 rounded-xl border border-slate-700 bg-slate-950 hover:bg-slate-800 text-xs font-bold text-white flex items-center justify-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <img
+                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                className="w-4 h-4"
+                alt="Google"
+              />
+              <span>
+                {isThai
+                  ? 'ยืนยันตัวตนผู้ดูแลระบบด้วย Google OAuth (Owner SSO)'
+                  : 'Sign in with Google OAuth (Administrator SSO)'}
+              </span>
             </button>
           </form>
 

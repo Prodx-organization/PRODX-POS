@@ -3,9 +3,10 @@ import type { Pool } from 'pg';
 import { infrastructureAiService } from '../services/infrastructureAiService';
 import { firmwareRegistryService } from '../services/firmwareRegistryService';
 import { performEndToEndHealthCheck } from '../services/systemHealthCheckService';
+import { requirePermission } from './createApp';
 import { GoogleGenAI } from '@google/genai';
 
-export function registerInfrastructureRoutes(app: Express, pool?: Pool) {
+export function registerPublicInfrastructureRoutes(app: Express, pool?: Pool) {
   // End-to-end ping of backend services (Cloud SQL and Firestore) with status-coded response
   app.get('/api/v1/infrastructure/system-health-check', async (req: Request, res: Response) => {
     try {
@@ -107,6 +108,21 @@ export function registerInfrastructureRoutes(app: Express, pool?: Pool) {
         region: 'asia-southeast1',
       },
     });
+  });
+}
+
+export function registerInfrastructureRoutes(app: Express, pool?: Pool) {
+  registerPublicInfrastructureRoutes(app, pool);
+
+  // Enforce RBAC permission 'settings.manage' on all hardware/firmware/infrastructure management routes
+  // (excluding public system-health-check and latency-ping probes)
+  const enforceInfraRbac = requirePermission('settings.manage');
+  app.use('/api/v1/infrastructure', (req, res, next) => {
+    if (req.path === '/system-health-check' || req.path === '/latency-ping') {
+      next();
+      return;
+    }
+    void enforceInfraRbac(req, res, next);
   });
 
   // Get system infrastructure health

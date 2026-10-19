@@ -9,7 +9,6 @@ import {
   ToastType,
   AddToastInput,
 } from '../services/toastNotificationService';
-import { ToastContainer } from '../components/common/ToastContainer';
 
 export type { ToastType, ToastItem, AddToastInput };
 
@@ -49,7 +48,6 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast, clearToasts }}>
       {children}
-      <ToastContainer />
     </ToastContext.Provider>
   );
 };

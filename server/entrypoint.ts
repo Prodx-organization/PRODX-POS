@@ -22,7 +22,7 @@ import { registerSupervisorAuthorizationRoute } from './http/supervisor-authoriz
 import { registerOrderReadRoute } from './http/order-read-route';
 import { registerVoidRoute } from './http/void-route';
 import { registerInventoryAdjustmentRoute } from './http/inventory-adjustment-route';
-import { registerInfrastructureRoutes } from './http/infrastructureRoutes';
+import { registerInfrastructureRoutes, registerPublicInfrastructureRoutes } from './http/infrastructureRoutes';
 import { installAIHttpRoute } from './ai/http-route';
 
 export type ProductionAppOptions = {
@@ -61,7 +61,7 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
     },
     configurePublicRoutes: (configuredApp) => {
       registerAuthRoutes(configuredApp, sql, sessions);
-      registerInfrastructureRoutes(configuredApp, pool);
+      registerPublicInfrastructureRoutes(configuredApp, pool);
     },
     authenticateRequest: async (request) => {
       const header = request.header('authorization');
@@ -84,6 +84,7 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
       registerOrderReadRoute(configuredApp, transactions);
       registerVoidRoute(configuredApp, transactions);
       registerInventoryAdjustmentRoute(configuredApp, transactions);
+      registerInfrastructureRoutes(configuredApp, pool);
       const aiRouter = express.Router();
       installAIHttpRoute(aiRouter, { gateway: aiGateway });
       configuredApp.use('/api/v1/ai', aiRouter);

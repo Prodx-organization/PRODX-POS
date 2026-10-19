@@ -2,6 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import pg from 'pg';
+import { resolveConfiguredDatabaseUrl } from '../server/db/postgres';
 
 const { Pool } = pg;
 const migrationDir = path.resolve(process.cwd(), 'db/migrations');
@@ -11,7 +12,7 @@ const migrationFiles = (await readdir(migrationDir))
 
 if (migrationFiles.length === 0) throw new Error('No database migrations found.');
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = resolveConfiguredDatabaseUrl(process.env.DATABASE_URL);
 if (!databaseUrl) throw new Error('DATABASE_URL is required for database migrations.');
 
 const pool = new Pool({ connectionString: databaseUrl });

@@ -137,6 +137,21 @@
         "updatedAt": { "type": "number" }
       },
       "required": ["id", "email", "passwordHash", "isSystemOwner", "updatedAt"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A user task in the management app",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "completed": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "ownerId", "title", "completed", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -167,6 +182,10 @@
     "/admin_credentials/{adminId}": {
       "schema": { "$ref": "AdminCredential" },
       "description": "System owner administrator credentials collection"
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "Task" },
+      "description": "User tasks collection"
     }
   }
 }

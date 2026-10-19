@@ -481,7 +481,7 @@ export const SystemAlertNotificationCenter: React.FC<SystemAlertNotificationCent
             className={`px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer active:scale-95 ${
               hasActiveErrors
                 ? 'bg-white/10 hover:bg-white/15 text-white border-white/20'
-                : 'bg-background hover:bg-slate-100 dark:hover:bg-slate-800 text-text border-border'
+                : 'bg-background hover:bg-background text-text border-border'
             }`}
           >
             <Bell className="w-3.5 h-3.5 shrink-0" />

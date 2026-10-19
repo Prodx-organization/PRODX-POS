@@ -26,18 +26,8 @@ import { ProdxLogo } from '../common/ProdxLogo';
 import { Badge } from '../common/Badge';
 import { GraphicIcon, GraphicIconColor } from '../common/GraphicIcon';
 import { RbacGuard, useRbac } from '../auth/RbacGuard';
-
-export type NavRoute =
-  | 'pos'
-  | 'dashboard'
-  | 'kds'
-  | 'orders'
-  | 'inventory'
-  | 'shift'
-  | 'customers'
-  | 'audit'
-  | 'infrastructure'
-  | 'settings';
+import type { NavRoute } from '../../domain/routes';
+export type { NavRoute };
 
 export interface SidebarProps {
   currentRoute: NavRoute;
@@ -130,6 +120,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       color: 'indigo',
     },
     {
+      id: 'tasks',
+      label: language === 'th' ? 'รายการงาน (Tasks)' : 'Task Manager',
+      icon: LayoutGrid,
+      color: 'indigo',
+    },
+    {
       id: 'settings',
       label: t.nav.settings,
       icon: Settings,
@@ -203,12 +199,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           <nav className="p-3 space-y-1.5 overflow-y-auto overflow-x-hidden min-h-0 flex-1 w-full max-w-full no-scrollbar">
-            {navItems.map((item) => {
-              const isRestricted = !canAccessModule(item.id);
-              const isActive = currentRoute === item.id;
-              const IconComp = item.icon;
+            {navItems
+              .filter((item) => (isGeneralUser ? item.id === 'pos' : true))
+              .map((item) => {
+                const isRestricted = !canAccessModule(item.id);
+                const isActive = currentRoute === item.id;
+                const IconComp = item.icon;
 
-              return (
+                return (
                 <button
                   key={item.id}
                   type="button"

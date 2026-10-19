@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { classifyProductionDatabaseTarget, resolveProductionDatabaseUrl } from './postgres';
+import { classifyProductionDatabaseTarget, resolveConfiguredDatabaseUrl, resolveProductionDatabaseUrl } from './postgres';
 
 const withEnvironment = async (
   values: Record<string, string | undefined>,
@@ -142,3 +142,15 @@ test('resolveProductionDatabaseUrl rejects a broker failure', async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test('resolveConfiguredDatabaseUrl preserves valid URLs and rejects placeholder strings in Vercel production', async () => {
+  assert.equal(resolveConfiguredDatabaseUrl('postgresql://local.example/prodx'), 'postgresql://local.example/prodx');
+  await withEnvironment(
+    { VERCEL: '1', NODE_ENV: 'production' },
+    async () => {
+      assert.equal(resolveConfiguredDatabaseUrl('postgresql://...'), undefined);
+      assert.equal(resolveConfiguredDatabaseUrl('   '), undefined);
+    },
+  );
+});
+

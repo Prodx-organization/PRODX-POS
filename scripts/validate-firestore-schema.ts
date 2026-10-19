@@ -32,8 +32,8 @@ import type { Organization, Branch, Terminal } from '../src/modules/settings/typ
 const memStore = new Map<string, string>();
 const inMemoryStorage = {
   getItem: (k: string) => memStore.get(k) ?? null,
-  setItem: (k: string, v: string) => memStore.set(k, v),
-  removeItem: (k: string) => memStore.delete(k),
+  setItem: (k: string, v: string) => { memStore.set(k, v); },
+  removeItem: (k: string) => { memStore.delete(k); },
 };
 
 // Use fast timeout and in-memory storage for resilient CLI execution

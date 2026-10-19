@@ -7,8 +7,7 @@ import { IAuthApi } from './types';
 import { authApi as mockAuthApi } from './mockAdapter';
 import { createProductionAuthApi } from './productionAuthApi';
 
-import { shouldReadMock } from './env';
-
 const productionAuthApi: IAuthApi = createProductionAuthApi();
 
-export const authApi: IAuthApi = shouldReadMock() ? mockAuthApi : productionAuthApi;
+export const authApi: IAuthApi = import.meta.env.DEV ? mockAuthApi : productionAuthApi;
+

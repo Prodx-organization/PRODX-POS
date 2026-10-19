@@ -1,5 +1,11 @@
 import type { Express, NextFunction, Request, Response } from 'express';
-type Permission = 'pos:checkout' | 'pos:void' | 'pos:refund' | 'inventory:read' | 'inventory:adjust' | 'shift:open' | 'shift:close' | 'shift:pay_movement' | 'customers:read' | 'customers:write' | 'reports:read' | 'audit:read' | 'settings:manage';
+type Permission =
+  | 'pos:checkout' | 'pos:discount' | 'pos:price_override' | 'pos:void' | 'pos:refund'
+  | 'inventory:read' | 'inventory:adjust'
+  | 'shift:open' | 'shift:close' | 'shift:pay_movement'
+  | 'customers:read' | 'customers:write'
+  | 'reports:read' | 'audit:read' | 'settings:manage'
+  | 'org:read' | 'org:manage' | 'branch:manage' | 'terminal:manage' | 'rbac:manage';
 import type { AuthenticatedSession, SessionIssuer } from '../auth/session';
 import type { SqlExecutor } from '../auth/postgres-repository';
 import { checkLoginThrottle, recordLoginFailure } from '../auth/login-rate-limit';
@@ -10,6 +16,7 @@ type LoginBody = {
   emailOrPin: string;
   passwordOrPin: string;
   registerId: string;
+  requireAdminRole?: boolean;
 };
 
 type Role = 'admin' | 'manager' | 'cashier';
@@ -21,22 +28,54 @@ const DEFAULT_STORE_TAX_RATE_BPS = 700;
 const MAX_FIELD_LENGTH = 256;
 
 const AUTH_FAILED_MESSAGE = 'Invalid credentials or store scope.';
-const BACKEND_TO_UI_PERMISSION: Record<string, Permission> = {
-  'pos.sell': 'pos:checkout',
-  'pos.void': 'pos:void',
-  'pos.refund': 'pos:refund',
-  'inventory.read': 'inventory:read',
-  'inventory.adjust': 'inventory:adjust',
-  'cash.shift.open': 'shift:open',
-  'cash.shift.close': 'shift:close',
-  'cash.shift.movement': 'shift:pay_movement',
-  'customer.read': 'customers:read',
-  'customer.write': 'customers:write',
-  'report.read': 'reports:read',
-  'audit.read': 'audit:read',
-  'settings.manage': 'settings:manage',
+const ADMIN_ROLE_REQUIRED_MESSAGE =
+  'Access Denied: Only accounts with the "admin" role can authenticate into the Administrator Console.';
+
+const BACKEND_TO_UI_PERMISSIONS: Record<string, readonly Permission[]> = {
+  'pos.sell': ['pos:checkout'],
+  'pos.discount': ['pos:discount'],
+  'pos.price_override': ['pos:price_override'],
+  'pos.void': ['pos:void'],
+  'pos.refund': ['pos:refund'],
+  'inventory.read': ['inventory:read'],
+  'inventory.adjust': ['inventory:adjust'],
+  'cash.shift.open': ['shift:open'],
+  'cash.shift.close': ['shift:close'],
+  'cash.shift.movement': ['shift:pay_movement'],
+  'customer.read': ['customers:read'],
+  'customer.write': ['customers:write'],
+  'report.read': ['reports:read'],
+  'reports.read': ['reports:read'],
+  'dashboard.read': ['reports:read'],
+  'audit.read': ['audit:read'],
+  'settings.manage': ['settings:manage'],
+  'users.read': ['org:read'],
+  'org.read': ['org:read'],
+  'users.manage': ['org:manage', 'branch:manage', 'terminal:manage', 'settings:manage'],
+  'org.manage': ['org:manage'],
+  'branch.manage': ['branch:manage'],
+  'terminal.manage': ['terminal:manage'],
+  'rbac.manage': ['rbac:manage', 'org:manage', 'branch:manage', 'terminal:manage', 'settings:manage'],
 };
-const toUiPermission = (permission: string): Permission | null => BACKEND_TO_UI_PERMISSION[permission] ?? null;
+
+const toUiPermissions = (permissionKeys: readonly string[], role: Role): Permission[] => {
+  const mapped = new Set<Permission>();
+  for (const key of permissionKeys) {
+    const uiPerms = BACKEND_TO_UI_PERMISSIONS[key];
+    if (uiPerms) {
+      for (const perm of uiPerms) mapped.add(perm);
+    }
+  }
+  if (role === 'admin' && (permissionKeys.includes('rbac.manage') || permissionKeys.includes('users.manage'))) {
+    mapped.add('org:read');
+    mapped.add('org:manage');
+    mapped.add('branch:manage');
+    mapped.add('terminal:manage');
+    mapped.add('rbac:manage');
+    mapped.add('settings:manage');
+  }
+  return Array.from(mapped);
+};
 
 const errorBody = (request: Request, code: string, message: string) => ({
   error: { code, message, requestId: request.id },
@@ -48,6 +87,10 @@ const sendUnauthenticated = (request: Request, response: Response, message = 'Au
 
 const sendAuthFailed = (request: Request, response: Response, message = AUTH_FAILED_MESSAGE): void => {
   response.status(401).json(errorBody(request, 'AUTHENTICATION_FAILED', message));
+};
+
+const sendAdminRoleRequired = (request: Request, response: Response, message = ADMIN_ROLE_REQUIRED_MESSAGE): void => {
+  response.status(403).json(errorBody(request, 'ADMIN_ROLE_REQUIRED', message));
 };
 
 const bearerToken = (request: Request): string | null => {
@@ -62,6 +105,11 @@ const asyncRoute = (handler: (request: Request, response: Response) => Promise<v
     handler(request, response).catch(next);
   };
 
+const isAdminConsoleRegister = (registerId: string): boolean => {
+  const normalized = registerId.trim().toUpperCase();
+  return normalized === 'ADMIN-CONSOLE' || normalized === 'ADMIN_CONSOLE' || normalized === 'TERM-ADMIN';
+};
+
 const readLoginBody = (value: unknown): LoginBody | null => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const body = value as Record<string, unknown>;
@@ -73,6 +121,9 @@ const readLoginBody = (value: unknown): LoginBody | null => {
     const normalized = field === 'passwordOrPin' ? raw : raw.trim();
     if (!normalized || normalized.length > MAX_FIELD_LENGTH) return null;
     result[field] = normalized;
+  }
+  if (typeof body.requireAdminRole === 'boolean') {
+    result.requireAdminRole = body.requireAdminRole;
   }
   return result as LoginBody;
 };
@@ -133,6 +184,7 @@ const loadSessionContext = async (
       ORDER BY p.permission_key`,
     [principal.organizationId, principal.storeId, principal.userId],
   );
+  const resolvedRole = toRole(row.role_key);
   return {
     organization: { id: row.organization_id, name: row.organization_name, slug: row.organization_code, stores: [] },
     currentStore: mapStore({
@@ -144,9 +196,9 @@ const loadSessionContext = async (
       id: row.user_id,
       name: row.display_name,
       email: row.username,
-      role: toRole(row.role_key),
+      role: resolvedRole,
       employeeCode: row.username,
-      permissions: permissions.map((permission) => toUiPermission(permission.permission_key)).filter((permission): permission is Permission => permission !== null),
+      permissions: toUiPermissions(permissions.map((p) => p.permission_key), resolvedRole),
     },
     token,
     expiresAt: expiresAt.toISOString(),
@@ -167,6 +219,7 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
     const organizationSlug = typeof body?.organizationSlug === 'string' ? body.organizationSlug.trim() : '';
     const storeCode = typeof body?.storeCode === 'string' ? body.storeCode.trim() : '';
     const registerId = typeof body?.registerId === 'string' ? body.registerId.trim() : '';
+    const requireAdminRole = body?.requireAdminRole === true || isAdminConsoleRegister(registerId);
     if (!organizationSlug || !storeCode || !registerId) {
       response.status(400).json(errorBody(request, 'AUTH_REQUEST_INVALID', 'organizationSlug, storeCode, and registerId are required.'));
       return;
@@ -196,10 +249,15 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
       sendAuthFailed(request, response, 'Session scope could not be established.');
       return;
     }
+    if (requireAdminRole && context.currentUser.role !== 'admin') {
+      await sessions.revokeBearer(issued.token);
+      sendAdminRoleRequired(request, response);
+      return;
+    }
     response.status(200).json(context);
   }));
 
-  app.post('/auth/login', asyncRoute(async (request, response) => {
+  const handleCredentialLogin = (forceAdminRole: boolean) => async (request: Request, response: Response): Promise<void> => {
     const body = readLoginBody(request.body);
     if (!body) {
       response.status(400).json(errorBody(
@@ -249,8 +307,19 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
       sendAuthFailed(request, response, 'Session scope could not be established.');
       return;
     }
+
+    const requiresAdmin = forceAdminRole || body.requireAdminRole === true || isAdminConsoleRegister(body.registerId);
+    if (requiresAdmin && context.currentUser.role !== 'admin') {
+      await sessions.revokeBearer(issued.token);
+      sendAdminRoleRequired(request, response);
+      return;
+    }
+
     response.status(200).json(context);
-  }));
+  };
+
+  app.post('/auth/login', asyncRoute(handleCredentialLogin(false)));
+  app.post('/auth/admin/login', asyncRoute(handleCredentialLogin(true)));
 
   app.post('/auth/logout', asyncRoute(async (request, response) => {
     const token = bearerToken(request);

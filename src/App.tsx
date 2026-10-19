@@ -4,6 +4,9 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { auth } from './lib/firebase';
+import { Loader2 } from 'lucide-react';
 import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { SoundProvider } from './context/SoundContext';
@@ -24,25 +27,35 @@ import { AppShell } from './components/layout/AppShell';
 import { CustomerDisplayView } from './modules/customerDisplay/CustomerDisplayView';
 import { NavRoute } from './components/layout/Sidebar';
 import { LoginScreen } from './modules/auth/LoginScreen';
-import { AdminLoginScreen } from './modules/admin/AdminLoginScreen';
-import { AdminConfigDashboard } from './modules/admin/AdminConfigDashboard';
-import { OrganizationManagementModule } from './modules/admin/OrganizationManagementModule';
-import { AdminConsoleLayout, AdminConsoleSection } from './modules/admin/AdminConsoleLayout';
-import { PosScreen } from './modules/pos/PosScreen';
-import { DashboardScreen } from './modules/dashboard/DashboardScreen';
-import { OrdersScreen } from './modules/orders/OrdersScreen';
-import { InventoryScreen } from './modules/inventory/InventoryScreen';
-import { ShiftScreen } from './modules/shift/ShiftScreen';
-import { CustomersScreen } from './modules/customers/CustomersScreen';
-import { AuditScreen } from './modules/audit/AuditScreen';
-import { SettingsScreen } from './modules/settings/SettingsScreen';
-import { KitchenDisplayScreen } from './modules/kds/KitchenDisplayScreen';
+import { AdminConsoleSection, AdminConsoleSkeleton } from './modules/admin/AdminConsoleLayout';
+
+// Optimized Lazy-Loaded Admin Components (Reduced main-bundle impact for standard staff)
+const AdminLoginScreen = React.lazy(() => import('./modules/admin/AdminLoginScreen').then(m => ({ default: m.AdminLoginScreen })));
+const AdminConfigDashboard = React.lazy(() => import('./modules/admin/AdminConfigDashboard').then(m => ({ default: m.AdminConfigDashboard })));
+const OrganizationManagementModule = React.lazy(() => import('./modules/admin/OrganizationManagementModule').then(m => ({ default: m.OrganizationManagementModule })));
+const AdminConsoleLayout = React.lazy(() => import('./modules/admin/AdminConsoleLayout').then(m => ({ default: m.AdminConsoleLayout })));
+const InfrastructureDashboard = React.lazy(() => import('./components/admin/InfrastructureDashboard').then(m => ({ default: m.InfrastructureDashboard })));
+const BundleSizeTrendsModule = React.lazy(() => import('./components/admin/BundleSizeTrendsModule').then(m => ({ default: m.BundleSizeTrendsModule })));
+// Optimized Lazy-Loaded Operational Screens
+const PosScreen = React.lazy(() => import('./modules/pos/PosScreen').then(m => ({ default: m.PosScreen })));
+const DashboardScreen = React.lazy(() => import('./modules/dashboard/DashboardScreen').then(m => ({ default: m.DashboardScreen })));
+const OrdersScreen = React.lazy(() => import('./modules/orders/OrdersScreen').then(m => ({ default: m.OrdersScreen })));
+const InventoryScreen = React.lazy(() => import('./modules/inventory/InventoryScreen').then(m => ({ default: m.InventoryScreen })));
+const ShiftScreen = React.lazy(() => import('./modules/shift/ShiftScreen').then(m => ({ default: m.ShiftScreen })));
+const CustomersScreen = React.lazy(() => import('./modules/customers/CustomersScreen').then(m => ({ default: m.CustomersScreen })));
+const AuditScreen = React.lazy(() => import('./modules/audit/AuditScreen').then(m => ({ default: m.AuditScreen })));
+const SettingsScreen = React.lazy(() => import('./modules/settings/SettingsScreen').then(m => ({ default: m.SettingsScreen })));
+const KitchenDisplayScreen = React.lazy(() => import('./modules/kds/KitchenDisplayScreen').then(m => ({ default: m.KitchenDisplayScreen })));
 import { ReceiptValidationPortal } from './components/receipt/ReceiptValidationPortal';
 import { ShortcutsOverlay } from './components/common/ShortcutsOverlay';
 import { DevPerformanceOverlay } from './components/dev/DevPerformanceOverlay';
 import { RbacGuard } from './components/auth/RbacGuard';
-import { InfrastructureDashboard } from './components/admin/InfrastructureDashboard';
+
 import { FrontendAssistant } from './components/ai/FrontendAssistant';
+import { useShift } from './context/ShiftContext';
+import { StartShiftModal } from './components/shift/StartShiftModal';
+
+const TaskManagementScreen = React.lazy(() => import('./modules/tasks/TaskManagementScreen'));
 
 const checkIsAdminPath = () => {
   if (typeof window === 'undefined') return false;
@@ -63,7 +76,29 @@ const checkIsDedicatedAdminLoginPath = () => {
 };
 
 const MainApplication: React.FC = () => {
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+
+  useEffect(() => {
+    return onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+    });
+  }, []);
+
   const { session } = useAuth();
+  const { currentShift, isLoading: isShiftLoading } = useShift();
+  const [isStartShiftModalOpen, setIsStartShiftModalOpen] = useState(false);
+  const autoShiftPromptKeyRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    if (session && !isShiftLoading && !currentShift) {
+      const promptKey = `${session.currentUser.id}-${session.registerId}-${session.currentStore.id}`;
+      if (autoShiftPromptKeyRef.current !== promptKey) {
+        autoShiftPromptKeyRef.current = promptKey;
+        setIsStartShiftModalOpen(true);
+      }
+    }
+  }, [session, isShiftLoading, currentShift]);
+
   const [currentRoute, setCurrentRoute] = useState<NavRoute>('pos');
   const [isShortcutsOverlayOpen, setIsShortcutsOverlayOpen] = useState(false);
   const [isAdminMode, setIsAdminMode] = useState<boolean>(checkIsAdminPath);
@@ -84,6 +119,13 @@ const MainApplication: React.FC = () => {
       window.removeEventListener('hashchange', syncAdminMode);
     };
   }, []);
+
+  // Ensure POS-only cashier users remain on the 'pos' route
+  useEffect(() => {
+    if (session?.currentUser.role === 'cashier' && currentRoute !== 'pos') {
+      setCurrentRoute('pos');
+    }
+  }, [session, currentRoute]);
 
   const enterAdminLogin = () => {
     if (typeof window !== 'undefined') {
@@ -131,7 +173,15 @@ const MainApplication: React.FC = () => {
       if (e.key === 'F1') {
         e.preventDefault();
         setCurrentRoute('pos');
-      } else if (e.key === 'F2') {
+        return;
+      }
+
+      // POS-only cashier accounts cannot use F2-F10 to navigate to back-office routes
+      if (session?.currentUser.role === 'cashier') {
+        return;
+      }
+
+      if (e.key === 'F2') {
         e.preventDefault();
         setCurrentRoute('dashboard');
       } else if (e.key === 'F3') {
@@ -160,7 +210,7 @@ const MainApplication: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isAdminMode]);
+  }, [isAdminMode, session]);
 
   const enterAdminConsole = (section: AdminConsoleSection = 'overview') => {
     if (typeof window !== 'undefined') {
@@ -176,51 +226,57 @@ const MainApplication: React.FC = () => {
     if (isAdminLoginRoute && (!session || session.currentUser.role !== 'admin')) {
       return (
         <ErrorBoundary moduleName="Administrator Login">
-          <AdminLoginScreen
-            onBackToPos={exitAdminMode}
-            onLoginSuccess={() => {
-              setIsAdminLoginRoute(false);
-              setIsAdminMode(true);
-            }}
-          />
+          <React.Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><Loader2 className="animate-spin text-primary h-8 w-8" /></div>}>
+            <AdminLoginScreen
+              onBackToPos={exitAdminMode}
+              onLoginSuccess={() => {
+                setIsAdminLoginRoute(false);
+                setIsAdminMode(true);
+              }}
+            />
+          </React.Suspense>
         </ErrorBoundary>
       );
     }
 
     return (
       <ErrorBoundary moduleName="Administrator Console">
-        <AdminConsoleLayout
-          activeSection={adminSection}
-          onSelectSection={setAdminSection}
-          onExitAdminMode={exitAdminMode}
-        >
-          <RbacGuard
-            isOrganizationLevel={true}
-            allowedRoles={['admin']}
-            requiredPermissions={['org:manage', 'settings:manage']}
-            hideMode="denied-card"
-            onRedirectToPos={exitAdminMode}
+        <React.Suspense fallback={<AdminConsoleSkeleton />}>
+          <AdminConsoleLayout
+            activeSection={adminSection}
+            onSelectSection={setAdminSection}
+            onExitAdminMode={exitAdminMode}
           >
-            {adminSection === 'rbac' ? (
-              <SettingsScreen />
-            ) : adminSection === 'audit' ? (
-              <AuditScreen />
-            ) : adminSection === 'infrastructure' ? (
-              <InfrastructureDashboard />
-            ) : (
-              <OrganizationManagementModule
-                initialTab={
-                  adminSection === 'branches'
-                    ? 'branches'
-                    : adminSection === 'terminals'
-                    ? 'terminals'
-                    : 'organizations'
-                }
-                onNavigateSection={(section) => setAdminSection(section)}
-              />
-            )}
-          </RbacGuard>
-        </AdminConsoleLayout>
+            <RbacGuard
+              isOrganizationLevel={true}
+              allowedRoles={['admin']}
+              requiredPermissions={['org:manage', 'settings:manage']}
+              hideMode="denied-card"
+              onRedirectToPos={exitAdminMode}
+            >
+              {adminSection === 'rbac' ? (
+                <SettingsScreen />
+              ) : adminSection === 'audit' ? (
+                <AuditScreen />
+              ) : adminSection === 'infrastructure' ? (
+                <InfrastructureDashboard />
+              ) : adminSection === 'bundle_trends' ? (
+                <BundleSizeTrendsModule />
+              ) : (
+                <OrganizationManagementModule
+                  initialTab={
+                    adminSection === 'branches'
+                      ? 'branches'
+                      : adminSection === 'terminals'
+                      ? 'terminals'
+                      : 'organizations'
+                  }
+                  onNavigateSection={(section) => setAdminSection(section)}
+                />
+              )}
+            </RbacGuard>
+          </AdminConsoleLayout>
+        </React.Suspense>
       </ErrorBoundary>
     );
   }
@@ -242,7 +298,9 @@ const MainApplication: React.FC = () => {
       >
         {currentRoute === 'pos' && (
           <ErrorBoundary moduleName="POS Cash Register & Checkout">
-            <PosScreen />
+            <React.Suspense fallback={<div className="flex-1 flex items-center justify-center bg-slate-950/50"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>}>
+              <PosScreen />
+            </React.Suspense>
           </ErrorBoundary>
         )}
         {currentRoute === 'dashboard' && (
@@ -253,7 +311,9 @@ const MainApplication: React.FC = () => {
               hideMode="denied-card"
               onRedirectToPos={() => setCurrentRoute('pos')}
             >
-              <DashboardScreen onNavigate={setCurrentRoute} />
+              <React.Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>}>
+                <DashboardScreen onNavigate={setCurrentRoute} />
+              </React.Suspense>
             </RbacGuard>
           </ErrorBoundary>
         )}
@@ -265,7 +325,9 @@ const MainApplication: React.FC = () => {
               hideMode="denied-card"
               onRedirectToPos={() => setCurrentRoute('pos')}
             >
-              <KitchenDisplayScreen />
+              <React.Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>}>
+                <KitchenDisplayScreen />
+              </React.Suspense>
             </RbacGuard>
           </ErrorBoundary>
         )}
@@ -277,7 +339,9 @@ const MainApplication: React.FC = () => {
               hideMode="denied-card"
               onRedirectToPos={() => setCurrentRoute('pos')}
             >
-              <OrdersScreen onNavigate={setCurrentRoute} />
+              <React.Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>}>
+                <OrdersScreen onNavigate={setCurrentRoute} />
+              </React.Suspense>
             </RbacGuard>
           </ErrorBoundary>
         )}
@@ -289,8 +353,17 @@ const MainApplication: React.FC = () => {
               hideMode="denied-card"
               onRedirectToPos={() => setCurrentRoute('pos')}
             >
-              <InventoryScreen />
+              <React.Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>}>
+                <InventoryScreen />
+              </React.Suspense>
             </RbacGuard>
+          </ErrorBoundary>
+        )}
+        {currentRoute === 'tasks' && (
+          <ErrorBoundary moduleName="Personal Task Management">
+            <React.Suspense fallback={<div className="p-8 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>}>
+              <TaskManagementScreen />
+            </React.Suspense>
           </ErrorBoundary>
         )}
         {currentRoute === 'shift' && (
@@ -301,7 +374,9 @@ const MainApplication: React.FC = () => {
               hideMode="denied-card"
               onRedirectToPos={() => setCurrentRoute('pos')}
             >
-              <ShiftScreen />
+              <React.Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>}>
+                <ShiftScreen />
+              </React.Suspense>
             </RbacGuard>
           </ErrorBoundary>
         )}
@@ -313,7 +388,9 @@ const MainApplication: React.FC = () => {
               hideMode="denied-card"
               onRedirectToPos={() => setCurrentRoute('pos')}
             >
-              <CustomersScreen />
+              <React.Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>}>
+                <CustomersScreen />
+              </React.Suspense>
             </RbacGuard>
           </ErrorBoundary>
         )}
@@ -326,7 +403,9 @@ const MainApplication: React.FC = () => {
               hideMode="denied-card"
               onRedirectToPos={() => setCurrentRoute('pos')}
             >
-              <AuditScreen />
+              <React.Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>}>
+                <AuditScreen />
+              </React.Suspense>
             </RbacGuard>
           </ErrorBoundary>
         )}
@@ -352,7 +431,9 @@ const MainApplication: React.FC = () => {
               hideMode="denied-card"
               onRedirectToPos={() => setCurrentRoute('pos')}
             >
-              <SettingsScreen />
+              <React.Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-primary h-10 w-10" /></div>}>
+                <SettingsScreen />
+              </React.Suspense>
             </RbacGuard>
           </ErrorBoundary>
         )}
@@ -368,6 +449,12 @@ const MainApplication: React.FC = () => {
         }}
       />
 
+      {/* Auto-Triggered Start Shift Modal on Login */}
+      <StartShiftModal
+        isOpen={isStartShiftModalOpen}
+        onClose={() => setIsStartShiftModalOpen(false)}
+      />
+
       {/* Hidden Developer HUD Overlay for Real-Time FPS, DB Latency & Memory (Ctrl+Shift+D) */}
       <DevPerformanceOverlay />
 
@@ -378,6 +465,7 @@ const MainApplication: React.FC = () => {
 };
 
 export default function App() {
+
   const isCustomerDisplayMode =
     typeof window !== 'undefined' &&
     (window.location.search.includes('mode=customer_display') ||
@@ -403,7 +491,9 @@ export default function App() {
           <AuthProvider>
             <ThemeProvider>
               <LanguageProvider>
-                <KitchenDisplayScreen />
+                <React.Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>}>
+                  <KitchenDisplayScreen />
+                </React.Suspense>
               </LanguageProvider>
             </ThemeProvider>
           </AuthProvider>

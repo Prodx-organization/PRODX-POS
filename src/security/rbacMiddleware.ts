@@ -17,9 +17,8 @@
  */
 
 import { Permission, Role, ROLE_PERMISSIONS, User, hasPermission } from '../domain/auth';
-import type { NavRoute } from '../components/layout/Sidebar';
+import type { NavRoute, AdminConsoleSection } from '../domain/routes';
 import type { SettingsTabId } from '../modules/settings/types';
-import type { AdminConsoleSection } from '../modules/admin/AdminConsoleLayout';
 
 export type RbacScopeTier = 'pos_operational' | 'store_management' | 'organization_admin';
 
@@ -173,6 +172,40 @@ export const ROUTE_RBAC_POLICY: Record<NavRoute, RouteRbacRule> = {
     featureNameTh: 'ตั้งค่าระบบและโครงสร้างระดับองค์กร',
     descriptionEn: 'Organization hierarchy, branches, POS terminals, fiscal tax rates, and RBAC security governance.',
     descriptionTh: 'การตั้งค่าระดับองค์กร สาขา เครื่องขาย POS อัตราภาษี และตารางสิทธิ์ความปลอดภัย RBAC',
+    isSensitiveFinancial: true,
+    isOrganizationLevel: true,
+  },
+  tasks: {
+    route: 'tasks',
+    scopeTier: 'pos_operational',
+    allowedRoles: ['admin', 'manager', 'cashier'],
+    requiredPermissions: [],
+    featureNameEn: 'Personal Task Management',
+    featureNameTh: 'จัดการรายการงานส่วนตัว',
+    descriptionEn: 'User-specific task tracking and management using Google Cloud Firestore.',
+    descriptionTh: 'จัดการงานและรายการที่ต้องทำส่วนตัว (Sync ข้อมูลผ่าน Google Cloud)',
+    isSensitiveFinancial: false,
+  },
+  kitchen: {
+    route: 'kitchen',
+    scopeTier: 'store_management',
+    allowedRoles: ['admin', 'manager', 'cashier'],
+    requiredPermissions: ['pos:checkout'],
+    featureNameEn: 'Kitchen Management System',
+    featureNameTh: 'ระบบจัดการห้องครัว',
+    descriptionEn: 'Kitchen order management and cooking queue.',
+    descriptionTh: 'ระบบจัดการออเดอร์ในครัวและคิวการทำอาหาร',
+    isSensitiveFinancial: false,
+  },
+  admin: {
+    route: 'admin',
+    scopeTier: 'organization_admin',
+    allowedRoles: ['admin'],
+    requiredPermissions: ['settings:manage'],
+    featureNameEn: 'Administrator Console',
+    featureNameTh: 'แผงควบคุมผู้ดูแลระบบ',
+    descriptionEn: 'Enterprise organization, tenant management, and system administration.',
+    descriptionTh: 'การจัดการองค์กร ระดับผู้เช่า และการบริหารจัดการระบบ',
     isSensitiveFinancial: true,
     isOrganizationLevel: true,
   },

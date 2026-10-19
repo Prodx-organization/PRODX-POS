@@ -68,6 +68,8 @@ interface AuthContextType {
   isLoading: boolean;
   isLocked: boolean;
   inactivityTimeoutMinutes: number;
+  autoLogoutTimeoutMinutes: number;
+  setAutoLogoutTimeoutMinutes: (mins: number) => void;
   staffUsers: User[];
   rolePermissions: Record<Role, Permission[]>;
   login: (req: LoginRequest) => Promise<void>;
@@ -204,6 +206,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
     return 5;
   });
+  const [autoLogoutTimeoutMinutes, setAutoLogoutTimeoutMinutesState] = useState<number>(() => {
+    try {
+      const stored = localStorage.getItem('prodx_pos_auto_logout_timeout');
+      if (stored !== null) return Number(stored);
+    } catch {}
+    return 15;
+  });
+
+  const setAutoLogoutTimeoutMinutes = (mins: number) => {
+    setAutoLogoutTimeoutMinutesState(mins);
+    try {
+      localStorage.setItem('prodx_pos_auto_logout_timeout', String(mins));
+    } catch {}
+  };
   const lastActivityRef = useRef(Date.now());
   const webAuthnChallengesRef = useRef<Map<string, WebAuthnChallengeRecord>>(new Map());
 
@@ -471,26 +487,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
-    if (!session || isLocked) return;
+    if (!session) return;
     const handleActivity = () => {
       lastActivityRef.current = Date.now();
     };
     const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
     events.forEach((ev) => window.addEventListener(ev, handleActivity, { passive: true }));
     const timer = setInterval(() => {
+      if (!session) return;
+      const idleMs = Date.now() - lastActivityRef.current;
+
+      // 1. Check Auto-Logout Timeout
+      if (
+        autoLogoutTimeoutMinutes > 0 &&
+        idleMs >= autoLogoutTimeoutMinutes * 60 * 1000
+      ) {
+        console.warn(`[AuthContext] POS session auto-terminated due to ${autoLogoutTimeoutMinutes}m inactivity.`);
+        auditService.logDiagnosticEvent({
+          category: 'system',
+          level: 'WARN',
+          event: 'AUTH_AUTO_LOGOUT_INACTIVITY',
+          message: `Session auto-logged out due to ${autoLogoutTimeoutMinutes} minutes of inactivity.`,
+          metadata: { userId: session.currentUser.id, autoLogoutTimeoutMinutes },
+        });
+        void logout();
+        return;
+      }
+
+      // 2. Check Auto-Lock Timeout
       if (
         !isLocked &&
-        session &&
         inactivityTimeoutMinutes > 0 &&
-        Date.now() - lastActivityRef.current >= inactivityTimeoutMinutes * 60 * 1000
-      )
+        idleMs >= inactivityTimeoutMinutes * 60 * 1000
+      ) {
         setIsLocked(true);
+      }
     }, 10000);
     return () => {
       events.forEach((ev) => window.removeEventListener(ev, handleActivity));
       clearInterval(timer);
     };
-  }, [session, isLocked, inactivityTimeoutMinutes]);
+  }, [session, isLocked, inactivityTimeoutMinutes, autoLogoutTimeoutMinutes]);
 
   useEffect(() => {
     aiService.setSessionToken(session?.token);
@@ -1121,6 +1158,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         isLocked,
         inactivityTimeoutMinutes,
+        autoLogoutTimeoutMinutes,
+        setAutoLogoutTimeoutMinutes,
         staffUsers,
         rolePermissions,
         login,
@@ -1176,6 +1215,8 @@ export function useAuth(): AuthContextType {
     isLoading: false,
     isLocked: false,
     inactivityTimeoutMinutes: 15,
+    autoLogoutTimeoutMinutes: 15,
+    setAutoLogoutTimeoutMinutes: () => {},
     staffUsers: [],
     rolePermissions: ROLE_PERMISSIONS as Record<Role, Permission[]>,
     login: async () => {},

@@ -13,7 +13,7 @@ import React, { useState } from 'react';
 import { Role, Permission } from '../../domain/auth';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { NavRoute } from '../layout/Sidebar';
+import type { NavRoute } from '../../domain/routes';
 import type { SettingsTabId } from '../../modules/settings/types';
 import {
   ROUTE_RBAC_POLICY,
@@ -100,6 +100,21 @@ export const MODULE_ACCESS_RULES: Record<NavRoute, ModuleRule> = {
     ...ROUTE_RBAC_POLICY.infrastructure,
     allowedRoles: [...ROUTE_RBAC_POLICY.infrastructure.allowedRoles],
     requiredPermissions: [...ROUTE_RBAC_POLICY.infrastructure.requiredPermissions],
+  },
+  tasks: {
+    ...ROUTE_RBAC_POLICY.tasks,
+    allowedRoles: [...ROUTE_RBAC_POLICY.tasks.allowedRoles],
+    requiredPermissions: [...ROUTE_RBAC_POLICY.tasks.requiredPermissions],
+  },
+  kitchen: {
+    ...ROUTE_RBAC_POLICY.kitchen,
+    allowedRoles: [...ROUTE_RBAC_POLICY.kitchen.allowedRoles],
+    requiredPermissions: [...ROUTE_RBAC_POLICY.kitchen.requiredPermissions],
+  },
+  admin: {
+    ...ROUTE_RBAC_POLICY.admin,
+    allowedRoles: [...ROUTE_RBAC_POLICY.admin.allowedRoles],
+    requiredPermissions: [...ROUTE_RBAC_POLICY.admin.requiredPermissions],
   },
 };
 
@@ -536,49 +551,28 @@ export const RbacGuard: React.FC<RbacGuardProps> = ({
           )}
         </div>
 
-        {/* Live Role Switcher for immediate RBAC verification */}
+        {/* Dedicated Admin Console Authentication Path */}
         <div className="pt-3 border-t border-border/60">
-          <div className="flex items-center justify-between text-[11px] font-medium text-text/50 mb-2">
-            <span className="flex items-center gap-1">
-              <UserCheck className="w-3.5 h-3.5 text-primary" />
-              {language === 'th'
-                ? 'สลับบทบาทเพื่อทดสอบ RBAC Guard (User ทั่วไป vs Admin):'
-                : 'Verify RBAC Guard (General User vs. Admin):'}
+          <div className="flex items-center justify-between gap-2 text-[11px] font-medium text-text/60">
+            <span className="flex items-center gap-1.5">
+              <UserCheck className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span>
+                {language === 'th'
+                  ? 'ต้องการเข้าใช้งานในฐานะผู้ดูแลระบบระดับองค์กร?'
+                  : 'Need full Enterprise Administrator access?'}
+              </span>
             </span>
-          </div>
-          <div className="grid grid-cols-3 gap-1.5">
             <button
               type="button"
-              onClick={() => switchDemoRole('cashier')}
-              className={`px-2 py-2 text-[11px] rounded-xl font-bold transition-all cursor-pointer ${
-                (currentUser?.role as Role | undefined) === 'cashier'
-                  ? 'bg-primary text-white shadow-2xs'
-                  : 'bg-background border border-border border-crisp text-text/70 hover:text-text'
-              }`}
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  window.history.pushState({}, '', '/admin/login');
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }
+              }}
+              className="px-3 py-1.5 text-[11px] rounded-lg font-bold bg-slate-900 text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
             >
-              {language === 'th' ? 'User ทั่วไป (POS)' : 'User (POS Only)'}
-            </button>
-            <button
-              type="button"
-              onClick={() => switchDemoRole('manager')}
-              className={`px-2 py-2 text-[11px] rounded-xl font-bold transition-all cursor-pointer ${
-                (currentUser?.role as Role | undefined) === 'manager'
-                  ? 'bg-primary text-white shadow-2xs'
-                  : 'bg-background border border-border border-crisp text-text/70 hover:text-text'
-              }`}
-            >
-              {language === 'th' ? 'ผู้จัดการ (Manager)' : 'Manager'}
-            </button>
-            <button
-              type="button"
-              onClick={() => switchDemoRole('admin')}
-              className={`px-2 py-2 text-[11px] rounded-xl font-bold transition-all cursor-pointer ${
-                (currentUser?.role as Role | undefined) === 'admin'
-                  ? 'bg-primary text-white shadow-2xs'
-                  : 'bg-background border border-border border-crisp text-text/70 hover:text-text'
-              }`}
-            >
-              {language === 'th' ? 'Admin (ทั้งองค์กร)' : 'Admin (Full Org)'}
+              {language === 'th' ? 'เข้าสู่ระบบ Admin (/admin/login)' : 'Admin Login (/admin/login)'}
             </button>
           </div>
         </div>
