@@ -1,7 +1,7 @@
 import type { Express, NextFunction, Request, Response } from 'express';
 import { requirePermission } from './createApp';
 import type { TransactionalSqlExecutor } from '../db/transaction';
-import { AuditValidationError, createAuditReadService, createAuditWriteService } from '../audit/audit-service';
+import { AuditIdempotencyConflictError, AuditValidationError, createAuditReadService, createAuditWriteService } from '../audit/audit-service';
 
 export const registerAuditRoute = (app: Express, db: TransactionalSqlExecutor): void => {
   const readService = createAuditReadService(db);
@@ -46,9 +46,14 @@ export const registerAuditRoute = (app: Express, db: TransactionalSqlExecutor): 
         action: body.action,
         severity: body.severity,
         details: body.details,
+        idempotencyKey: body.idempotencyKey,
       });
       response.status(201).json(event);
     } catch (error) {
+      if (error instanceof AuditIdempotencyConflictError) {
+        response.status(409).json({ error: { code: error.code, message: error.message, requestId: request.id } });
+        return;
+      }
       if (error instanceof AuditValidationError) {
         response.status(400).json({ error: { code: error.code, message: error.message, requestId: request.id } });
         return;

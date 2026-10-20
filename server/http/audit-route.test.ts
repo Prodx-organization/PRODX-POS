@@ -77,13 +77,58 @@ test('audit write persists only a validated event with authenticated actor and t
     const response = await fetch(`${server.baseUrl}/api/v1/audit/logs`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ storeId: 'forged-store', userId: 'forged-user', userName: 'Forged Name', registerId: 'forged-register', action: 'order_checkout_queued_offline', severity: 'critical', details: { reason: 'counted' } }),
+      body: JSON.stringify({ storeId: 'forged-store', userId: 'forged-user', userName: 'Forged Name', registerId: 'forged-register', action: 'order_checkout_queued_offline', severity: 'critical', details: { reason: 'counted' }, idempotencyKey: 'event-1' }),
     });
     assert.equal(response.status, 201);
     assert.deepEqual(await response.json(), { id: 'audit-new', storeId: 'store-1', registerId: '', userId: 'user-1', userName: 'Authenticated User', action: 'order_checkout_queued_offline', severity: 'warn', details: { reason: 'counted' }, timestamp: '2026-10-17T00:00:00.000Z' });
     assert.equal(calls.length, 2);
     assert.equal(calls[0].sql.includes('NULL, $4'), true);
-    assert.deepEqual(calls[0].parameters.slice(1), ['org-1', 'store-1', 'user-1', 'order_checkout_queued_offline', 'warn', JSON.stringify({ reason: 'counted' })]);
+    assert.deepEqual(calls[0].parameters.slice(1, 7), ['org-1', 'store-1', 'user-1', 'order_checkout_queued_offline', 'warn', JSON.stringify({ reason: 'counted' })]);
+    assert.equal(calls[0].parameters[7], 'event-1');
+    assert.match(String(calls[0].parameters[8]), /^[0-9a-f]{64}$/);
+  } finally { await server.close(); }
+});
+
+test('audit write retries replay the original persisted event for the same idempotency key', async () => {
+  const persisted = new Map<string, { id: string; payloadHash: string }>();
+  const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
+  const query = async <T extends QueryResultRow>(sql: string, parameters: readonly unknown[] = []) => {
+    calls.push({ sql, parameters });
+    if (sql.startsWith('INSERT INTO prodx_audit_log')) {
+      const key = String(parameters[7]);
+      const existing = persisted.get(key);
+      if (existing) return { rows: [] as unknown as T[] };
+      persisted.set(key, { id: 'audit-replayed', payloadHash: String(parameters[8]) });
+      return { rows: [{ id: 'audit-replayed' }] as unknown as T[] };
+    }
+    if (sql.includes('SELECT id, payload_hash FROM prodx_audit_log')) {
+      const existing = persisted.get(String(parameters[3]));
+      return { rows: existing ? [{ id: existing.id, payload_hash: existing.payloadHash }] as unknown as T[] : [] };
+    }
+    if (sql.includes('WHERE a.id = $1 AND a.organization_id = $2')) {
+      return { rows: [{ id: 'audit-replayed', store_id: 'store-1', register_id: '', user_id: 'user-1', user_name: 'Authenticated User', action: 'user_login', severity: 'info', details: { source: 'pin' }, created_at: '2026-10-17T00:00:00.000Z' }] as unknown as T[] };
+    }
+    throw new Error(`Unexpected SQL: ${sql}`);
+  };
+  const db: TransactionalSqlExecutor = { query, transaction: async (work) => work({ query }) };
+  const app = createApp({ authenticateRequest: () => principal, authorizeRequest: (_context, permission) => permission === 'audit.write', configureRoutes: (configuredApp) => registerAuditRoute(configuredApp, db) });
+  const server = await start(app);
+  try {
+    const request = (details: Record<string, unknown> = { source: 'pin' }) => fetch(`${server.baseUrl}/api/v1/audit/logs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'user_login', details, idempotencyKey: 'event-retry-1' }),
+    });
+    const first = await request();
+    const second = await request();
+    const mismatch = await request({ source: 'qr' });
+    assert.equal(first.status, 201);
+    assert.equal(second.status, 201);
+    assert.equal(mismatch.status, 409, 'reusing a key with a different event payload must be rejected');
+    assert.equal((await first.json() as { id: string }).id, 'audit-replayed');
+    assert.equal((await second.json() as { id: string }).id, 'audit-replayed');
+    assert.equal(calls.filter((call) => call.sql.startsWith('INSERT INTO prodx_audit_log')).length, 3);
+    assert.equal(persisted.size, 1);
   } finally { await server.close(); }
 });
 
@@ -97,9 +142,9 @@ test('audit write rejects unsupported actions and oversized or non-object detail
   try {
     const invalidAction = await fetch(`${server.baseUrl}/api/v1/audit/logs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'arbitrary_forged_event', severity: 'critical', details: {} }) });
     assert.equal(invalidAction.status, 400);
-    const invalidDetails = await fetch(`${server.baseUrl}/api/v1/audit/logs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'order_checkout_queued_offline', severity: 'warn', details: [] }) });
+    const invalidDetails = await fetch(`${server.baseUrl}/api/v1/audit/logs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'order_checkout_queued_offline', severity: 'warn', details: [], idempotencyKey: 'invalid-details-1' }) });
     assert.equal(invalidDetails.status, 400);
-    const oversizedDetails = await fetch(`${server.baseUrl}/api/v1/audit/logs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'order_checkout_queued_offline', severity: 'warn', details: { note: 'x'.repeat(17000) } }) });
+    const oversizedDetails = await fetch(`${server.baseUrl}/api/v1/audit/logs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'order_checkout_queued_offline', severity: 'warn', details: { note: 'x'.repeat(17000) }, idempotencyKey: 'oversized-details-1' }) });
     assert.equal(oversizedDetails.status, 400);
   } finally { await server.close(); }
 });

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createProductionOrderTransactionApi } from '../src/adapters/productionOrderTransactionApi';
-import { createProductionRefundApi } from '../src/adapters/productionRefundApi';
-import { createProductionSyncApi } from '../src/adapters/productionSyncApi';
-import { createProductionInventoryAdjustmentApi } from '../src/adapters/productionInventoryAdjustmentApi';
+import { createProductionOrderTransactionApi } from '../../src/adapters/productionOrderTransactionApi';
+import { createProductionRefundApi } from '../../src/adapters/productionRefundApi';
+import { createProductionSyncApi } from '../../src/adapters/productionSyncApi';
+import { createProductionInventoryAdjustmentApi } from '../../src/adapters/productionInventoryAdjustmentApi';
+import { createProductionAuditApi } from '../../src/adapters/productionAuditApi';
 
 const BASE_URL = 'https://pos.example.test';
 const originalFetch = globalThis.fetch;
@@ -132,4 +133,64 @@ test('production inventory adapter persists retry keys until success and rotates
     if (originalWindow === undefined) delete (globalThis as unknown as { window?: unknown }).window;
     else Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
   }
+});
+
+test('production bulk inventory adjustment reports retry-key cleanup failure after server success', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const stored = new Map<string, string>();
+  let failRemove = true;
+  const originalWindow = (globalThis as unknown as { window?: unknown }).window;
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      localStorage: {
+        getItem: (key: string) => stored.get(key) ?? null,
+        setItem: (key: string, value: string) => { stored.set(key, value); },
+        removeItem: (key: string) => {
+          if (failRemove) throw new Error('simulated storage cleanup failure');
+          stored.delete(key);
+        },
+      },
+    },
+  });
+  globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
+    calls.push({ url: String(url), init });
+    return new Response(JSON.stringify({ entries: [{
+      id: 'ledger-bulk-1', store_id: 'store-1', product_id: 'product-1',
+      quantity_delta: 2, resulting_stock: 12, reason: 'purchase_received',
+      reference_id: 'bulk-1', performed_by_user_id: 'user-1',
+      created_at: '2026-10-17T00:00:00.000Z',
+    }] }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+  }) as typeof fetch;
+
+  try {
+    const api = createProductionInventoryAdjustmentApi('token-bulk', BASE_URL);
+    const adjust = () => api.bulkAdjustStock('store-1', ['product-1'], 2, 'purchase_received', 'user-1', 'PO-BULK');
+    await assert.rejects(adjust(), /could not be cleared from persistent storage/);
+    assert.equal(stored.size, 1, 'the retry key must remain persisted when cleanup fails');
+    failRemove = false;
+    await adjust();
+    assert.equal(stored.size, 0, 'a later confirmed retry must clear the persisted key');
+    const keys = calls.map((call) => JSON.parse(String(call.init?.body)).idempotencyKey as string);
+    assert.equal(calls.length, 2);
+    assert.equal(keys[0], keys[1], 'retry after cleanup failure must reuse the original operation key');
+  } finally {
+    if (originalWindow === undefined) delete (globalThis as unknown as { window?: unknown }).window;
+    else Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+  }
+});
+
+test('production audit and inventory adapters fail closed without a bearer token', async () => {
+  const calls = mockFetch({ ok: true });
+  const audit = createProductionAuditApi('', BASE_URL);
+  await assert.rejects(
+    audit.recordEvent('store-1', '', 'user-1', 'Cashier', 'user_login', 'info', { source: 'pin' }),
+    /Authenticated session token is required/,
+  );
+  const inventory = createProductionInventoryAdjustmentApi('', BASE_URL);
+  await assert.rejects(
+    inventory.adjustStock('store-1', 'product-1', 1, 'purchase_received', 'user-1'),
+    /Authenticated session token is required/,
+  );
+  assert.equal(calls.length, 0, 'unauthenticated adapters must not issue network requests');
 });

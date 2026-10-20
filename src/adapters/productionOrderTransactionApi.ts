@@ -11,6 +11,7 @@ function getBaseUrl(baseUrl?: string): string {
 export function createProductionOrderTransactionApi(token: string, baseUrl?: string) {
   return {
     async createOrder(request: CheckoutRequest): Promise<CheckoutResponse> {
+      if (!token?.trim()) throw new Error('Authenticated session token is required for production checkout.');
       const url = getBaseUrl(baseUrl);
       if (url) {
         try {

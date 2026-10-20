@@ -210,8 +210,12 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   useEffect(() => {
     const handleOrderCompleted = () => {
       if (session?.currentStore.id) {
-        orderReadApi.getOrders(session.currentStore.id, 50).then((ords) => {
+        void orderReadApi.getOrders(session.currentStore.id, 50).then((ords) => {
           setOrders(ords as Order[]);
+        }).catch((error: unknown) => {
+          // Checkout already succeeded; a failed refresh must not create an
+          // unhandled rejection or discard the currently displayed order list.
+          console.warn('Failed to refresh CommandPalette orders after checkout:', error);
         });
       }
     };

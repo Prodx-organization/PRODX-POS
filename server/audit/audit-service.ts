@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { SqlQueryExecutor, TransactionalSqlExecutor } from '../db/transaction';
 
 export class AuditValidationError extends Error { readonly code = 'AUDIT_VALIDATION_FAILED'; }
+export class AuditIdempotencyConflictError extends Error { readonly code = 'AUDIT_IDEMPOTENCY_CONFLICT'; }
 type DbRow = Record<string, unknown>;
 
 const clampLimit = (limit?: number): number => {
@@ -54,6 +55,7 @@ export type AuditWriteInput = {
   action: unknown;
   severity: unknown;
   details: unknown;
+  idempotencyKey: unknown;
 };
 
 export const createAuditWriteService = (db: TransactionalSqlExecutor) => ({
@@ -63,6 +65,9 @@ export const createAuditWriteService = (db: TransactionalSqlExecutor) => ({
     }
     if (typeof input.action !== 'string' || !allowedClientAuditActions.has(input.action)) {
       throw new AuditValidationError('Unsupported audit action.');
+    }
+    if (typeof input.idempotencyKey !== 'string' || !input.idempotencyKey.trim() || input.idempotencyKey.length > 128) {
+      throw new AuditValidationError('A valid audit idempotency key is required.');
     }
     // Severity is policy-derived, not client-controlled; supplemental client
     // events are never allowed to label themselves critical.
@@ -85,16 +90,33 @@ export const createAuditWriteService = (db: TransactionalSqlExecutor) => ({
       throw new AuditValidationError('Audit details exceed the 16 KB limit.');
     }
 
+    const payloadHash = crypto.createHash('sha256')
+      .update(JSON.stringify([input.organizationId, input.storeId, input.userId, input.action, severity, detailsJson]))
+      .digest('hex');
+
     return db.transaction(async (tx) => {
       const inserted = await tx.query<DbRow>(
         `INSERT INTO prodx_audit_log
-           (id, organization_id, store_id, register_id, user_id, action, severity, details)
-         VALUES ($1, $2, $3, NULL, $4, $5, $6, $7::jsonb)
+           (id, organization_id, store_id, register_id, user_id, action, severity, details, idempotency_key, payload_hash)
+         VALUES ($1, $2, $3, NULL, $4, $5, $6, $7::jsonb, $8, $9)
+         ON CONFLICT (organization_id, store_id, user_id, idempotency_key)
+           WHERE idempotency_key IS NOT NULL DO NOTHING
          RETURNING id`,
-        [crypto.randomUUID(), input.organizationId, input.storeId, input.userId, input.action, severity, detailsJson],
+        [crypto.randomUUID(), input.organizationId, input.storeId, input.userId, input.action, severity, detailsJson, input.idempotencyKey, payloadHash],
       );
-      const id = inserted.rows[0]?.id;
-      if (typeof id !== 'string') throw new Error('Audit write did not return a persisted record identifier.');
+      let id = inserted.rows[0]?.id;
+      if (typeof id !== 'string') {
+        const existing = await tx.query<DbRow>(
+          `SELECT id, payload_hash FROM prodx_audit_log
+            WHERE organization_id = $1 AND store_id = $2 AND user_id = $3 AND idempotency_key = $4
+            LIMIT 1`,
+          [input.organizationId, input.storeId, input.userId, input.idempotencyKey],
+        );
+        const row = existing.rows[0];
+        if (!row || typeof row.id !== 'string') throw new Error('Audit idempotency record could not be resolved after a conflict.');
+        if (row.payload_hash !== payloadHash) throw new AuditIdempotencyConflictError('Audit idempotency key was reused for a different event.');
+        id = row.id;
+      }
       const result = await tx.query<DbRow>(
         `SELECT a.id, a.store_id, ''::text AS register_id, a.user_id,
                 COALESCE(u.display_name, '') AS user_name,

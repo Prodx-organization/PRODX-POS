@@ -17,6 +17,15 @@ BEGIN
       FROM public.prodx_permissions p
      WHERE p.permission_key = 'audit.write'
     ON CONFLICT (organization_id, role_id, permission_id) DO NOTHING;
+  ELSE
+    -- Permission grants are materialized rows, so role downgrades must revoke
+    -- the old grant rather than relying only on the new role_key at read time.
+    DELETE FROM public.prodx_role_permissions rp
+     USING public.prodx_permissions p
+     WHERE rp.organization_id = NEW.organization_id
+       AND rp.role_id = NEW.id
+       AND rp.permission_id = p.id
+       AND p.permission_key = 'audit.write';
   END IF;
   RETURN NEW;
 END;

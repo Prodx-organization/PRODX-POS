@@ -1,6 +1,11 @@
 import type { InventoryLedgerEntry, StockMovementReason } from '../domain/catalog';
 
 const API_BASE_URL = import.meta.env?.VITE_AUTH_API_BASE_URL;
+const requireToken = (token: string): string => {
+  const normalized = token.trim();
+  if (!normalized) throw new Error('Authenticated session token is required for production inventory operations.');
+  return normalized;
+};
 const baseUrl = (apiBaseUrl: string | undefined = API_BASE_URL) => {
   if (!apiBaseUrl) throw new Error('VITE_AUTH_API_BASE_URL is required for production inventory operations.');
   return apiBaseUrl.replace(/\/$/, '');
@@ -66,7 +71,7 @@ async function postAdjustment(token: string, payload: Record<string, unknown>, a
   const response = await fetch(`${baseUrl(apiBaseUrl)}/api/v1/inventory/adjustments`, {
     method: 'POST',
     credentials: 'include',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${token.trim()}` },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${requireToken(token)}` },
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error(`Production inventory adjustment failed with HTTP ${response.status}.`);
@@ -76,6 +81,7 @@ async function postAdjustment(token: string, payload: Record<string, unknown>, a
 export function createProductionInventoryAdjustmentApi(token: string, apiBaseUrl?: string) {
   return {
     adjustStock: async (storeId: string, productId: string, quantityDelta: number, reason: StockMovementReason, userId: string, notes?: string) => {
+      requireToken(token);
       const signature = JSON.stringify({ storeId, productIds: [productId], quantityDelta, reason, notes: notes ?? null, userId });
       const idempotencyKey = await idempotencyKeyFor(signature, 'inventory-adjust');
       const payload = await postAdjustment(token, { storeId, productIds: [productId], quantityDelta, reason, notes, performedByUserId: userId, idempotencyKey }, apiBaseUrl) as { entries?: unknown };
@@ -85,12 +91,13 @@ export function createProductionInventoryAdjustmentApi(token: string, apiBaseUrl
       return entry;
     },
     bulkAdjustStock: async (storeId: string, productIds: readonly string[], quantityDelta: number, reason: StockMovementReason, userId: string, notes?: string) => {
+      requireToken(token);
       const signature = JSON.stringify({ storeId, productIds: [...productIds].sort(), quantityDelta, reason, notes: notes ?? null, userId });
       const idempotencyKey = await idempotencyKeyFor(signature, 'inventory-bulk-adjust');
       const payload = await postAdjustment(token, { storeId, productIds, quantityDelta, reason, notes, performedByUserId: userId, idempotencyKey }, apiBaseUrl) as { entries?: unknown };
       if (!Array.isArray(payload?.entries)) throw new Error('Production inventory API returned no authoritative bulk adjustment entries.');
       const entries = payload.entries.map(entry => mapEntry(entry as ServerEntry));
-      clearIdempotencyKey(signature);
+      await clearIdempotencyKey(signature);
       return entries;
     },
   };

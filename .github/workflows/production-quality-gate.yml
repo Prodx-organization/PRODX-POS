@@ -98,6 +98,7 @@ jobs:
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0032_security_harden_function_search_path';
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0033_security_prodx_app_role';
           SELECT 1 FROM prodx_schema_migrations WHERE version = '0034_m5_audit_write_permission';
+          SELECT 1 FROM prodx_schema_migrations WHERE version = '0035_m5_audit_write_idempotency';
           DO $$
           BEGIN
             IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'prodx_app' AND rolsuper = false AND rolbypassrls = false) THEN
@@ -109,6 +110,7 @@ jobs:
           END $$;
           SELECT tgname FROM pg_trigger WHERE tgname = 'prodx_audit_log_immutable_guard' AND NOT tgisinternal;
           SELECT tgname FROM pg_trigger WHERE tgname = 'prodx_roles_audit_write_provision' AND NOT tgisinternal;
+          SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'prodx_audit_idempotency_scope_unique';
           SELECT 1 FROM prodx_migration_lock WHERE lock_id = 1;
           SELECT current_setting('TimeZone') AS session_timezone;
           SELECT (TIMESTAMPTZ '2026-01-01 00:00:00+00' AT TIME ZONE 'UTC') = TIMESTAMP '2026-01-01 00:00:00';
@@ -166,6 +168,7 @@ jobs:
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0021_m4_sensitive_role_permissions.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0025_m4_ai_rbac_provisioning.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0034_m5_audit_write_permission.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/0035_m5_audit_write_idempotency.sql
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           INSERT INTO prodx_roles (id, organization_id, role_key, name)
           VALUES ('00000000-0000-0000-0000-000000000035', '00000000-0000-0000-0000-000000000002', 'manager', 'Future Manager');
@@ -256,6 +259,17 @@ jobs:
                   AND p.permission_key = 'audit.write') THEN
               RAISE EXCEPTION 'new manager roles must receive audit.write automatically';
             END IF;
+
+            UPDATE prodx_roles SET role_key = 'staff_limited'
+             WHERE id = '00000000-0000-0000-0000-000000000033'
+               AND organization_id = '00000000-0000-0000-0000-000000000001';
+            IF EXISTS (SELECT 1 FROM prodx_role_permissions rp
+                JOIN prodx_permissions p ON p.id = rp.permission_id
+                WHERE rp.organization_id = '00000000-0000-0000-0000-000000000001'
+                  AND rp.role_id = '00000000-0000-0000-0000-000000000033'
+                  AND p.permission_key = 'audit.write') THEN
+              RAISE EXCEPTION 'role downgrade must revoke audit.write';
+            END IF;
           END $$;
           SQL
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
@@ -294,13 +308,13 @@ jobs:
             END;
           END $$;
           SQL
-          before=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning', '0030_m5_audit_log_immutability', '0031_security_revoke_public_rls_auto_enable', '0032_security_harden_function_search_path', '0033_security_prodx_app_role', '0034_m5_audit_write_permission');")
+          before=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning', '0030_m5_audit_log_immutability', '0031_security_revoke_public_rls_auto_enable', '0032_security_harden_function_search_path', '0033_security_prodx_app_role', '0034_m5_audit_write_permission', '0035_m5_audit_write_idempotency');")
           for migration in "${migrations[@]}"; do
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration" >/dev/null
           done
-          after=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning', '0030_m5_audit_log_immutability', '0031_security_revoke_public_rls_auto_enable', '0032_security_harden_function_search_path', '0033_security_prodx_app_role', '0034_m5_audit_write_permission');")
+          after=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations WHERE version IN ('0001_m0_foundation', '0002_m1_organization_store_foundation', '0003_m1_1_auth_identity', '0004_m1_2_rbac', '0025_m4_ai_rbac_provisioning', '0030_m5_audit_log_immutability', '0031_security_revoke_public_rls_auto_enable', '0032_security_harden_function_search_path', '0033_security_prodx_app_role', '0034_m5_audit_write_permission', '0035_m5_audit_write_idempotency');")
           test "$before" = "$after"
-          test "$after" = "10"
+          test "$after" = "11"
 
       - name: Theme validation
         run: bun run theme:validate
