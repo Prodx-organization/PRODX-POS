@@ -125,7 +125,7 @@ jobs:
           SELECT 1 FROM prodx_permissions WHERE permission_key = 'cash.shift.movement';
           SELECT 1 FROM prodx_permissions WHERE permission_key = 'audit.read';
           SELECT 1 FROM prodx_permissions WHERE permission_key = 'audit.write';
-          DO $
+          DO $$
           BEGIN
             IF (SELECT count(*) FROM prodx_permissions) <> 21 THEN
               RAISE EXCEPTION 'expected exactly 21 provisioned permissions';
@@ -133,7 +133,7 @@ jobs:
             IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'prodx_roles_audit_write_provision' AND NOT tgisinternal) THEN
               RAISE EXCEPTION 'audit.write role provisioning trigger is missing';
             END IF;
-          END $;
+          END $$;
           SQL
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           INSERT INTO prodx_organizations (id, code, name)
@@ -233,7 +233,7 @@ jobs:
               AND r.role_key = 'cashier'
               AND p.permission_key = 'ai:use'
           ) = 0;
-          DO $
+          DO $$
           BEGIN
             IF (SELECT count(*) FROM prodx_role_permissions rp
                 JOIN prodx_permissions p ON p.id = rp.permission_id
@@ -256,7 +256,7 @@ jobs:
                   AND p.permission_key = 'audit.write') THEN
               RAISE EXCEPTION 'new manager roles must receive audit.write automatically';
             END IF;
-          END $;
+          END $$;
           SQL
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
           DO $$
