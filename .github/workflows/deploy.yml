@@ -1,103 +1,83 @@
-name: Production Deployment & Build Cache
+name: Production Build Validation
 
 on:
   push:
     branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  deploy-and-cache:
+  build-and-test:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [20.x]
-
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: prodx
+          POSTGRES_PASSWORD: prodx
+          POSTGRES_DB: prodx_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U prodx -d prodx_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://prodx:prodx@127.0.0.1:5432/prodx_test
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-    - name: Set up Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # pinned release
+        with:
+          bun-version: 1.4.3
 
-    - name: Cache node_modules
-      uses: actions/cache@v4
-      id: cache-node-modules
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-node-modules-
+      - name: Install dependencies from lockfile
+        run: bun install --frozen-lockfile
 
-    - name: Install dependencies (if cache miss)
-      if: steps.cache-node-modules.outputs.cache-hit != 'true'
-      run: npm install
+      - name: Apply PostgreSQL migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for migration in db/migrations/*.sql; do
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+          done
 
-    - name: Cache Vite & Dist Build Artifacts
-      uses: actions/cache@v4
-      id: cache-dist
-      with:
-        path: |
-          node_modules/.vite
-          dist
-          build
-        key: ${{ runner.os }}-build-artifacts-${{ hashFiles('src/**','server.ts','vite.config.ts','package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-build-artifacts-
+      - name: Type check frontend
+        run: bun run lint
 
-    - name: Run checks and tests in parallel
-      run: |
-        echo "Running TypeScript check, server type check, and unit tests in parallel..."
-        npx tsc --noEmit &
-        PID1=$!
-        npm run server:check &
-        PID2=$!
-        npm run server:test &
-        PID3=$!
-        
-        # Wait for all parallel jobs to complete and capture exit codes
-        wait $PID1 || exit 1
-        wait $PID2 || exit 1
-        wait $PID3 || exit 1
-        echo "All parallel validation checks passed successfully!"
+      - name: Type check backend
+        run: bun run server:check
 
+      - name: Run server tests
+        run: bun run server:test
 
-    - name: Build production application
-      if: steps.cache-dist.outputs.cache-hit != 'true'
-      run: npm run build
+      - name: Build production application
+        run: bun run build
 
-    - name: Verify final deployment artifacts
-      run: |
-        ls -la dist/ || ls -la build/
-        test -f dist/index.html || test -f build/index.html
-        test -f dist/index.js || test -f build/index.js
-        echo "Deployment build artifacts verified successfully with persistent caching!"
+      - name: Validate theme
+        run: bun run theme:validate
 
-    - name: Commit bundle report to build-reports branch
-      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        
-        # Create or checkout build-reports branch
-        git checkout --orphan build-reports || git checkout build-reports || git checkout -b build-reports
-        
-        # Keep only stats.html and metafile.json if available
-        mkdir -p reports
-        if [ -f dist/stats.html ]; then
-          cp dist/stats.html reports/stats-$(git rev-parse --short HEAD).html
-          cp dist/stats.html reports/latest-stats.html
-        fi
-        if [ -f dist/metafile.json ]; then
-          cp dist/metafile.json reports/metafile-$(git rev-parse --short HEAD).json
-        fi
-        
-        git add reports/
-        git commit -m "chore(reports): update bundle visualizer report for $(git rev-parse --short HEAD)" || echo "No changes to commit"
-        git push origin build-reports --force || echo "Push to build-reports skipped or restricted"
+      - name: Verify build artifacts
+        run: |
+          test -s dist/index.html
+          test -s dist/index.js
+          test -s dist/metafile.json
+          test -s dist/stats.html
 
+      - name: Upload bundle analysis
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: prodx-build-analysis
+          path: |
+            dist/stats.html
+            dist/metafile.json
+          if-no-files-found: error
+          retention-days: 14
