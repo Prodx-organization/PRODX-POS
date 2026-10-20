@@ -151,22 +151,26 @@ test('rejects authentication when the credential password is compromised', async
   );
 });
 
-test('accepts verified WebAuthn biometric assertion and issues session without password screening', async () => {
+test('rejects client-controlled WebAuthn marker without issuing a session', async () => {
   const { repository, calls, getSession } = repositoryFixture();
+  let passwordVerifierCalled = false;
+  let compromiseCheckerCalled = false;
   const issuer = createSessionIssuer(
     repository,
-    async () => false, // verifySecret returns false, but should not be called for WebAuthn
+    async () => { passwordVerifierCalled = true; return true; },
     () => clock,
-    async () => ({ compromised: true, count: 999999 }), // compromised check should not block WebAuthn
+    async () => { compromiseCheckerCalled = true; return { compromised: false, count: 0 }; },
   );
   const result = await issuer.authenticateCredentials({
     username: 'cashier',
     password: 'WEBAUTHN_VERIFIED:pk_cashier_john_front_reg:chal_12345',
     deviceId: device.id,
   });
-  assert.ok(result);
-  assert.equal(calls.reset, 1);
-  assert.equal(calls.failed, 0);
-  assert.equal(getSession()?.tokenHash, hashSessionToken(result.token));
+  assert.equal(result, null);
+  assert.equal(getSession(), null);
+  assert.equal(passwordVerifierCalled, false);
+  assert.equal(compromiseCheckerCalled, false);
+  assert.equal(calls.failed, 1);
+  assert.equal(calls.reset, 0);
 });
 

@@ -77,25 +77,29 @@ export const createSessionIssuer = (
     if (device.organizationId !== credential.organizationId) return null;
     const current = now();
     if (credential.lockedUntil && credential.lockedUntil > current) return null;
-    const isWebAuthnAssertion = password.startsWith('WEBAUTHN_VERIFIED:');
-    if (!isWebAuthnAssertion) {
-      let compromise: PasswordCompromiseCheck;
-      try {
-        compromise = await checkCompromisedPassword(password);
-      } catch {
-        // Do not reveal whether an account exists when the external screening service is unavailable.
-        // Fail closed for password authentication: compromised-password screening is a production control.
-        return null;
-      }
-      if (compromise.compromised) {
-        await repository.recordFailedAttempt(credential.userId);
-        return null;
-      }
-      if (!(await verifySecret(password, credential.secretHash))) {
-        // The repository owns the atomic threshold decision. Never derive the lockout timestamp from a credential snapshot: concurrent failures may observe the same failedAttempts value.
-        await repository.recordFailedAttempt(credential.userId);
-        return null;
-      }
+    // Never trust a client-controlled marker as proof of WebAuthn verification.
+    // WebAuthn must be verified by a server-owned challenge/credential flow before it can issue a session.
+    if (password.startsWith('WEBAUTHN_VERIFIED:')) {
+      await repository.recordFailedAttempt(credential.userId);
+      return null;
+    }
+
+    let compromise: PasswordCompromiseCheck;
+    try {
+      compromise = await checkCompromisedPassword(password);
+    } catch {
+      // Do not reveal whether an account exists when the external screening service is unavailable.
+      // Fail closed for password authentication: compromised-password screening is a production control.
+      return null;
+    }
+    if (compromise.compromised) {
+      await repository.recordFailedAttempt(credential.userId);
+      return null;
+    }
+    if (!(await verifySecret(password, credential.secretHash))) {
+      // The repository owns the atomic threshold decision. Never derive the lockout timestamp from a credential snapshot: concurrent failures may observe the same failedAttempts value.
+      await repository.recordFailedAttempt(credential.userId);
+      return null;
     }
     await repository.resetFailedAttempts(credential.userId);
     const token = newBearerToken();
