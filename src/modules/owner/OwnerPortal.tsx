@@ -9,6 +9,7 @@ const styles: Record<string, React.CSSProperties> = {
   card: { width: '100%', maxWidth: 460, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 20, padding: 32, boxShadow: '0 18px 60px rgba(15,23,42,.08)' },
   input: { width: '100%', boxSizing: 'border-box', padding: '12px 14px', border: '1px solid #cbd5e1', borderRadius: 10, fontSize: 16, marginTop: 6 },
   button: { width: '100%', padding: '12px 14px', border: 0, borderRadius: 10, background: '#c87935', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', marginTop: 16 },
+  secondaryButton: { width: '100%', padding: '12px 14px', border: '1px solid #cbd5e1', borderRadius: 10, background: '#fff', color: '#0f172a', fontWeight: 700, fontSize: 15, cursor: 'pointer', marginTop: 12 },
   muted: { color: '#64748b', lineHeight: 1.6, fontSize: 14 },
 };
 
@@ -62,8 +63,7 @@ export const OwnerPortal: React.FC = () => {
 
     try {
       client = getOwnerSupabaseClient();
-      // Supabase emits INITIAL_SESSION for restored sessions. Defer work out of
-      // onAuthStateChange to avoid re-entering the client's auth lock.
+      // Defer work out of onAuthStateChange to avoid re-entering the client's auth lock.
       const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
         const revision = ++authRevision;
         const timer = setTimeout(() => {
@@ -103,6 +103,23 @@ export const OwnerPortal: React.FC = () => {
     }
   };
 
+  const signInWithGoogle = async () => {
+    setBusy(true);
+    setMessage('');
+    try {
+      const { error } = await getOwnerSupabaseClient().auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/owner` },
+      });
+      if (error) throw error;
+      // Successful OAuth redirects away from this page; the auth listener restores
+      // the session and checks the database role when the browser returns.
+    } catch {
+      setMessage('เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาตรวจสอบการตั้งค่า Google provider ใน Supabase');
+      setBusy(false);
+    }
+  };
+
   const signOut = async () => {
     setBusy(true);
     try {
@@ -123,11 +140,19 @@ export const OwnerPortal: React.FC = () => {
     <h1 style={{ fontSize: 28, margin: '12px 0 8px' }}>{state === 'authorized' ? 'Owner Admin' : 'ระบบจัดการ PRODX POS'}</h1>
     <p style={styles.muted}>พื้นที่จัดการแยกจากระบบล็อกอินพนักงานหน้าร้าน</p>
     {state === 'loading' && <p role="status" style={styles.muted}>กำลังตรวจสอบเซสชันและสิทธิ์…</p>}
-    {state === 'signed-out' && <form onSubmit={signIn}>
-      <label htmlFor="owner-email">อีเมลผู้ดูแลระบบ</label><input id="owner-email" style={styles.input} type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} />
-      <label htmlFor="owner-password" style={{ display: 'block', marginTop: 16 }}>รหัสผ่าน</label><input id="owner-password" style={styles.input} type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
-      <button style={styles.button} type="submit" disabled={busy}>{busy ? 'กำลังตรวจสอบ…' : 'เข้าสู่ระบบผู้ดูแล'}</button>
-    </form>}
+    {state === 'signed-out' && <>
+      <form onSubmit={signIn}>
+        <label htmlFor="owner-email">อีเมลผู้ดูแลระบบ</label><input id="owner-email" style={styles.input} type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} />
+        <label htmlFor="owner-password" style={{ display: 'block', marginTop: 16 }}>รหัสผ่าน</label><input id="owner-password" style={styles.input} type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
+        <button style={styles.button} type="submit" disabled={busy}>{busy ? 'กำลังตรวจสอบ…' : 'เข้าสู่ระบบด้วยอีเมล'}</button>
+      </form>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18, color: '#94a3b8', fontSize: 12 }}>
+        <span style={{ height: 1, background: '#e2e8f0', flex: 1 }} /><span>หรือ</span><span style={{ height: 1, background: '#e2e8f0', flex: 1 }} />
+      </div>
+      <button style={styles.secondaryButton} type="button" onClick={() => void signInWithGoogle()} disabled={busy}>
+        {busy ? 'กำลังเชื่อมต่อ…' : 'ดำเนินการต่อด้วย Google'}
+      </button>
+    </>}
     {state === 'authorized' && <div><p><strong>เข้าสู่ระบบแล้ว</strong></p><p style={styles.muted}>{user?.email}</p><p style={styles.muted}>ยืนยันสิทธิ์จากตาราง user_roles แล้ว หน้าจัดการเพิ่มเติมจะเปิดใช้งานหลังเชื่อมต่อโมดูลผู้ดูแล</p><button style={styles.button} onClick={() => void signOut()} disabled={busy}>ออกจากระบบ</button></div>}
     {state === 'denied' && <div role="alert"><p><strong>บัญชีนี้ไม่มีสิทธิ์ Owner/Admin</strong></p><p style={styles.muted}>ระบบไม่อนุญาตให้เข้าถึงส่วนจัดการ กรุณาติดต่อเจ้าของระบบ</p><button style={styles.button} onClick={() => void signOut()} disabled={busy}>ออกจากระบบ</button></div>}
     {state === 'error' && <div role="alert"><p style={{ color: '#b91c1c' }}>{message || 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์'}</p><button style={styles.button} onClick={() => window.location.reload()}>ลองใหม่</button></div>}
