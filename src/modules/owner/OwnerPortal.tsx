@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { getOwnerSupabaseClient } from '../../lib/supabaseOwnerClient';
-import { isOwnerRole } from './ownerAuthorization';
+import { isAuthorizedOwnerAccount } from './ownerAuthorization';
 
 type PortalState = 'loading' | 'signed-out' | 'authorized' | 'denied' | 'error';
 const styles: Record<string, React.CSSProperties> = {
@@ -47,7 +47,7 @@ export const OwnerPortal: React.FC = () => {
           setState('error');
           return;
         }
-        if (isOwnerRole(data?.role)) {
+        if (isAuthorizedOwnerAccount(candidate.email, data?.role)) {
           setState('authorized');
           setMessage('');
         } else {
