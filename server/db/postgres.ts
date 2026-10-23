@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { Pool, type PoolConfig, type QueryResultRow } from 'pg';
 import type { SqlExecutor } from '../auth/postgres-repository.ts';
 
-const DEFAULT_DB_BROKER_URL = 'https://sjgwesmmpegtzsqqqhvd.supabase.co/functions/v1/prodx-db-broker';
+const DEFAULT_DB_BROKER_URL = 'https://bbxoywnlayduqbrjeixj.supabase.co/functions/v1/prodx-db-broker';
 const LOCAL_POSTGRES_SOCKET = '/tmp/pgrun/.s.PGSQL.5432';
 const LOCAL_FALLBACK_DATABASE_URL = 'postgresql://postgres@127.0.0.1:5432/prodx_pos';
 
@@ -28,8 +28,8 @@ export const classifyProductionDatabaseTarget = (databaseUrl?: string): Producti
   if (!databaseUrl) return 'invalid';
   try {
     const hostname = new URL(databaseUrl).hostname;
-    if (hostname === 'aws-0-ap-northeast-1.pooler.supabase.com') return 'supabase_session_pooler';
-    if (hostname === 'db.sjgwesmmpegtzsqqqhvd.supabase.co') return 'supabase_direct';
+    if (hostname === 'aws-0-ap-southeast-1.pooler.supabase.com') return 'supabase_session_pooler';
+    if (hostname === 'db.bbxoywnlayduqbrjeixj.supabase.co') return 'supabase_direct';
     return 'other';
   } catch {
     return 'invalid';
@@ -99,6 +99,10 @@ export const createProductionPostgresPool = async (
     console.info('PRODX production database target selected', {
       target: classifyProductionDatabaseTarget(connectionString),
     });
+    if (classifyProductionDatabaseTarget(connectionString) === 'other' ||
+        classifyProductionDatabaseTarget(connectionString) === 'invalid') {
+      throw new Error('Production database broker returned a connection URL outside the approved Supabase Project A endpoints.');
+    }
   }
   return createPostgresPool({ ...config, connectionString });
 };

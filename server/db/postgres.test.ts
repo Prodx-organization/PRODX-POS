@@ -23,11 +23,16 @@ const withEnvironment = async (
   }
 };
 
-test('classifies production database targets without returning or logging hostnames', () => {
-  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres'), 'supabase_session_pooler');
-  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.sjgwesmmpegtzsqqqhvd.supabase.co:5432/postgres'), 'supabase_direct');
+test('classifies Project A database targets without returning or logging hostnames', () => {
+  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres'), 'supabase_session_pooler');
+  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.bbxoywnlayduqbrjeixj.supabase.co:5432/postgres'), 'supabase_direct');
   assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.example.internal:5432/postgres'), 'other');
   assert.equal(classifyProductionDatabaseTarget('not a database URL'), 'invalid');
+});
+
+test('Project B database targets are no longer classified as approved production targets', () => {
+  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres'), 'other');
+  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.sjgwesmmpegtzsqqqhvd.supabase.co:5432/postgres'), 'other');
 });
 
 test('resolveProductionDatabaseUrl uses DATABASE_URL outside Vercel production', async () => {
@@ -72,14 +77,14 @@ test('resolveProductionDatabaseUrl uses the Vercel request token instead of DATA
         NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://legacy.example/prodx',
         VERCEL_OIDC_TOKEN: undefined,
-        PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+        PRODX_DB_BROKER_URL: undefined,
       },
       async () => {
         assert.equal(
           await resolveProductionDatabaseUrl('request-oidc-token'),
           'postgresql://supabase.example/prodx',
         );
-        assert.equal(requestedUrl, 'https://broker.example/prodx-db');
+        assert.equal(requestedUrl, 'https://bbxoywnlayduqbrjeixj.supabase.co/functions/v1/prodx-db-broker');
         assert.equal(requestedAuthorization, 'Bearer request-oidc-token');
       },
     );
@@ -153,4 +158,3 @@ test('resolveConfiguredDatabaseUrl preserves valid URLs and rejects placeholder 
     },
   );
 });
-
