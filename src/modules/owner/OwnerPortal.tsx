@@ -1,0 +1,162 @@
+import React, { useEffect, useState } from 'react';
+import type { User } from '@supabase/supabase-js';
+import { getOwnerSupabaseClient } from '../../lib/supabaseOwnerClient';
+import { isAuthorizedOwnerAccount } from './ownerAuthorization';
+
+type PortalState = 'loading' | 'signed-out' | 'authorized' | 'denied' | 'error';
+const styles: Record<string, React.CSSProperties> = {
+  page: { minHeight: '100svh', display: 'grid', placeItems: 'center', padding: 24, background: '#f8fafc', color: '#0f172a', fontFamily: 'Inter, system-ui, sans-serif' },
+  card: { width: '100%', maxWidth: 460, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 20, padding: 32, boxShadow: '0 18px 60px rgba(15,23,42,.08)' },
+  input: { width: '100%', boxSizing: 'border-box', padding: '12px 14px', border: '1px solid #cbd5e1', borderRadius: 10, fontSize: 16, marginTop: 6 },
+  button: { width: '100%', padding: '12px 14px', border: 0, borderRadius: 10, background: '#c87935', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', marginTop: 16 },
+  secondaryButton: { width: '100%', padding: '12px 14px', border: '1px solid #cbd5e1', borderRadius: 10, background: '#fff', color: '#0f172a', fontWeight: 700, fontSize: 15, cursor: 'pointer', marginTop: 12 },
+  muted: { color: '#64748b', lineHeight: 1.6, fontSize: 14 },
+};
+
+export const OwnerPortal: React.FC = () => {
+  const [state, setState] = useState<PortalState>('loading');
+  const [user, setUser] = useState<User | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    let authRevision = 0;
+    const scheduled = new Set<ReturnType<typeof setTimeout>>();
+    let client: ReturnType<typeof getOwnerSupabaseClient>;
+
+    const authorize = async (candidate: User | null, revision: number) => {
+      if (!alive || revision !== authRevision) return;
+      setUser(candidate);
+      if (!candidate) {
+        setState('signed-out');
+        setMessage('');
+        return;
+      }
+
+      try {
+        const { data, error } = await client.from('user_roles')
+          .select('role')
+          .eq('user_id', candidate.id)
+          .maybeSingle();
+        if (!alive || revision !== authRevision) return;
+        if (error) {
+          setMessage('ตรวจสอบสิทธิ์ไม่สำเร็จ กรุณาลองใหม่');
+          setState('error');
+          return;
+        }
+        if (isAuthorizedOwnerAccount(candidate.email, data?.role)) {
+          setState('authorized');
+          setMessage('');
+        } else {
+          setState('denied');
+          setMessage('');
+        }
+      } catch {
+        if (!alive || revision !== authRevision) return;
+        setMessage('ไม่สามารถเชื่อมต่อเพื่อตรวจสอบสิทธิ์ได้');
+        setState('error');
+      }
+    };
+
+    try {
+      client = getOwnerSupabaseClient();
+      // Defer work out of onAuthStateChange to avoid re-entering the client's auth lock.
+      const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
+        const revision = ++authRevision;
+        const timer = setTimeout(() => {
+          scheduled.delete(timer);
+          void authorize(session?.user ?? null, revision);
+        }, 0);
+        scheduled.add(timer);
+      });
+      return () => {
+        alive = false;
+        for (const timer of scheduled) clearTimeout(timer);
+        scheduled.clear();
+        listener.subscription.unsubscribe();
+      };
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Owner auth configuration error');
+      setState('error');
+      return () => {
+        alive = false;
+        for (const timer of scheduled) clearTimeout(timer);
+      };
+    }
+  }, []);
+
+  const signIn = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setMessage('');
+    try {
+      const { error } = await getOwnerSupabaseClient().auth.signInWithPassword({ email: email.trim(), password });
+      if (error) throw error;
+      setPassword('');
+    } catch {
+      setMessage('เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบอีเมลและรหัสผ่าน หรือสถานะบัญชี');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    setBusy(true);
+    setMessage('');
+    try {
+      const { error } = await getOwnerSupabaseClient().auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${window.location.origin}/owner` },
+      });
+      if (error) throw error;
+      // Successful OAuth redirects away from this page; the auth listener restores
+      // the session and checks the database role when the browser returns.
+    } catch {
+      setMessage('เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาตรวจสอบการตั้งค่า Google provider ใน Supabase');
+      setBusy(false);
+    }
+  };
+
+  const signOut = async () => {
+    setBusy(true);
+    try {
+      const { error } = await getOwnerSupabaseClient().auth.signOut();
+      if (error) throw error;
+      setUser(null);
+      setState('signed-out');
+      setMessage('');
+    } catch {
+      setMessage('ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <main style={styles.page}><section style={styles.card}>
+    <div style={{ fontSize: 12, letterSpacing: 2, fontWeight: 800, color: '#b76e28' }}>PRODX POS · OWNER CONSOLE</div>
+    <h1 style={{ fontSize: 28, margin: '12px 0 8px' }}>{state === 'authorized' ? 'Owner Admin' : 'ระบบจัดการ PRODX POS'}</h1>
+    <p style={styles.muted}>พื้นที่จัดการแยกจากระบบล็อกอินพนักงานหน้าร้าน</p>
+    {state === 'loading' && <p role="status" style={styles.muted}>กำลังตรวจสอบเซสชันและสิทธิ์…</p>}
+    {state === 'signed-out' && <>
+      <form onSubmit={signIn}>
+        <label htmlFor="owner-email">อีเมลผู้ดูแลระบบ</label><input id="owner-email" style={styles.input} type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} />
+        <label htmlFor="owner-password" style={{ display: 'block', marginTop: 16 }}>รหัสผ่าน</label><input id="owner-password" style={styles.input} type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
+        <button style={styles.button} type="submit" disabled={busy}>{busy ? 'กำลังตรวจสอบ…' : 'เข้าสู่ระบบด้วยอีเมล'}</button>
+      </form>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18, color: '#94a3b8', fontSize: 12 }}>
+        <span style={{ height: 1, background: '#e2e8f0', flex: 1 }} /><span>หรือ</span><span style={{ height: 1, background: '#e2e8f0', flex: 1 }} />
+      </div>
+      <button style={styles.secondaryButton} type="button" onClick={() => void signInWithGoogle()} disabled={busy}>
+        {busy ? 'กำลังเชื่อมต่อ…' : 'ดำเนินการต่อด้วย Google'}
+      </button>
+    </>}
+    {state === 'authorized' && <div><p><strong>เข้าสู่ระบบแล้ว</strong></p><p style={styles.muted}>{user?.email}</p><p style={styles.muted}>ยืนยันสิทธิ์จากตาราง user_roles แล้ว หน้าจัดการเพิ่มเติมจะเปิดใช้งานหลังเชื่อมต่อโมดูลผู้ดูแล</p><button style={styles.button} onClick={() => void signOut()} disabled={busy}>ออกจากระบบ</button></div>}
+    {state === 'denied' && <div role="alert"><p><strong>บัญชีนี้ไม่มีสิทธิ์ Owner/Admin</strong></p><p style={styles.muted}>ระบบไม่อนุญาตให้เข้าถึงส่วนจัดการ กรุณาติดต่อเจ้าของระบบ</p><button style={styles.button} onClick={() => void signOut()} disabled={busy}>ออกจากระบบ</button></div>}
+    {state === 'error' && <div role="alert"><p style={{ color: '#b91c1c' }}>{message || 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์'}</p><button style={styles.button} onClick={() => window.location.reload()}>ลองใหม่</button></div>}
+    {message && state !== 'error' && <p role="alert" style={{ color: '#b91c1c', fontSize: 14 }}>{message}</p>}
+    <p style={{ ...styles.muted, marginTop: 24 }}>ความปลอดภัย: สิทธิ์อ่านจากฐานข้อมูล ไม่ใช้ role ที่ส่งมาจาก browser</p>
+  </section></main>;
+};
