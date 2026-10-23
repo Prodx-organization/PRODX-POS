@@ -50,6 +50,7 @@ import { ReceiptValidationPortal } from './components/receipt/ReceiptValidationP
 import { ShortcutsOverlay } from './components/common/ShortcutsOverlay';
 import { DevPerformanceOverlay } from './components/dev/DevPerformanceOverlay';
 import { RbacGuard } from './components/auth/RbacGuard';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 import { FrontendAssistant } from './components/ai/FrontendAssistant';
 import { useShift } from './context/ShiftContext';
@@ -486,84 +487,95 @@ export default function App() {
 
   if (isKdsMode) {
     return (
-      <GlobalErrorRecoveryProvider>
-        <ErrorBoundary isGlobal moduleName="PRODX Kitchen Display System (KDS)">
-          <AuthProvider>
-            <ThemeProvider>
-              <LanguageProvider>
-                <React.Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>}>
-                  <KitchenDisplayScreen />
-                </React.Suspense>
-              </LanguageProvider>
-            </ThemeProvider>
-          </AuthProvider>
-        </ErrorBoundary>
-      </GlobalErrorRecoveryProvider>
+      <>
+        <GlobalErrorRecoveryProvider>
+          <ErrorBoundary isGlobal moduleName="PRODX Kitchen Display System (KDS)">
+            <AuthProvider>
+              <ThemeProvider>
+                <LanguageProvider>
+                  <React.Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center"><Loader2 className="animate-spin text-primary h-12 w-12" /></div>}>
+                    <KitchenDisplayScreen />
+                  </React.Suspense>
+                </LanguageProvider>
+              </ThemeProvider>
+            </AuthProvider>
+          </ErrorBoundary>
+        </GlobalErrorRecoveryProvider>
+        <SpeedInsights />
+      </>
     );
   }
 
   if (isReceiptValidationMode) {
     return (
-      <GlobalErrorRecoveryProvider>
-        <ErrorBoundary isGlobal moduleName="PRODX Receipt Validation Portal">
-          <ThemeProvider>
-            <LanguageProvider>
-              <ReceiptValidationPortal />
-            </LanguageProvider>
-          </ThemeProvider>
-        </ErrorBoundary>
-      </GlobalErrorRecoveryProvider>
+      <>
+        <GlobalErrorRecoveryProvider>
+          <ErrorBoundary isGlobal moduleName="PRODX Receipt Validation Portal">
+            <ThemeProvider>
+              <LanguageProvider>
+                <ReceiptValidationPortal />
+              </LanguageProvider>
+            </ThemeProvider>
+          </ErrorBoundary>
+        </GlobalErrorRecoveryProvider>
+        <SpeedInsights />
+      </>
     );
   }
 
   if (isCustomerDisplayMode) {
     return (
-      <GlobalErrorRecoveryProvider>
-        <ErrorBoundary isGlobal moduleName="PRODX Customer-Facing Display">
-          <ThemeProvider>
-            <LanguageProvider>
-              <CustomerDisplayView />
-            </LanguageProvider>
-          </ThemeProvider>
-        </ErrorBoundary>
-      </GlobalErrorRecoveryProvider>
+      <>
+        <GlobalErrorRecoveryProvider>
+          <ErrorBoundary isGlobal moduleName="PRODX Customer-Facing Display">
+            <ThemeProvider>
+              <LanguageProvider>
+                <CustomerDisplayView />
+              </LanguageProvider>
+            </ThemeProvider>
+          </ErrorBoundary>
+        </GlobalErrorRecoveryProvider>
+        <SpeedInsights />
+      </>
     );
   }
 
   return (
-    <GlobalErrorRecoveryProvider>
-      <ErrorBoundary isGlobal moduleName="PRODX POS Core Engine">
-        <SettingsProvider>
-          <ThemeProvider>
-            <LanguageProvider>
-              <SoundProvider>
-                <HapticProvider>
-                  <ToastProvider>
-                    <AuthProvider>
-                      <OfflineProvider>
-                        <ShiftProvider>
-                          <CartProvider>
-                            <ReceiptPrinterProvider>
-                              <VisualInspectorProvider>
-                                <BreadcrumbProvider>
-                                  <ConfirmationDialogProvider>
-                                    <MainApplication />
-                                  </ConfirmationDialogProvider>
-                                </BreadcrumbProvider>
-                              </VisualInspectorProvider>
-                            </ReceiptPrinterProvider>
-                          </CartProvider>
-                        </ShiftProvider>
-                      </OfflineProvider>
-                    </AuthProvider>
-                  </ToastProvider>
-                </HapticProvider>
-              </SoundProvider>
-            </LanguageProvider>
-          </ThemeProvider>
-        </SettingsProvider>
-      </ErrorBoundary>
-    </GlobalErrorRecoveryProvider>
+    <>
+      <GlobalErrorRecoveryProvider>
+        <ErrorBoundary isGlobal moduleName="PRODX POS Core Engine">
+          <SettingsProvider>
+            <ThemeProvider>
+              <LanguageProvider>
+                <SoundProvider>
+                  <HapticProvider>
+                    <ToastProvider>
+                      <AuthProvider>
+                        <OfflineProvider>
+                          <ShiftProvider>
+                            <CartProvider>
+                              <ReceiptPrinterProvider>
+                                <VisualInspectorProvider>
+                                  <BreadcrumbProvider>
+                                    <ConfirmationDialogProvider>
+                                      <MainApplication />
+                                    </ConfirmationDialogProvider>
+                                  </BreadcrumbProvider>
+                                </VisualInspectorProvider>
+                              </ReceiptPrinterProvider>
+                            </CartProvider>
+                          </ShiftProvider>
+                        </OfflineProvider>
+                      </AuthProvider>
+                    </ToastProvider>
+                  </HapticProvider>
+                </SoundProvider>
+              </LanguageProvider>
+            </ThemeProvider>
+          </SettingsProvider>
+        </ErrorBoundary>
+      </GlobalErrorRecoveryProvider>
+      <SpeedInsights />
+    </>
   );
 }
-
