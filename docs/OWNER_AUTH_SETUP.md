@@ -1,6 +1,6 @@
 # PRODX POS Owner Console Authentication
 
-The owner console is isolated from the existing cashier/terminal authentication.
+The owner console is isolated from the existing cashier/terminal authentication. It supports Email + Password and Google OAuth using the isolated Owner Supabase client.
 
 ## Browser environment
 
@@ -12,6 +12,21 @@ VITE_OWNER_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_project_key
 ```
 
 Use the project's publishable key only. Never use a Supabase `service_role` or secret key in a `VITE_*` variable. The repository ignores `.env*` except `.env.example`.
+
+## Enable Email + Password and Google OAuth
+
+1. In Supabase Dashboard → Authentication → Sign In / Providers, enable Email and confirm the email/password sign-in policy matches the owner-invite workflow.
+2. For Google, create a Web OAuth client in Google Cloud Console → Google Auth Platform → Clients.
+3. In Supabase Dashboard → Authentication → Sign In / Providers → Google, enable Google and enter the Google Web Client ID and Client Secret. Keep the secret in Supabase provider settings only; never put it in Vite environment variables or source control.
+4. In Google Cloud, add the Supabase callback URI shown by Supabase to the OAuth client's **Authorized redirect URIs**. For this project it should be `https://bbxoywnlayduqbrjeixj.supabase.co/auth/v1/callback`.
+5. In Supabase Dashboard → Authentication → URL Configuration, set the Site URL to the canonical app origin. Add exact Owner Console redirect targets to Redirect URLs for each environment, for example:
+   - `https://prodx-pos.vercel.app/owner` (production app origin, if this is the deployed canonical URL)
+   - the exact Vercel Preview origin plus `/owner` used for testing
+   - `http://localhost:5173/owner` for local Vite development
+   Do not use broad wildcard redirects for production. Remove temporary Preview URLs when no longer needed.
+6. In Google Auth Platform, configure the app audience and branding appropriately. For a restricted owner portal, keep the audience restricted to the intended users while testing; verify the production access policy before publishing broadly.
+
+The UI calls `signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/owner' } })`. The app then restores the Supabase session and checks the user's database role. OAuth sign-in alone does **not** grant Owner/Admin access.
 
 ## Enable the owner account
 
@@ -37,10 +52,9 @@ Only a trusted project administrator should assign this role. Do not grant owner
 
 ## Redirect and deployment
 
-- Set the production site URL in Supabase Authentication → URL Configuration.
-- If adding OAuth later, add exact callback URLs for each environment and enable the provider in Supabase first.
 - Configure `VITE_OWNER_SUPABASE_URL` and `VITE_OWNER_SUPABASE_PUBLISHABLE_KEY` in Vercel and redeploy the Preview/Production build after verification.
 - Test `/owner` in a private window, with an authorized owner account, a regular user without an owner role, and a signed-out browser.
+- Verify both Email + Password and Google OAuth callback flows on local, Preview, and production origins that are explicitly allowlisted.
 
 ## Free Plan security limitation: leaked-password protection
 
@@ -64,6 +78,8 @@ The existing `public.user_roles` self-read RLS policy is intended to let users r
 
 - [ ] Verify authorized owner access and denial for manager/cashier/role-less users.
 - [ ] Verify signed-out behavior, session restoration after refresh, and sign-out/session invalidation with repeatable browser tests.
+- [ ] Verify Email + Password sign-in.
+- [ ] Configure Google provider credentials in Supabase and verify the Google callback in each intended environment.
 - [ ] Investigate any intermittent generic login error with safe diagnostic evidence.
 - [ ] Confirm deployment environment variables without committing secret values.
 - [ ] Verify Auth rate limits, available password-strength settings, and CAPTCHA/bot protection where supported.
