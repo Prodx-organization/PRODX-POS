@@ -49,6 +49,7 @@ const KitchenDisplayScreen = React.lazy(() => import('./modules/kds/KitchenDispl
 import { ReceiptValidationPortal } from './components/receipt/ReceiptValidationPortal';
 import { ShortcutsOverlay } from './components/common/ShortcutsOverlay';
 import { DevPerformanceOverlay } from './components/dev/DevPerformanceOverlay';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { RbacGuard } from './components/auth/RbacGuard';
 
 import { FrontendAssistant } from './components/ai/FrontendAssistant';
@@ -498,6 +499,7 @@ export default function App() {
             </ThemeProvider>
           </AuthProvider>
         </ErrorBoundary>
+        <SpeedInsights />
       </GlobalErrorRecoveryProvider>
     );
   }
@@ -512,6 +514,7 @@ export default function App() {
             </LanguageProvider>
           </ThemeProvider>
         </ErrorBoundary>
+        <SpeedInsights />
       </GlobalErrorRecoveryProvider>
     );
   }
@@ -526,6 +529,7 @@ export default function App() {
             </LanguageProvider>
           </ThemeProvider>
         </ErrorBoundary>
+        <SpeedInsights />
       </GlobalErrorRecoveryProvider>
     );
   }
@@ -563,7 +567,7 @@ export default function App() {
           </ThemeProvider>
         </SettingsProvider>
       </ErrorBoundary>
+      <SpeedInsights />
     </GlobalErrorRecoveryProvider>
   );
 }
-
