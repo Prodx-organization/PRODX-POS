@@ -49,6 +49,9 @@ jobs:
       - name: Type check
         run: npm run lint
 
+      - name: Owner authorization regression tests
+        run: npm run owner:test
+
       - name: Production build
         run: npm run build
 
