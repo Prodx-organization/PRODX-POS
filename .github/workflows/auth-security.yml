@@ -55,6 +55,9 @@ jobs:
       - name: Supabase client isolation regression tests
         run: npm run supabase:client:test
 
+      - name: Admin login credential and diagnostic regression tests
+        run: npm run admin:auth:test
+
       - name: Production build
         run: npm run build
 
