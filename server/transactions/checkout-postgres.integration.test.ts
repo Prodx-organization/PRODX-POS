@@ -42,7 +42,7 @@ test('PostgreSQL checkout proves atomicity, authoritative pricing, idempotency a
  const concurrentPayment={...req('concurrent').payments[0],id:'00000000-0000-4000-8000-000000001012'};const concurrentRequest=req('concurrent',{payments:[concurrentPayment]});const results=await Promise.all([1,2,3,4].map(()=>service.checkout(concurrentRequest)));assert.equal(new Set(results.map(r=>r.order.id)).size,1);assert.equal((await pool.query('SELECT count(*)::int n FROM prodx_orders WHERE idempotency_key=$1',['concurrent'])).rows[0].n,1);assert.equal((await pool.query('SELECT count(*)::int n FROM prodx_payments p JOIN prodx_orders o ON o.id=p.order_id WHERE o.idempotency_key=$1',['concurrent'])).rows[0].n,1);await assert.rejects(service.checkout(req('cross-store',{storeId:id.store2})));
  const discountBase=req('order-discount',{
    totals:{...req('order-discount').totals,orderDiscount:{amountInCents:200,currency:'THB'},netSubtotal:{amountInCents:1800,currency:'THB'},grandTotal:{amountInCents:1800,currency:'THB'}},
-   payments:[{...req('order-discount').payments[0],amount:{amountInCents:1800,currency:'THB'},tenderedCash:{amountInCents:1800,currency:'THB'},changeGiven:{amountInCents:0,currency:'THB'}}],
+   payments:[{...req('order-discount').payments[0],id:'00000000-0000-4000-8000-000000001013',amount:{amountInCents:1800,currency:'THB'},tenderedCash:{amountInCents:1800,currency:'THB'},changeGiven:{amountInCents:0,currency:'THB'}}],
  }) as CheckoutRequest & {orderDiscountBps:number};
  discountBase.orderDiscountBps=1000;
  const discounted=await service.checkout(discountBase);
