@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import './i18n';
 import App from './App.tsx';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import './index.css';
 import './premium-design-system.css';
 import { registerSW } from 'virtual:pwa-register';
@@ -40,6 +41,8 @@ void updateServiceWorker;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary isGlobal moduleName="Application Runtime">
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );
