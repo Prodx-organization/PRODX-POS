@@ -10,11 +10,12 @@ class GeminiEndpointTests(unittest.TestCase):
         self.assertEqual(agent.GEMINI_MODEL, 'gemini-4-argon')
         self.assertEqual(
             agent.GEMINI_API,
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-4-argon:generateContent',
+            'https://generativelanguage.googleapis.com/v1beta1/models/gemini-4-argon:generateContent',
         )
         self.assertNotIn('key=', agent.GEMINI_API.lower())
-        self.assertEqual(agent.GEMINI_REQUEST_TIMEOUT_SECONDS, 900)
-        self.assertEqual(agent.GEMINI_MAX_OUTPUT_TOKENS, 32_768)
+        self.assertEqual(agent.GITHUB_REQUEST_TIMEOUT_SECONDS, 30)
+        self.assertEqual(agent.GEMINI_REQUEST_TIMEOUT_SECONDS, 1_200)
+        self.assertEqual(agent.GEMINI_MAX_OUTPUT_TOKENS, 131_072)
 
     def test_request_uses_configured_long_timeout(self):
         response = Mock()
@@ -25,7 +26,7 @@ class GeminiEndpointTests(unittest.TestCase):
             result = agent.request_json('https://example.invalid/test')
         self.assertEqual(result, {"ok": True})
         urlopen.assert_called_once()
-        self.assertEqual(urlopen.call_args.kwargs['timeout'], agent.GEMINI_REQUEST_TIMEOUT_SECONDS)
+        self.assertEqual(urlopen.call_args.kwargs['timeout'], agent.GITHUB_REQUEST_TIMEOUT_SECONDS)
 
     def test_generation_sends_configured_output_budget_to_gemini(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict('os.environ', {
@@ -47,7 +48,53 @@ class GeminiEndpointTests(unittest.TestCase):
         args, kwargs = request_json.call_args
         self.assertEqual(args[0], agent.GEMINI_API)
         self.assertEqual(kwargs['api_key'], 'test-api-key')
-        self.assertEqual(kwargs['payload']['generationConfig']['maxOutputTokens'], 32_768)
+        self.assertEqual(kwargs['payload']['generationConfig']['maxOutputTokens'], 131_072)
+        self.assertEqual(kwargs['timeout_seconds'], 1_200)
+
+    def test_continues_empty_reasoning_hop_using_latest_continuation_token(self):
+        final_json = json.dumps({
+            'summary': 'Add a note',
+            'files': [{'path': 'docs/agent-test.md', 'content': 'Continuation succeeded.\n'}],
+        })
+        first = {'candidates': [{
+            'content': {'role': 'model', 'parts': [{'text': ''}]},
+            'finishReason': 'CONTINUATION', 'continuationToken': 'opaque-token-1',
+        }], 'usageMetadata': {'candidatesTokenCount': 0}}
+        second = {'candidates': [{
+            'content': {'role': 'model', 'parts': [{'text': final_json}]},
+            'finishReason': 'STOP',
+        }]}
+        with tempfile.TemporaryDirectory() as temp, patch.dict('os.environ', {
+            'GITHUB_REPOSITORY': 'Prodx-organization/PRODX-POS',
+            'GITHUB_TOKEN': 'test-token',
+            'GEMINI_API_KEY': 'test-api-key',
+        }), patch.object(agent, 'issue_context', return_value=('Small task', 'Add a documentation note.')), \
+             patch.object(agent, 'gather_context', return_value='minimal context'), \
+             patch.object(agent, 'request_json', side_effect=[first, second]) as request_json:
+            output = pathlib.Path(temp) / 'candidate.json'
+            agent.generate(164, output)
+            self.assertEqual(json.loads(output.read_text())['files'][0]['path'], 'docs/agent-test.md')
+        self.assertEqual(request_json.call_count, 2)
+        first_payload = request_json.call_args_list[0].kwargs['payload']
+        second_payload = request_json.call_args_list[1].kwargs['payload']
+        self.assertNotIn('continuationToken', first_payload)
+        self.assertEqual(second_payload['continuationToken'], 'opaque-token-1')
+        self.assertEqual(first_payload['contents'], second_payload['contents'])
+        self.assertEqual(first_payload['generationConfig'], second_payload['generationConfig'])
+        self.assertEqual(request_json.call_args_list[0].kwargs['timeout_seconds'], 1_200)
+
+    def test_continuation_without_token_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict('os.environ', {
+            'GITHUB_REPOSITORY': 'Prodx-organization/PRODX-POS',
+            'GITHUB_TOKEN': 'test-token',
+            'GEMINI_API_KEY': 'test-api-key',
+        }), patch.object(agent, 'issue_context', return_value=('Small task', 'Add a documentation note.')), \
+             patch.object(agent, 'gather_context', return_value='minimal context'), \
+             patch.object(agent, 'request_json', return_value={
+                 'candidates': [{'content': {'parts': []}, 'finishReason': 'CONTINUATION'}],
+             }):
+            with self.assertRaisesRegex(agent.AgentError, 'continuation without a usable token'):
+                agent.generate(164, pathlib.Path(temp) / 'candidate.json')
 
     def test_empty_candidate_response_reports_safe_model_diagnostics(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict('os.environ', {

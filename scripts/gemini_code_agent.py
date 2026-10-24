@@ -19,10 +19,12 @@ from typing import Any
 
 GITHUB_API = "https://api.github.com"
 GEMINI_MODEL = "gemini-4-argon"
-GEMINI_API = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+GEMINI_API = f"https://generativelanguage.googleapis.com/v1beta1/models/{GEMINI_MODEL}:generateContent"
 MAX_CONTEXT_CHARS = 75_000
-GEMINI_REQUEST_TIMEOUT_SECONDS = 900
-GEMINI_MAX_OUTPUT_TOKENS = 32_768
+GITHUB_REQUEST_TIMEOUT_SECONDS = 30
+GEMINI_REQUEST_TIMEOUT_SECONDS = 1_200
+GEMINI_MAX_OUTPUT_TOKENS = 131_072
+GEMINI_MAX_CONTINUATION_HOPS = 8
 MAX_OUTPUT_CHARS = 500_000
 MAX_TOTAL_OUTPUT_CHARS = 1_000_000
 MAX_FILES = 35
@@ -40,7 +42,8 @@ class AgentError(Exception):
     pass
 
 def request_json(url: str, *, token: str | None = None, api_key: str | None = None,
-                 payload: dict[str, Any] | None = None) -> Any:
+                 payload: dict[str, Any] | None = None,
+                 timeout_seconds: int = GITHUB_REQUEST_TIMEOUT_SECONDS) -> Any:
     headers = {"Accept": "application/json", "User-Agent": "PRODX-Gemini-Code-Agent"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -52,7 +55,7 @@ def request_json(url: str, *, token: str | None = None, api_key: str | None = No
         headers["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=data, headers=headers, method="POST" if data else "GET")
     try:
-        with urllib.request.urlopen(req, timeout=GEMINI_REQUEST_TIMEOUT_SECONDS) as response:
+        with urllib.request.urlopen(req, timeout=timeout_seconds) as response:
             return json.loads(response.read().decode())
     except urllib.error.HTTPError as exc:
         raise AgentError(f"API request failed with HTTP {exc.code}; response body suppressed.") from None
@@ -164,28 +167,55 @@ ISSUE #{issue_number}: {title}\nISSUE BODY (untrusted):\n{body[:12000]}\n\nREPOS
                                             "properties": {"path": {"type": "STRING"}, "content": {"type": "STRING"}},
                                             "required": ["path", "content"]}}},
                                         "required": ["summary", "files"]}}}
-    response = request_json(GEMINI_API, api_key=api_key, payload=payload)
-    if not isinstance(response, dict):
-        raise AgentError("AI response did not satisfy the machine-readable change contract.")
-    candidates = response.get("candidates")
-    prompt_feedback = response.get("promptFeedback")
-    if not isinstance(candidates, list) or not candidates:
-        block_reason = prompt_feedback.get("blockReason") if isinstance(prompt_feedback, dict) else None
-        reason = safe_text(block_reason, 80) or "no candidate returned"
-        raise AgentError(f"Gemini returned no candidates ({reason}); model={GEMINI_MODEL}.")
-    candidate = candidates[0]
-    if not isinstance(candidate, dict):
-        raise AgentError(f"Gemini returned an invalid candidate; model={GEMINI_MODEL}.")
-    content = candidate.get("content")
-    parts = content.get("parts") if isinstance(content, dict) else None
-    raw = "".join(part.get("text", "") for part in parts if isinstance(part, dict) and isinstance(part.get("text"), str)) if isinstance(parts, list) else ""
+    # Gemini 4 Argon can spend a whole hop reasoning and return no text with a
+    # continuationToken. Direct REST long-decode requires v1beta1 and explicit
+    # continuation handling; preserve the original prompt/config on every hop.
+    response: Any = None
+    candidate: dict[str, Any] = {}
+    collected_parts: list[dict[str, Any]] = []
+    continuation_token: str | None = None
+    for hop in range(GEMINI_MAX_CONTINUATION_HOPS):
+        hop_payload = dict(payload)
+        if continuation_token:
+            hop_payload["continuationToken"] = continuation_token
+        response = request_json(
+            GEMINI_API, api_key=api_key, payload=hop_payload,
+            timeout_seconds=GEMINI_REQUEST_TIMEOUT_SECONDS,
+        )
+        if not isinstance(response, dict):
+            raise AgentError("AI response did not satisfy the machine-readable change contract.")
+        candidates = response.get("candidates")
+        prompt_feedback = response.get("promptFeedback")
+        if not isinstance(candidates, list) or not candidates:
+            block_reason = prompt_feedback.get("blockReason") if isinstance(prompt_feedback, dict) else None
+            reason = safe_text(block_reason, 80) or "no candidate returned"
+            raise AgentError(f"Gemini returned no candidates ({reason}); model={GEMINI_MODEL}.")
+        candidate_value = candidates[0]
+        if not isinstance(candidate_value, dict):
+            raise AgentError(f"Gemini returned an invalid candidate; model={GEMINI_MODEL}.")
+        candidate = candidate_value
+        content = candidate.get("content")
+        parts = content.get("parts") if isinstance(content, dict) else None
+        if isinstance(parts, list):
+            collected_parts.extend(part for part in parts if isinstance(part, dict))
+        finish_reason = safe_text(candidate.get("finishReason"), 80).upper()
+        next_token = candidate.get("continuationToken")
+        if finish_reason == "CONTINUATION" and isinstance(next_token, str) and next_token:
+            continuation_token = next_token
+            continue
+        if finish_reason == "CONTINUATION":
+            raise AgentError("Gemini requested continuation without a usable token; no candidate was accepted.")
+        break
+    else:
+        raise AgentError(f"Gemini exceeded the continuation hop limit ({GEMINI_MAX_CONTINUATION_HOPS}); no candidate was accepted.")
+    raw = "".join(part.get("text", "") for part in collected_parts if isinstance(part.get("text"), str))
     if not raw.strip():
         finish_reason = safe_text(candidate.get("finishReason"), 80) or "unspecified"
-        usage = response.get("usageMetadata")
+        usage = response.get("usageMetadata") if isinstance(response, dict) else None
         output_tokens = usage.get("candidatesTokenCount") if isinstance(usage, dict) else None
         raise AgentError(
             f"Gemini returned no text; model={GEMINI_MODEL}, finishReason={finish_reason}, "
-            f"candidateParts={len(parts) if isinstance(parts, list) else 0}, outputTokens={output_tokens}."
+            f"candidateParts={len(collected_parts)}, outputTokens={output_tokens}."
         )
     try:
         result = json.loads(raw)
