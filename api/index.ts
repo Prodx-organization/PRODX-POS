@@ -15,8 +15,14 @@ const getVercelOidcToken = (request: VercelRequest): string | undefined => {
 export default async function handler(request: VercelRequest, response: ServerResponse): Promise<void> {
   try {
     if (!appPromise) {
-      appPromise = createProductionApp({
+      const initialization = createProductionApp({
         vercelOidcToken: getVercelOidcToken(request),
+      });
+      appPromise = initialization.catch((error: unknown) => {
+        // Do not pin a rejected initialization promise for the lifetime of a
+        // serverless instance. A later request must be able to retry startup.
+        appPromise = undefined;
+        throw error;
       });
     }
 
