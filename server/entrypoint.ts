@@ -28,9 +28,7 @@ import { registerInventoryAdjustmentRoute } from './http/inventory-adjustment-ro
 import { registerInfrastructureRoutes, registerPublicInfrastructureRoutes } from './http/infrastructureRoutes.ts';
 import { installAIHttpRoute } from './ai/http-route.ts';
 
-export type ProductionAppOptions = {
-  vercelOidcToken?: string;
-};
+export type ProductionAppOptions = { vercelOidcToken?: string };
 
 export const createProductionApp = async (options: ProductionAppOptions = {}) => {
   const pool = await createProductionPostgresPool({}, options.vercelOidcToken);
@@ -51,16 +49,12 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
         try {
           await sql.query<{ ok: number }>('SELECT 1 AS ok');
           postgresOk = true;
-        } catch (error: unknown) {
-          postgresError = error;
-        }
+        } catch (error: unknown) { postgresError = error; }
       }
       try {
         const firestoreResult = await pingFirestore();
         firestoreOk = firestoreResult.statusCode === 200;
-      } catch (error: unknown) {
-        firestoreError = error;
-      }
+      } catch (error: unknown) { firestoreError = error; }
       if (!postgresOk && !firestoreOk) {
         const error = new Error('Database readiness check failed: Both PostgreSQL and Firestore are unreachable.');
         Object.assign(error, {
@@ -122,6 +116,7 @@ export const startProductionServer = async (): Promise<void> => {
   const shutdown = async (signal: string) => {
     server.close(async () => {
       await pool.end();
+      await (async () => { const ownerPool = getOwnerPostgresPool(); await ownerPool.end().catch(() => undefined); })();
       console.log(`PRODX POS backend stopped after ${signal}`);
     });
   };

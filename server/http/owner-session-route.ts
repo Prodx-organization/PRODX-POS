@@ -12,8 +12,8 @@ type OwnerRouteDependencies = {
 let remoteJwks: ReturnType<typeof createRemoteJWKSet> | undefined;
 
 const verifyOwnerToken = async (token: string): Promise<OwnerIdentity | null> => {
-  const ownerUrl = process.env.OWNER_SUPABASE_URL?.trim();
-  const jwksUrl = process.env.OWNER_SUPABASE_JWKS_URL?.trim();
+  const ownerUrl = process.env.SUPABASE_OWNER_URL?.trim();
+  const jwksUrl = process.env.SUPABASE_OWNER_JWKS_URL?.trim();
   if (!ownerUrl || !jwksUrl) throw new Error('Owner Supabase issuer configuration is missing.');
   const issuerUrl = new URL(ownerUrl);
   const keysUrl = new URL(jwksUrl);

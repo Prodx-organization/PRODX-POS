@@ -20,6 +20,6 @@ test('Owner database configuration is separate from DATABASE_URL and fails close
 
 test('Owner database URL must use PostgreSQL and include connection components', () => {
   assert.throws(() => resolveOwnerDatabaseUrl('https://example.com'), /PostgreSQL protocol/);
-  assert.throws(() => resolveOwnerDatabaseUrl('postgresql://'), /valid PostgreSQL/);
+  assert.throws(() => resolveOwnerDatabaseUrl('postgresql://'), /valid PostgreSQL connection URL/);
   assert.equal(resolveOwnerDatabaseUrl('postgresql://owner:secret@localhost:5432/owner'), 'postgresql://owner:secret@localhost:5432/owner');
 });
