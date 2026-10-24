@@ -69,7 +69,14 @@ def validate_path(raw: Any) -> str:
         raise AgentError("Generated change attempted path traversal.")
     normalized = path.as_posix()
     basename = path.name.lower()
-    if (normalized in PROTECTED_FILES or any(normalized.startswith(p) for p in PROTECTED_PREFIXES)
+    parts = {part.lower() for part in path.parts}
+    protected_basenames = {name.lower() for name in PROTECTED_FILES} | {
+        "package.json", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml",
+        ".npmrc", "bun.lock", "bun.lockb", "deno.lock",
+    }
+    if (normalized in PROTECTED_FILES or basename in protected_basenames
+            or parts.intersection({".github", ".git", "node_modules"})
+            or any(normalized.startswith(p) for p in PROTECTED_PREFIXES)
             or any(normalized.startswith(p) for p in PROTECTED_SCRIPT_PREFIXES)
             or basename.startswith(".env") or basename.endswith((".pem", ".key", ".p12", ".pfx"))
             or any(marker in basename for marker in ("secret", "credential", "private-key"))):

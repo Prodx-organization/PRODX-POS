@@ -24,6 +24,15 @@ class PathPolicyTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(agent.AgentError):
                 agent.validate_path(value)
 
+    def test_rejects_nested_manifests_and_control_directories(self):
+        for path in (
+            'server/package.json', 'src/pnpm-lock.yaml', 'server/.npmrc',
+            'server/bun.lock', 'server/.github/workflows/unsafe.yml',
+            'src/.git/config', 'tests/node_modules/pkg/index.js',
+        ):
+            with self.subTest(path=path), self.assertRaises(agent.AgentError):
+                agent.validate_path(path)
+
     def test_rejects_paths_outside_source_policy(self):
         with self.assertRaises(agent.AgentError):
             agent.validate_path('vercel.json')
