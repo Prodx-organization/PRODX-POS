@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { classifyProductionDatabaseTarget, resolveConfiguredDatabaseUrl, resolveProductionDatabaseUrl } from './postgres';
+import { classifyProductionDatabaseTarget, createProductionPostgresPool, resolveConfiguredDatabaseUrl, resolveProductionDatabaseUrl } from './postgres';
 
 const withEnvironment = async (
   values: Record<string, string | undefined>,
@@ -183,6 +183,46 @@ test('production database broker defaults to the sole PRODX-POS Supabase project
       },
     );
   } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+
+test('createProductionPostgresPool cannot bypass the OIDC broker with a caller-supplied URL in Vercel production', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = '';
+  globalThis.fetch = async (input) => {
+    requestedUrl = String(input);
+    return new Response(JSON.stringify({ databaseUrl: 'postgresql://broker-issued.example/prodx' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  let pool: Awaited<ReturnType<typeof createProductionPostgresPool>> | undefined;
+  try {
+    await withEnvironment(
+      {
+        VERCEL: '1',
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://environment.example/prodx',
+        VERCEL_OIDC_TOKEN: undefined,
+        PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+      },
+      async () => {
+        pool = await createProductionPostgresPool(
+          { connectionString: 'postgresql://caller-supplied.example/untrusted' },
+          'request-oidc-token',
+        );
+        assert.equal(requestedUrl, 'https://broker.example/prodx-db');
+        assert.equal(
+          (pool as unknown as { options: { connectionString: string } }).options.connectionString,
+          'postgresql://broker-issued.example/prodx',
+        );
+      },
+    );
+  } finally {
+    await pool?.end();
     globalThis.fetch = originalFetch;
   }
 });
