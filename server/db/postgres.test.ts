@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import { classifyProductionDatabaseTarget, resolveConfiguredDatabaseUrl, resolveProductionDatabaseUrl } from './postgres';
 
 const withEnvironment = async (
@@ -25,9 +26,16 @@ const withEnvironment = async (
 
 test('classifies production database targets without returning or logging hostnames', () => {
   assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres'), 'supabase_session_pooler');
-  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.sjgwesmmpegtzsqqqhvd.supabase.co:5432/postgres'), 'supabase_direct');
+  // Owner Console project is not an approved POS transactional database.
+  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.bbxoywnlayduqbrjeixj.supabase.co:5432/postgres'), 'other');
   assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.example.internal:5432/postgres'), 'other');
   assert.equal(classifyProductionDatabaseTarget('not a database URL'), 'invalid');
+});
+
+test('tracked production bundle does not approve the Owner Console Supabase host', async () => {
+  const bundle = await readFile(new URL('../entrypoint.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(bundle, /db\.bbxoywnlayduqbrjeixj\.supabase\.co/);
+  assert.match(bundle, /aws-0-ap-northeast-1\.pooler\.supabase\.com/);
 });
 
 test('resolveProductionDatabaseUrl uses DATABASE_URL outside Vercel production', async () => {
@@ -46,6 +54,24 @@ test('resolveProductionDatabaseUrl fails closed when no Vercel runtime token is 
       await assert.rejects(
         resolveProductionDatabaseUrl(),
         /Vercel OIDC token is required/,
+      );
+    },
+  );
+});
+
+test('resolveProductionDatabaseUrl fails closed when the production broker endpoint is not configured', async () => {
+  await withEnvironment(
+    {
+      VERCEL: '1',
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://legacy.example/prodx',
+      VERCEL_OIDC_TOKEN: undefined,
+      PRODX_DB_BROKER_URL: undefined,
+    },
+    async () => {
+      await assert.rejects(
+        resolveProductionDatabaseUrl('request-oidc-token'),
+        /PRODX_DB_BROKER_URL is required/,
       );
     },
   );
@@ -130,6 +156,7 @@ test('resolveProductionDatabaseUrl rejects a broker failure', async () => {
         NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://legacy.example/prodx',
         VERCEL_OIDC_TOKEN: undefined,
+        PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
       },
       async () => {
         await assert.rejects(
