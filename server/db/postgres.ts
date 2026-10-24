@@ -21,14 +21,13 @@ export const resolveConfiguredDatabaseUrl = (
   return trimmed;
 };
 
-export type ProductionDatabaseTarget = 'supabase_session_pooler' | 'supabase_direct' | 'other' | 'invalid';
+export type ProductionDatabaseTarget = 'supabase_session_pooler' | 'other' | 'invalid';
 
 export const classifyProductionDatabaseTarget = (databaseUrl?: string): ProductionDatabaseTarget => {
   if (!databaseUrl) return 'invalid';
   try {
     const hostname = new URL(databaseUrl).hostname;
     if (hostname === 'aws-0-ap-northeast-1.pooler.supabase.com') return 'supabase_session_pooler';
-    if (hostname === 'db.bbxoywnlayduqbrjeixj.supabase.co') return 'supabase_direct';
     return 'other';
   } catch {
     return 'invalid';
