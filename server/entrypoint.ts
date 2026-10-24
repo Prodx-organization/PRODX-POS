@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { createPostgresAuthentication } from './auth/composition.ts';
 import { createPostgresAuthorization } from './auth/production-authorization.ts';
-import { asSqlExecutor, createProductionPostgresPool, resolveConfiguredDatabaseUrl } from './db/postgres.ts';
+import { asSqlExecutor, createProductionPostgresPool } from './db/postgres.ts';
 import { createTransactionalPostgresExecutor } from './db/transaction.ts';
 import { createAIGatewayService } from './ai/production-composition.ts';
 import { registerCheckoutRoute } from './http/checkout-route.ts';
