@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import type { User } from '@supabase/supabase-js';
+import type { Session, User } from '@supabase/supabase-js';
 import { getOwnerSupabaseClient } from '../../lib/supabaseOwnerClient';
-import { isAuthorizedOwnerAccount } from './ownerAuthorization';
 
 type PortalState = 'loading' | 'signed-out' | 'authorized' | 'denied' | 'error';
 const styles: Record<string, React.CSSProperties> = {
@@ -25,29 +24,36 @@ export const OwnerPortal: React.FC = () => {
     let alive = true;
     let authRevision = 0;
     const scheduled = new Set<ReturnType<typeof setTimeout>>();
-    let client: ReturnType<typeof getOwnerSupabaseClient>;
 
-    const authorize = async (candidate: User | null, revision: number) => {
+    const authorize = async (session: Session | null, revision: number) => {
       if (!alive || revision !== authRevision) return;
+      const candidate = session?.user ?? null;
       setUser(candidate);
-      if (!candidate) {
+      if (!candidate || !session?.access_token) {
         setState('signed-out');
         setMessage('');
         return;
       }
 
       try {
-        const { data, error } = await client.from('user_roles')
-          .select('role')
-          .eq('user_id', candidate.id)
-          .maybeSingle();
+        const response = await fetch('/api/v1/owner/me', {
+          method: 'GET',
+          headers: { authorization: `Bearer ${session.access_token}`, accept: 'application/json' },
+          cache: 'no-store',
+        });
         if (!alive || revision !== authRevision) return;
-        if (error) {
+        if (response.status === 401 || response.status === 403) {
+          setState('denied');
+          setMessage('');
+          return;
+        }
+        if (!response.ok) {
           setMessage('ตรวจสอบสิทธิ์ไม่สำเร็จ กรุณาลองใหม่');
           setState('error');
           return;
         }
-        if (isAuthorizedOwnerAccount(candidate.email, data?.role)) {
+        const verified = await response.json() as { userId?: unknown; role?: unknown };
+        if (verified.userId === candidate.id && verified.role === 'owner') {
           setState('authorized');
           setMessage('');
         } else {
@@ -61,16 +67,26 @@ export const OwnerPortal: React.FC = () => {
       }
     };
 
+    let client: ReturnType<typeof getOwnerSupabaseClient>;
     try {
       client = getOwnerSupabaseClient();
-      // Defer work out of onAuthStateChange to avoid re-entering the client's auth lock.
       const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
         const revision = ++authRevision;
         const timer = setTimeout(() => {
           scheduled.delete(timer);
-          void authorize(session?.user ?? null, revision);
+          void authorize(session, revision);
         }, 0);
         scheduled.add(timer);
+      });
+      void client.auth.getSession().then(({ data, error }) => {
+        if (error || !alive) return;
+        const revision = ++authRevision;
+        void authorize(data.session, revision);
+      }).catch(() => {
+        if (alive) {
+          setMessage('ไม่สามารถตรวจสอบเซสชันได้ กรุณาลองใหม่');
+          setState('error');
+        }
       });
       return () => {
         alive = false;
@@ -78,8 +94,8 @@ export const OwnerPortal: React.FC = () => {
         scheduled.clear();
         listener.subscription.unsubscribe();
       };
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Owner auth configuration error');
+    } catch {
+      setMessage('Owner auth configuration error');
       setState('error');
       return () => {
         alive = false;
@@ -112,8 +128,6 @@ export const OwnerPortal: React.FC = () => {
         options: { redirectTo: `${window.location.origin}/owner` },
       });
       if (error) throw error;
-      // Successful OAuth redirects away from this page; the auth listener restores
-      // the session and checks the database role when the browser returns.
     } catch {
       setMessage('เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาตรวจสอบการตั้งค่า Google provider ใน Supabase');
       setBusy(false);
@@ -153,10 +167,10 @@ export const OwnerPortal: React.FC = () => {
         {busy ? 'กำลังเชื่อมต่อ…' : 'ดำเนินการต่อด้วย Google'}
       </button>
     </>}
-    {state === 'authorized' && <div><p><strong>เข้าสู่ระบบแล้ว</strong></p><p style={styles.muted}>{user?.email}</p><p style={styles.muted}>ยืนยันสิทธิ์จากตาราง user_roles แล้ว หน้าจัดการเพิ่มเติมจะเปิดใช้งานหลังเชื่อมต่อโมดูลผู้ดูแล</p><button style={styles.button} onClick={() => void signOut()} disabled={busy}>ออกจากระบบ</button></div>}
-    {state === 'denied' && <div role="alert"><p><strong>บัญชีนี้ไม่มีสิทธิ์ Owner/Admin</strong></p><p style={styles.muted}>ระบบไม่อนุญาตให้เข้าถึงส่วนจัดการ กรุณาติดต่อเจ้าของระบบ</p><button style={styles.button} onClick={() => void signOut()} disabled={busy}>ออกจากระบบ</button></div>}
+    {state === 'authorized' && <div><p><strong>เข้าสู่ระบบแล้ว</strong></p><p style={styles.muted}>{user?.email}</p><p style={styles.muted}>ยืนยันสิทธิ์จาก API ฝั่งเซิร์ฟเวอร์และฐานข้อมูล Owner แล้ว หน้าจัดการเพิ่มเติมจะเปิดใช้งานหลังเชื่อมต่อโมดูลผู้ดูแล</p><button style={styles.button} onClick={() => void signOut()} disabled={busy}>ออกจากระบบ</button></div>}
+    {state === 'denied' && <div role="alert"><p><strong>บัญชีนี้ไม่มีสิทธิ์ Owner</strong></p><p style={styles.muted}>ระบบไม่อนุญาตให้เข้าถึงส่วนจัดการ กรุณาติดต่อเจ้าของระบบ</p><button style={styles.button} onClick={() => void signOut()} disabled={busy}>ออกจากระบบ</button></div>}
     {state === 'error' && <div role="alert"><p style={{ color: '#b91c1c' }}>{message || 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์'}</p><button style={styles.button} onClick={() => window.location.reload()}>ลองใหม่</button></div>}
     {message && state !== 'error' && <p role="alert" style={{ color: '#b91c1c', fontSize: 14 }}>{message}</p>}
-    <p style={{ ...styles.muted, marginTop: 24 }}>ความปลอดภัย: สิทธิ์อ่านจากฐานข้อมูล ไม่ใช้ role ที่ส่งมาจาก browser</p>
+    <p style={{ ...styles.muted, marginTop: 24 }}>ความปลอดภัย: ตรวจสอบ identity และ role ฝั่งเซิร์ฟเวอร์ ไม่ใช้ role ที่ส่งมาจาก browser</p>
   </section></main>;
 };
