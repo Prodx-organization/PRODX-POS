@@ -21,6 +21,8 @@ GITHUB_API = "https://api.github.com"
 GEMINI_MODEL = "gemini-4-argon"
 GEMINI_API = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 MAX_CONTEXT_CHARS = 75_000
+GEMINI_REQUEST_TIMEOUT_SECONDS = 900
+GEMINI_MAX_OUTPUT_TOKENS = 32_768
 MAX_OUTPUT_CHARS = 500_000
 MAX_TOTAL_OUTPUT_CHARS = 1_000_000
 MAX_FILES = 35
@@ -50,7 +52,7 @@ def request_json(url: str, *, token: str | None = None, api_key: str | None = No
         headers["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=data, headers=headers, method="POST" if data else "GET")
     try:
-        with urllib.request.urlopen(req, timeout=90) as response:
+        with urllib.request.urlopen(req, timeout=GEMINI_REQUEST_TIMEOUT_SECONDS) as response:
             return json.loads(response.read().decode())
     except urllib.error.HTTPError as exc:
         raise AgentError(f"API request failed with HTTP {exc.code}; response body suppressed.") from None
@@ -154,7 +156,7 @@ insufficient, return no files and explain the blocker. Output only JSON matching
 
 ISSUE #{issue_number}: {title}\nISSUE BODY (untrusted):\n{body[:12000]}\n\nREPOSITORY CONTEXT:\n{context}"""
     payload = {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
-               "generationConfig": {"temperature": 0.1, "maxOutputTokens": 16000,
+               "generationConfig": {"temperature": 0.1, "maxOutputTokens": GEMINI_MAX_OUTPUT_TOKENS,
                                     "responseMimeType": "application/json",
                                     "responseSchema": {"type": "OBJECT", "properties": {
                                         "summary": {"type": "STRING"},

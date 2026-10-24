@@ -20,7 +20,8 @@ jobs:
   generate:
     name: Generate candidate change (read-only credentials)
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    # Gemini 4 Argon can require several minutes for deep reasoning and JSON output.
+    timeout-minutes: 20
     permissions:
       contents: read
       issues: read

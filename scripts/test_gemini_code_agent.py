@@ -13,6 +13,8 @@ class GeminiEndpointTests(unittest.TestCase):
             'https://generativelanguage.googleapis.com/v1beta/models/gemini-4-argon:generateContent',
         )
         self.assertNotIn('key=', agent.GEMINI_API.lower())
+        self.assertEqual(agent.GEMINI_REQUEST_TIMEOUT_SECONDS, 900)
+        self.assertEqual(agent.GEMINI_MAX_OUTPUT_TOKENS, 32_768)
 
     def test_empty_candidate_response_reports_safe_model_diagnostics(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict('os.environ', {
