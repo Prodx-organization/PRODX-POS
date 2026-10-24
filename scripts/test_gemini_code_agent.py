@@ -17,7 +17,9 @@ class PathPolicyTests(unittest.TestCase):
                 agent.validate_path(value)
 
     def test_rejects_workflows_credentials_and_package_manifests(self):
-        for value in ('.github/workflows/evil.yml', '.env', 'package.json', 'package-lock.json',
+        for value in ('.github/workflows/evil.yml', '.env', '.env.production', 'config/service.key',
+                      'certs/signing.pem', 'server/secret_store.ts', 'server/user_credentials.ts',
+                      'scripts/ci/release.py', 'scripts/deploy/prod.sh', 'package.json', 'package-lock.json',
                       'scripts/gemini_code_agent.py', 'scripts/gemini_pr_review.py', 'node_modules/x.js'):
             with self.subTest(value=value), self.assertRaises(agent.AgentError):
                 agent.validate_path(value)

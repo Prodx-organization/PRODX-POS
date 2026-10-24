@@ -25,9 +25,10 @@ MAX_FILES = 35
 PROTECTED_PREFIXES = (".github/", ".git/", "node_modules/", "dist/", "build/", "coverage/")
 PROTECTED_FILES = {
     "package.json", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml",
-    ".npmrc", ".env", ".env.local", "scripts/gemini_code_agent.py", "scripts/test_gemini_code_agent.py",
+    ".npmrc", "scripts/gemini_code_agent.py", "scripts/test_gemini_code_agent.py",
     "scripts/gemini_pr_review.py", "scripts/test_gemini_pr_review.py",
 }
+PROTECTED_SCRIPT_PREFIXES = ("scripts/ci/", "scripts/deploy/", "scripts/release/", "scripts/security/")
 ALLOWED_PREFIXES = ("server/", "src/", "tests/", "test/", "docs/", "db/migrations/", "scripts/")
 ALLOWED_ROOT_FILES = {"README.md"}
 
@@ -66,7 +67,11 @@ def validate_path(raw: Any) -> str:
     if path.is_absolute() or any(part in {"", ".", ".."} for part in raw.split("/")):
         raise AgentError("Generated change attempted path traversal.")
     normalized = path.as_posix()
-    if normalized in PROTECTED_FILES or any(normalized.startswith(p) for p in PROTECTED_PREFIXES):
+    basename = path.name.lower()
+    if (normalized in PROTECTED_FILES or any(normalized.startswith(p) for p in PROTECTED_PREFIXES)
+            or any(normalized.startswith(p) for p in PROTECTED_SCRIPT_PREFIXES)
+            or basename.startswith(".env") or basename.endswith((".pem", ".key", ".p12", ".pfx"))
+            or any(marker in basename for marker in ("secret", "credential", "private-key"))):
         raise AgentError(f"Generated change targets protected path: {normalized}")
     if normalized not in ALLOWED_ROOT_FILES and not any(normalized.startswith(p) for p in ALLOWED_PREFIXES):
         raise AgentError(f"Generated change is outside allowed source/test/docs paths: {normalized}")
