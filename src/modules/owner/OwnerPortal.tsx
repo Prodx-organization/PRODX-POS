@@ -24,58 +24,34 @@ export const OwnerPortal: React.FC = () => {
     let alive = true;
     let authRevision = 0;
     const scheduled = new Set<ReturnType<typeof setTimeout>>();
-
     const authorize = async (session: Session | null, revision: number) => {
       if (!alive || revision !== authRevision) return;
       const candidate = session?.user ?? null;
       setUser(candidate);
       if (!candidate || !session?.access_token) {
-        setState('signed-out');
-        setMessage('');
-        return;
+        setState('signed-out'); setMessage(''); return;
       }
-
       try {
-        const response = await fetch('/api/v1/owner/me', {
-          method: 'GET',
+        const response = await fetch('/api/v1/owner/session', {
           headers: { authorization: `Bearer ${session.access_token}`, accept: 'application/json' },
           cache: 'no-store',
         });
         if (!alive || revision !== authRevision) return;
-        if (response.status === 401 || response.status === 403) {
-          setState('denied');
-          setMessage('');
-          return;
-        }
-        if (!response.ok) {
-          setMessage('ตรวจสอบสิทธิ์ไม่สำเร็จ กรุณาลองใหม่');
-          setState('error');
-          return;
-        }
+        if (response.status === 401 || response.status === 403) { setState('denied'); setMessage(''); return; }
+        if (!response.ok) { setMessage('ตรวจสอบสิทธิ์ไม่สำเร็จ กรุณาลองใหม่'); setState('error'); return; }
         const verified = await response.json() as { userId?: unknown; role?: unknown };
-        if (verified.userId === candidate.id && verified.role === 'owner') {
-          setState('authorized');
-          setMessage('');
-        } else {
-          setState('denied');
-          setMessage('');
-        }
+        if (verified.userId === candidate.id && verified.role === 'owner') { setState('authorized'); setMessage(''); }
+        else { setState('denied'); setMessage(''); }
       } catch {
         if (!alive || revision !== authRevision) return;
-        setMessage('ไม่สามารถเชื่อมต่อเพื่อตรวจสอบสิทธิ์ได้');
-        setState('error');
+        setMessage('ไม่สามารถเชื่อมต่อเพื่อตรวจสอบสิทธิ์ได้'); setState('error');
       }
     };
-
-    let client: ReturnType<typeof getOwnerSupabaseClient>;
     try {
-      client = getOwnerSupabaseClient();
+      const client = getOwnerSupabaseClient();
       const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
         const revision = ++authRevision;
-        const timer = setTimeout(() => {
-          scheduled.delete(timer);
-          void authorize(session, revision);
-        }, 0);
+        const timer = setTimeout(() => { scheduled.delete(timer); void authorize(session, revision); }, 0);
         scheduled.add(timer);
       });
       void client.auth.getSession().then(({ data, error }) => {
@@ -83,10 +59,7 @@ export const OwnerPortal: React.FC = () => {
         const revision = ++authRevision;
         void authorize(data.session, revision);
       }).catch(() => {
-        if (alive) {
-          setMessage('ไม่สามารถตรวจสอบเซสชันได้ กรุณาลองใหม่');
-          setState('error');
-        }
+        if (alive) { setMessage('ไม่สามารถตรวจสอบเซสชันได้ กรุณาลองใหม่'); setState('error'); }
       });
       return () => {
         alive = false;
@@ -95,58 +68,37 @@ export const OwnerPortal: React.FC = () => {
         listener.subscription.unsubscribe();
       };
     } catch {
-      setMessage('Owner auth configuration error');
-      setState('error');
-      return () => {
-        alive = false;
-        for (const timer of scheduled) clearTimeout(timer);
-      };
+      setMessage('Owner auth configuration error'); setState('error');
+      return () => { alive = false; for (const timer of scheduled) clearTimeout(timer); };
     }
   }, []);
 
   const signIn = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setBusy(true);
-    setMessage('');
+    event.preventDefault(); setBusy(true); setMessage('');
     try {
       const { error } = await getOwnerSupabaseClient().auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
       setPassword('');
-    } catch {
-      setMessage('เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบอีเมลและรหัสผ่าน หรือสถานะบัญชี');
-    } finally {
-      setBusy(false);
-    }
+    } catch { setMessage('เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบอีเมลและรหัสผ่าน หรือสถานะบัญชี'); }
+    finally { setBusy(false); }
   };
-
   const signInWithGoogle = async () => {
-    setBusy(true);
-    setMessage('');
+    setBusy(true); setMessage('');
     try {
-      const { error } = await getOwnerSupabaseClient().auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: `${window.location.origin}/owner` },
-      });
+      const { error } = await getOwnerSupabaseClient().auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${window.location.origin}/owner` } });
       if (error) throw error;
     } catch {
-      setMessage('เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาตรวจสอบการตั้งค่า Google provider ใน Supabase');
-      setBusy(false);
+      setMessage('เข้าสู่ระบบด้วย Google ไม่สำเร็จ กรุณาตรวจสอบการตั้งค่า Google provider ใน Supabase'); setBusy(false);
     }
   };
-
   const signOut = async () => {
     setBusy(true);
     try {
       const { error } = await getOwnerSupabaseClient().auth.signOut();
       if (error) throw error;
-      setUser(null);
-      setState('signed-out');
-      setMessage('');
-    } catch {
-      setMessage('ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง');
-    } finally {
-      setBusy(false);
-    }
+      setUser(null); setState('signed-out'); setMessage('');
+    } catch { setMessage('ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง'); }
+    finally { setBusy(false); }
   };
 
   return <main style={styles.page}><section style={styles.card}>
@@ -160,12 +112,8 @@ export const OwnerPortal: React.FC = () => {
         <label htmlFor="owner-password" style={{ display: 'block', marginTop: 16 }}>รหัสผ่าน</label><input id="owner-password" style={styles.input} type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
         <button style={styles.button} type="submit" disabled={busy}>{busy ? 'กำลังตรวจสอบ…' : 'เข้าสู่ระบบด้วยอีเมล'}</button>
       </form>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18, color: '#94a3b8', fontSize: 12 }}>
-        <span style={{ height: 1, background: '#e2e8f0', flex: 1 }} /><span>หรือ</span><span style={{ height: 1, background: '#e2e8f0', flex: 1 }} />
-      </div>
-      <button style={styles.secondaryButton} type="button" onClick={() => void signInWithGoogle()} disabled={busy}>
-        {busy ? 'กำลังเชื่อมต่อ…' : 'ดำเนินการต่อด้วย Google'}
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18, color: '#94a3b8', fontSize: 12 }}><span style={{ height: 1, background: '#e2e8f0', flex: 1 }} /><span>หรือ</span><span style={{ height: 1, background: '#e2e8f0', flex: 1 }} /></div>
+      <button style={styles.secondaryButton} type="button" onClick={() => void signInWithGoogle()} disabled={busy}>{busy ? 'กำลังเชื่อมต่อ…' : 'ดำเนินการต่อด้วย Google'}</button>
     </>}
     {state === 'authorized' && <div><p><strong>เข้าสู่ระบบแล้ว</strong></p><p style={styles.muted}>{user?.email}</p><p style={styles.muted}>ยืนยันสิทธิ์จาก API ฝั่งเซิร์ฟเวอร์และฐานข้อมูล Owner แล้ว หน้าจัดการเพิ่มเติมจะเปิดใช้งานหลังเชื่อมต่อโมดูลผู้ดูแล</p><button style={styles.button} onClick={() => void signOut()} disabled={busy}>ออกจากระบบ</button></div>}
     {state === 'denied' && <div role="alert"><p><strong>บัญชีนี้ไม่มีสิทธิ์ Owner</strong></p><p style={styles.muted}>ระบบไม่อนุญาตให้เข้าถึงส่วนจัดการ กรุณาติดต่อเจ้าของระบบ</p><button style={styles.button} onClick={() => void signOut()} disabled={busy}>ออกจากระบบ</button></div>}

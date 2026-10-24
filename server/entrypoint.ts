@@ -10,7 +10,7 @@ import { createAIGatewayService } from './ai/production-composition.ts';
 import { pingFirestore } from './services/systemHealthCheckService.ts';
 import { registerCheckoutRoute } from './http/checkout-route.ts';
 import { registerAuthRoutes } from './http/auth-route.ts';
-import { registerOwnerRoutes } from './http/owner-route.ts';
+import { registerOwnerSessionRoute } from './http/owner-session-route.ts';
 import { createApp } from './http/createApp.ts';
 import { registerRefundRoute } from './http/refund-route.ts';
 import { registerAuditRoute } from './http/audit-route.ts';
@@ -42,15 +42,10 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
 
   const app = createApp({
     readinessCheck: async () => {
-      // PRODX-POS Readiness: We require at least one authoritative data store to be responsive.
-      // While PostgreSQL is the primary transactional store, we also support Firestore
-      // for audit logs and management entities.
       let postgresOk = false;
       let firestoreOk = false;
       let postgresError: any = null;
       let firestoreError: any = null;
-
-      // 1. Check PostgreSQL (if configured)
       const connectionString = resolveConfiguredDatabaseUrl();
       if (connectionString) {
         try {
@@ -60,16 +55,12 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
           postgresError = error;
         }
       }
-
-      // 2. Check Firestore
       try {
         const firestoreResult = await pingFirestore();
         firestoreOk = firestoreResult.statusCode === 200;
       } catch (error: unknown) {
         firestoreError = error;
       }
-
-      // If both are down, the service is truly not ready.
       if (!postgresOk && !firestoreOk) {
         const error = new Error('Database readiness check failed: Both PostgreSQL and Firestore are unreachable.');
         Object.assign(error, {
@@ -78,18 +69,19 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
         });
         throw error;
       }
-
-      if (!postgresOk) {
-        console.warn('PRODX POS starting in DEGRADED mode (PostgreSQL unreachable, Firestore OK).');
-      } else if (!firestoreOk) {
-        console.warn('PRODX POS starting in DEGRADED mode (Firestore unreachable, PostgreSQL OK).');
-      }
+      if (!postgresOk) console.warn('PRODX POS starting in DEGRADED mode (PostgreSQL unreachable, Firestore OK).');
+      else if (!firestoreOk) console.warn('PRODX POS starting in DEGRADED mode (Firestore unreachable, PostgreSQL OK).');
     },
     configurePublicRoutes: (configuredApp) => {
       registerAuthRoutes(configuredApp, sql, sessions);
       registerPublicInfrastructureRoutes(configuredApp, pool);
-      // Owner Console uses its own database pool and token issuer; POS pool is untouched.
-      registerOwnerRoutes(configuredApp, { getPool: getOwnerPostgresPool });
+      registerOwnerSessionRoute(configuredApp, { getRole: async (userId) => {
+        const result = await getOwnerPostgresPool().query<{ role: string }>(
+          'SELECT role FROM public.user_roles WHERE user_id = $1 LIMIT 1',
+          [userId],
+        );
+        return result.rows[0]?.role ?? null;
+      } });
     },
     authenticateRequest: async (request) => {
       const header = request.header('authorization');
@@ -118,7 +110,6 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
       configuredApp.use('/api/v1/ai', aiRouter);
     },
   });
-
   return { app, pool };
 };
 
@@ -126,25 +117,16 @@ export const startProductionServer = async (): Promise<void> => {
   const { app, pool } = await createProductionApp();
   const host = process.env.HOST ?? '0.0.0.0';
   const port = Number.parseInt(process.env.PORT ?? '4000', 10);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error('PORT must be a valid TCP port.');
-  }
-
-  const server = app.listen(port, host, () => {
-    console.log(`PRODX POS backend listening on ${host}:${port}`);
-  });
-
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be a valid TCP port.');
+  const server = app.listen(port, host, () => console.log(`PRODX POS backend listening on ${host}:${port}`));
   const shutdown = async (signal: string) => {
     server.close(async () => {
       await pool.end();
       console.log(`PRODX POS backend stopped after ${signal}`);
     });
   };
-
   process.once('SIGINT', () => void shutdown('SIGINT'));
   process.once('SIGTERM', () => void shutdown('SIGTERM'));
 };
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  await startProductionServer();
-}
+if (process.argv[1] === fileURLToPath(import.meta.url)) await startProductionServer();
