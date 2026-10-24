@@ -2,7 +2,7 @@ import json
 import pathlib
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 import gemini_code_agent as agent
 
 class GeminiEndpointTests(unittest.TestCase):
@@ -15,6 +15,39 @@ class GeminiEndpointTests(unittest.TestCase):
         self.assertNotIn('key=', agent.GEMINI_API.lower())
         self.assertEqual(agent.GEMINI_REQUEST_TIMEOUT_SECONDS, 900)
         self.assertEqual(agent.GEMINI_MAX_OUTPUT_TOKENS, 32_768)
+
+    def test_request_uses_configured_long_timeout(self):
+        response = Mock()
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        response.read.return_value = b'{"ok": true}'
+        with patch.object(agent.urllib.request, 'urlopen', return_value=response) as urlopen:
+            result = agent.request_json('https://example.invalid/test')
+        self.assertEqual(result, {"ok": True})
+        urlopen.assert_called_once()
+        self.assertEqual(urlopen.call_args.kwargs['timeout'], agent.GEMINI_REQUEST_TIMEOUT_SECONDS)
+
+    def test_generation_sends_configured_output_budget_to_gemini(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict('os.environ', {
+            'GITHUB_REPOSITORY': 'Prodx-organization/PRODX-POS',
+            'GITHUB_TOKEN': 'test-token',
+            'GEMINI_API_KEY': 'test-api-key',
+        }), patch.object(agent, 'issue_context', return_value=('Small task', 'Add a documentation note.')), \
+             patch.object(agent, 'gather_context', return_value='minimal context'), \
+             patch.object(agent, 'request_json', return_value={
+                 'candidates': [{'content': {'parts': [{'text': json.dumps({
+                     'summary': 'Add a note',
+                     'files': [{'path': 'docs/agent-test.md', 'content': 'Regression test output.\n'}],
+                 })}]}, 'finishReason': 'STOP'}],
+             }) as request_json:
+            output = pathlib.Path(temp) / 'candidate.json'
+            agent.generate(164, output)
+            self.assertEqual(json.loads(output.read_text())['files'][0]['path'], 'docs/agent-test.md')
+        request_json.assert_called_once()
+        args, kwargs = request_json.call_args
+        self.assertEqual(args[0], agent.GEMINI_API)
+        self.assertEqual(kwargs['api_key'], 'test-api-key')
+        self.assertEqual(kwargs['payload']['generationConfig']['maxOutputTokens'], 32_768)
 
     def test_empty_candidate_response_reports_safe_model_diagnostics(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict('os.environ', {
