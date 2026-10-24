@@ -86,6 +86,27 @@ class ArtifactTests(unittest.TestCase):
                 os.chdir(old)
             self.assertFalse((pathlib.Path(outside) / 'escaped.ts').exists())
 
+    def test_rejects_symlink_alias_to_protected_directory(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            protected = root / '.github' / 'workflows'
+            protected.mkdir(parents=True)
+            protected_file = protected / 'existing.yml'
+            protected_file.write_text('trusted: true\n')
+            (root / 'server').mkdir()
+            (root / 'server' / 'alias').symlink_to(protected, target_is_directory=True)
+            artifact = root / 'candidate.json'
+            artifact.write_text(json.dumps({'files': [{'path': 'server/alias/existing.yml', 'content': 'pwned: true\n'}]}))
+            import os
+            old = os.getcwd()
+            try:
+                os.chdir(root)
+                with self.assertRaisesRegex(agent.AgentError, 'symbolic-link component'):
+                    agent.apply_artifact(artifact)
+            finally:
+                os.chdir(old)
+            self.assertEqual(protected_file.read_text(), 'trusted: true\n')
+
     def test_applies_validated_file_content(self):
         with tempfile.TemporaryDirectory() as temp:
             root = pathlib.Path(temp)

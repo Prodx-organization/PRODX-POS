@@ -210,14 +210,23 @@ def apply_artifact(artifact_path: pathlib.Path) -> None:
             raise AgentError("Candidate artifact contains an invalid file entry.")
         name = validate_path(item.get("path"))
         content = item.get("content")
-        target = pathlib.Path(name)
+        target = root / name
         if name in seen or not isinstance(content, str) or len(content) > MAX_OUTPUT_CHARS or "\x00" in content:
             raise AgentError("Candidate artifact contains duplicate paths or invalid content.")
         total_output_chars += len(content)
         if total_output_chars > MAX_TOTAL_OUTPUT_CHARS:
             raise AgentError("Candidate artifact exceeds the total output size limit.")
-        if target.is_symlink() or not target.resolve(strict=False).is_relative_to(root):
-            raise AgentError("Candidate artifact path resolves through a symbolic link or outside the workspace.")
+        cursor = target
+        while cursor != root:
+            if cursor.is_symlink():
+                raise AgentError("Candidate artifact path contains a symbolic-link component.")
+            cursor = cursor.parent
+        resolved = target.resolve(strict=False)
+        if not resolved.is_relative_to(root):
+            raise AgentError("Candidate artifact path resolves outside the workspace.")
+        resolved_relative = resolved.relative_to(root).as_posix()
+        if validate_path(resolved_relative) != name:
+            raise AgentError("Candidate artifact path resolves to a different destination.")
         seen.add(name)
         validated.append((target, content))
     # Validate all paths before writing any file.
