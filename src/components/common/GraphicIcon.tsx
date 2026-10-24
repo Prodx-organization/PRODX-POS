@@ -112,13 +112,13 @@ const COLOR_MAP: Record<
     badgeText: 'text-blue-500',
   },
   orange: {
-    bg: 'bg-orange-500/10 dark:bg-orange-500/20',
+    bg: 'bg-primary/10 dark:bg-primary/20',
     border: 'border-orange-500/25 dark:border-orange-500/40',
-    text: 'text-orange-600 dark:text-orange-400',
+    text: 'text-primary dark:text-orange-400',
     glow: 'shadow-[0_0_16px_rgba(249,115,22,0.25)]',
     gradient: 'bg-gradient-to-br from-orange-500/15 via-orange-500/5 to-transparent',
-    badgeBg: 'bg-orange-500 text-white',
-    badgeText: 'text-orange-500',
+    badgeBg: 'bg-primary text-white',
+    badgeText: 'text-primary',
   },
   slate: {
     bg: 'bg-slate-500/10 dark:bg-slate-500/20',

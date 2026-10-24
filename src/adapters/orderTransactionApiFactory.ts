@@ -1,7 +1,9 @@
 import { orderApi as mockOrderApi } from './mockAdapter';
 import { createProductionOrderTransactionApi } from './productionOrderTransactionApi';
 
+import { shouldReadMock } from './env';
+
 export function createOrderTransactionApi(token: string) {
-  if (import.meta.env.DEV) return mockOrderApi;
+  if (shouldReadMock()) return mockOrderApi;
   return createProductionOrderTransactionApi(token);
 }

@@ -10,3 +10,4 @@ import { createProductionAuthApi } from './productionAuthApi';
 const productionAuthApi: IAuthApi = createProductionAuthApi();
 
 export const authApi: IAuthApi = import.meta.env.DEV ? mockAuthApi : productionAuthApi;
+

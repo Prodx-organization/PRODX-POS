@@ -14,9 +14,12 @@ import {
   Layers,
   Database,
   ArrowRight,
+  GitMerge,
+  CloudUpload,
 } from 'lucide-react';
 import { Button } from '../common/Button';
 import { Badge } from '../common/Badge';
+import { SyncVisualLogPanel } from '../sync/SyncVisualLogPanel';
 
 export type SyncState = 'online' | 'syncing' | 'offline';
 
@@ -40,10 +43,12 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
     lastSyncedAt,
     triggerSync,
     clearSyncedItems,
+    openSyncActivity,
   } = useOffline();
 
   const { language } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
+  const [isLogPanelOpen, setIsLogPanelOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Determine current sync state
@@ -146,11 +151,11 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
             ? 'ออนไลน์และข้อมูลซิงก์สมบูรณ์ (คลิกเพื่อดูสถานะระบบ)'
             : 'Online & Fully Synchronized (Click for details)'
         }
-        className={`group relative flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[36px] sm:min-h-[44px] rounded-xl border text-xs font-semibold transition-all duration-150 cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+        className={`group relative flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 min-h-[36px] sm:min-h-[44px] rounded-xl border text-xs font-semibold transition-all duration-300 ease-in-out cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
           syncState === 'offline'
-            ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15'
+            ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15 animate-pulse'
             : syncState === 'syncing'
-            ? 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/15'
+            ? 'border-blue-500/60 bg-blue-500/20 text-blue-700 dark:text-blue-300 shadow-lg shadow-blue-500/10 animate-pulse'
             : 'border-border/80 bg-background/80 hover:bg-background text-text/80 hover:border-border hover:text-text'
         }`}
       >
@@ -158,15 +163,18 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
         <div className="flex items-center justify-center shrink-0">
           {syncState === 'offline' ? (
             <div className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-              <WifiOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-ping" />
+              <WifiOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 transition-transform duration-300 scale-110" />
             </div>
           ) : syncState === 'syncing' ? (
-            <RefreshCw className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 animate-spin shrink-0" />
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 animate-ping" />
+              <RefreshCw className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 animate-spin shrink-0 transition-transform duration-300 scale-110" />
+            </div>
           ) : (
             <div className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-              <Wifi className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <Wifi className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 transition-transform duration-300" />
             </div>
           )}
         </div>
@@ -411,8 +419,34 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
               {language === 'th' ? 'ซิงก์ข้อมูลทันที' : 'Sync Now'}
             </Button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              openSyncActivity();
+            }}
+            className="w-full mt-2.5 py-2 px-3 rounded-xl bg-primary text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+          >
+            <CloudUpload className="w-3.5 h-3.5" />
+            <span>{language === 'th' ? 'เปิด Sync Activity Panel (ประวัติการซิงก์)' : 'Open Sync Activity Panel (Full Log)'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              setIsLogPanelOpen(true);
+            }}
+            className="w-full mt-1.5 py-2 px-3 rounded-xl bg-background hover:bg-card border border-border border-crisp text-text/80 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <GitMerge className="w-3.5 h-3.5" />
+            {language === 'th' ? 'ดูประวัติข้อขัดแย้งเชิงลึก (Conflict Log)' : 'Open Conflict Resolution Log'}
+          </button>
         </div>
       )}
+
+      <SyncVisualLogPanel isOpen={isLogPanelOpen} onClose={() => setIsLogPanelOpen(false)} />
     </div>
   );
 };

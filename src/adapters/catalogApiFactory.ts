@@ -1,5 +1,15 @@
+import { catalogApi as mockCatalogApi } from './mockAdapter';
 import { createProductionCatalogReadApi, createProductionCatalogApi } from './productionCatalogApi';
 import type { ICatalogApi } from './types';
 
-export const createCatalogReadApi = (token: string) => createProductionCatalogReadApi(token);
-export const createCatalogApi = (token: string): ICatalogApi => createProductionCatalogApi(token);
+import { shouldReadMock } from './env';
+
+export const createCatalogReadApi = (token: string) => {
+  if (shouldReadMock()) return mockCatalogApi;
+  return createProductionCatalogReadApi(token);
+};
+
+export const createCatalogApi = (token: string): ICatalogApi => {
+  if (shouldReadMock()) return mockCatalogApi;
+  return createProductionCatalogApi(token);
+};

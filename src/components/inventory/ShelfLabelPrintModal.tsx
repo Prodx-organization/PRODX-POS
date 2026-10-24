@@ -120,7 +120,7 @@ export const ShelfLabelPrintModal: React.FC<ShelfLabelPrintModalProps> = ({
                 type="checkbox"
                 checked={includeStoreName}
                 onChange={(e) => setIncludeStoreName(e.target.checked)}
-                className="rounded border-border text-orange-600 focus:ring-orange-500 h-4 w-4"
+                className="rounded border-border text-primary focus:ring-primary h-4 w-4"
               />
               <span className="text-xs text-text/80 font-medium">
                 {language === 'th' ? 'แสดงชื่อร้านค้า/สาขาบนป้าย' : 'Include Store & Branch Header'}
@@ -137,7 +137,7 @@ export const ShelfLabelPrintModal: React.FC<ShelfLabelPrintModalProps> = ({
           <button
             type="button"
             onClick={toggleSelectAll}
-            className="text-xs font-semibold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer flex items-center gap-1"
+            className="text-xs font-semibold text-primary dark:text-orange-400 hover:underline cursor-pointer flex items-center gap-1"
           >
             {selectedIds.size === products.length ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
             <span>{selectedIds.size === products.length ? (language === 'th' ? 'ยกเลิกเลือกทั้งหมด' : 'Deselect All') : (language === 'th' ? 'เลือกทั้งหมด' : 'Select All')}</span>
@@ -153,11 +153,11 @@ export const ShelfLabelPrintModal: React.FC<ShelfLabelPrintModalProps> = ({
                 key={p.id}
                 onClick={() => toggleSelect(p.id)}
                 className={`px-4 py-2.5 flex items-center justify-between text-xs cursor-pointer transition-colors ${
-                  isSelected ? 'bg-orange-500/5 dark:bg-orange-500/10' : 'hover:bg-background/50 dark:hover:bg-white/5'
+                  isSelected ? 'bg-primary/5 dark:bg-primary/10' : 'hover:bg-background/50 dark:hover:bg-white/5'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className={`text-orange-600 dark:text-orange-400 shrink-0`}>
+                  <div className={`text-primary dark:text-orange-400 shrink-0`}>
                     {isSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4 text-text/50" />}
                   </div>
                   <div className="min-w-0">

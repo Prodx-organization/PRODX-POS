@@ -49,6 +49,62 @@
     --border-hover: #334155;
     --button-radius: 12px;
     --card-radius: 16px;
+
+    /* Semantic Status Tokens */
+    --success: #10B981;
+    --success-light: rgba(16, 185, 129, 0.12);
+    --warning: #F59E0B;
+    --warning-light: rgba(245, 158, 11, 0.12);
+    --danger: #EF4444;
+    --danger-light: rgba(239, 68, 68, 0.12);
+
+    /* Chart & Extended Semantic Tokens */
+    --chart-blue: #3B82F6;
+    --chart-purple: #8B5CF6;
+    --chart-emerald: #10B981;
+
+    /* WCAG 2.2 AA Accessibility & Non-Text Contrast Tokens */
+    /* Light mode: #ea580c gives 3.57:1 on white (#ffffff) and 4.9:1 on dark, strictly exceeding 3:1 non-text contrast */
+    --focus-ring: #ea580c;
+    --focus-ring-offset: 2px;
+    --contrast-border-interactive: #475569;
+    --contrast-border-interactive-dark: #64748b;
+    --contrast-text-subtle: #475569;
+    --contrast-text-subtle-dark: #cbd5e1;
+    --contrast-primary-text-light: #1d4ed8;
+    --contrast-primary-text-dark: #60a5fa;
+    --wcag-min-touch-target: 44px;
+    --wcag-border-contrast: #475569;
+  }
+
+  :root.dark,
+  .dark {
+    /* Dark mode: #ff782e gives 6.8:1 on dark surfaces (#090D16, #0F172A), strictly exceeding 3:1 non-text contrast */
+    --focus-ring: #ff782e;
+    --focus-ring-offset: 2px;
+  }
+
+  /* ========================================================================= */
+  /* WCAG 2.2 AA Universal Focus Appearance (SC 2.4.11 / 2.4.12 / 1.4.11)      */
+  /* Consistent 2px solid outline using --focus-ring across interactive nodes  */
+  /* ========================================================================= */
+  :focus-visible,
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [role="button"]:focus-visible,
+  [role="tab"]:focus-visible,
+  [role="checkbox"]:focus-visible,
+  [role="radio"]:focus-visible,
+  [role="switch"]:focus-visible,
+  [role="menuitem"]:focus-visible,
+  [role="link"]:focus-visible,
+  [role="searchbox"]:focus-visible,
+  [tabindex]:not([tabindex="-1"]):focus-visible {
+    outline: 2px solid var(--focus-ring, #ea580c) !important;
+    outline-offset: var(--focus-ring-offset, 2px) !important;
   }
 
   body {
@@ -292,6 +348,15 @@
   border-width: 1px;
 }
 
+/* WCAG 2.2 AA Focus Visibility Utility */
+.focus-ring-wcag {
+  outline: none;
+}
+.focus-ring-wcag:focus-visible {
+  outline: 2px solid var(--focus-ring, #ff6b1a);
+  outline-offset: var(--focus-ring-offset, 2px);
+}
+
 /* Dynamic theme button and card radii */
 .theme-btn-radius {
   border-radius: var(--button-radius, 12px);
@@ -434,22 +499,22 @@
 /* ========================================================================= */
 @keyframes scan-item-flash {
   0% {
-    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.45), 0 0 24px rgba(16, 185, 129, 0.35);
-    background-color: rgba(16, 185, 129, 0.18);
-    transform: scale(1.025);
+    box-shadow: 0 0 0 4px var(--success), 0 0 40px var(--success);
+    background-color: var(--success-light);
+    transform: scale(1.03);
   }
-  35% {
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35), 0 0 16px rgba(16, 185, 129, 0.2);
-    background-color: rgba(16, 185, 129, 0.12);
-    transform: scale(1.01);
+  20% {
+    box-shadow: 0 0 0 3px var(--success), 0 0 30px var(--success);
+    background-color: var(--success-light);
+    transform: scale(1.02);
   }
-  70% {
-    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2), 0 0 8px rgba(16, 185, 129, 0.1);
-    background-color: rgba(16, 185, 129, 0.05);
+  60% {
+    box-shadow: 0 0 0 1px var(--success), 0 0 15px var(--success);
+    background-color: var(--success-light);
     transform: scale(1);
   }
   100% {
-    box-shadow: none;
+    box-shadow: 0 0 0 0 transparent;
     transform: scale(1);
   }
 }
@@ -457,19 +522,19 @@
 @keyframes total-pulse-glow {
   0% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    box-shadow: 0 0 0 0 transparent;
   }
   30% {
     transform: scale(1.03);
-    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.35), 0 0 16px rgba(16, 185, 129, 0.25);
+    box-shadow: 0 0 0 4px var(--success-light), 0 0 16px var(--success-light);
   }
   60% {
     transform: scale(1.015);
-    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 0 2px var(--success-light);
   }
   100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    box-shadow: 0 0 0 0 transparent;
   }
 }
 
@@ -517,21 +582,230 @@
   animation: bounce-short 0.4s ease-out 2;
 }
 
+/* Premium Glow & Extra Utilities */
+.shadow-glow {
+  box-shadow: 0 0 15px var(--color-primary-glow), 0 0 30px rgba(var(--primary-color), 0.1);
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
 /* ========================================================================= */
-/* Visual Inspector Mode (1px dashed outlines for flex & absolute elements)  */
+/* Peripheral Real-time Health Pulse Animations (Idle, Active, Error)        */
 /* ========================================================================= */
-body.prodx-visual-inspector-active .flex,
-body.prodx-visual-inspector-active [class*="flex-"],
-body.prodx-visual-inspector-active .inline-flex,
-body.prodx-visual-inspector-active .grid,
-body.prodx-visual-inspector-active [class*="absolute"],
-body.prodx-visual-inspector-active [class*="relative"],
-body.prodx-visual-inspector-active [class*="fixed"],
-body.prodx-visual-inspector-active div[class*="flex"],
-body.prodx-visual-inspector-active section,
-body.prodx-visual-inspector-active article,
-body.prodx-visual-inspector-active main {
-  outline: 1px dashed rgba(239, 68, 68, 0.75) !important;
-  outline-offset: -1px;
+@keyframes health-pulse-idle {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.9;
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45);
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes health-ring-idle {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  60% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@keyframes health-pulse-active {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.8);
+  }
+  40% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 8px rgba(99, 102, 241, 0.25);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 16px rgba(99, 102, 241, 0);
+  }
+}
+
+@keyframes health-ring-active {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes health-pulse-error {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  30% {
+    transform: scale(1.18);
+    box-shadow: 0 0 0 9px rgba(239, 68, 68, 0.3);
+  }
+  60% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 16px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes health-ring-error {
+  0% {
+    transform: scale(0.9);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.7);
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+.animate-pulse-idle {
+  animation: health-pulse-idle 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-ring-idle {
+  animation: health-ring-idle 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.animate-pulse-active {
+  animation: health-pulse-active 1s cubic-bezier(0.2, 0.8, 0.4, 1) infinite;
+}
+
+.animate-ring-active {
+  animation: health-ring-active 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.animate-pulse-error {
+  animation: health-pulse-error 0.9s cubic-bezier(0.3, 0, 0.7, 1) infinite;
+}
+
+.animate-ring-error {
+  animation: health-ring-error 0.9s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ========================================================================= */
+/* Hardware Card Entrance & State-Transition Animations                       */
+/* ========================================================================= */
+@keyframes card-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes state-transition-pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer-sweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes shimmer-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-card-entrance {
+  animation: card-entrance 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-state-pop {
+  animation: state-transition-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.shimmer-bg {
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0) 100%);
+  background-size: 200% 100%;
+  animation: shimmer-sweep 2.5s infinite;
+}
+
+.animate-shimmer-slide {
+  animation: shimmer-slide 1.6s infinite ease-in-out;
+}
+
+@keyframes topology-dash-flow {
+  0% {
+    stroke-dashoffset: 24;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-topology-flow {
+  animation: topology-dash-flow 1.2s linear infinite;
+}
+
+/* ========================================================================= */
+/* QR Scanner (html5-qrcode) UI Overrides                                    */
+/* ========================================================================= */
+#qr-reader {
+  border: none !important;
+  background: transparent !important;
+}
+
+#qr-reader__dashboard,
+#qr-reader__header_message,
+#qr-reader__status_span,
+#qr-reader img[alt="Camera"],
+#qr-reader button {
+  display: none !important;
+}
+
+#qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 1rem !important;
+}
+
+#qr-reader__scan_region {
+  min-height: auto !important;
 }
 

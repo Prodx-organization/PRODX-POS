@@ -150,3 +150,27 @@ test('rejects authentication when the credential password is compromised', async
     null,
   );
 });
+
+test('rejects client-controlled WebAuthn marker without issuing a session', async () => {
+  const { repository, calls, getSession } = repositoryFixture();
+  let passwordVerifierCalled = false;
+  let compromiseCheckerCalled = false;
+  const issuer = createSessionIssuer(
+    repository,
+    async () => { passwordVerifierCalled = true; return true; },
+    () => clock,
+    async () => { compromiseCheckerCalled = true; return { compromised: false, count: 0 }; },
+  );
+  const result = await issuer.authenticateCredentials({
+    username: 'cashier',
+    password: 'WEBAUTHN_VERIFIED:pk_cashier_john_front_reg:chal_12345',
+    deviceId: device.id,
+  });
+  assert.equal(result, null);
+  assert.equal(getSession(), null);
+  assert.equal(passwordVerifierCalled, false);
+  assert.equal(compromiseCheckerCalled, false);
+  assert.equal(calls.failed, 1);
+  assert.equal(calls.reset, 0);
+});
+

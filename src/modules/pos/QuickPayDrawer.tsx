@@ -13,6 +13,7 @@ import { useOffline } from '../../context/OfflineContext';
 import { useReceiptPrinter } from '../../context/ReceiptPrinterContext';
 import { useToast } from '../../context/ToastContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useSettings } from '../../context/SettingsContext';
 import { Drawer } from '../../components/common/Drawer';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
@@ -72,6 +73,7 @@ export const QuickPayDrawer: React.FC<QuickPayDrawerProps> = ({
   onOrderCompleted,
 }) => {
   const { session, staffUsers, getStaffPin } = useAuth();
+  const { config } = useSettings();
   const productionOrderApi = createOrderTransactionApi(session?.token ?? '');
   const { items, totals, customer, clearCart } = useCart();
   const { isOnline, queueOutboxItem } = useOffline();
@@ -232,12 +234,12 @@ export const QuickPayDrawer: React.FC<QuickPayDrawerProps> = ({
           : method === 'qr_digital'
           ? `QR-QP-${Date.now().toString().slice(-6)}`
           : undefined,
-      cardLastFour: method === 'card' ? '4242' : undefined,
+      cardLastFour: method === 'card' ? '••••' : undefined,
       terminalReference:
         method === 'card'
-          ? 'TRM-VERIFONE-01'
+          ? config.payments?.terminalId || 'TRM-EDC-01'
           : method === 'qr_digital'
-          ? 'PROMPTPAY-GATEWAY'
+          ? 'PROMPTPAY-CONFIRMED'
           : undefined,
       timestamp: new Date().toISOString(),
     };
@@ -902,7 +904,7 @@ export const QuickPayDrawer: React.FC<QuickPayDrawerProps> = ({
                       <div className="p-3 rounded-xl bg-white text-center space-y-2 border border-blue-200 shadow-xs animate-in fade-in duration-200">
                         <div className="flex justify-center">
                           <img
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=00020101021229370016A000000677010111011300668123456785802TH5303764540${(grandTotalCents / 100).toFixed(2)}6304`}
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=00020101021229370016A000000677010111011300${config.payments?.promptPayId || '0812345678'}5802TH5303764540${(grandTotalCents / 100).toFixed(2)}6304`}
                             alt="PromptPay QR Code"
                             referrerPolicy="no-referrer"
                             className="w-40 h-40 object-contain rounded-lg border border-slate-200 shadow-2xs"

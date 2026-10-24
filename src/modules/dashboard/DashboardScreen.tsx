@@ -22,6 +22,10 @@ import {
   ArrowUp,
   ArrowDown,
   Check,
+  CheckCircle2,
+  Smartphone,
+  Monitor,
+  ShieldCheck,
 } from 'lucide-react';
 import { NavRoute } from '../../components/layout/Sidebar';
 import { DateRangePicker, DateRange } from './DateRangePicker';
@@ -121,8 +125,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       setIsLoading(true);
       try {
         const [loadedOrders, loadedProducts] = await Promise.all([
-          orderReadApi.getOrders(200),
-          catalogApi!.getProducts(),
+          orderReadApi.getOrders(session.currentStore.id, 200, session.registerId),
+          catalogApi!.getProducts(session.currentStore.id),
         ]);
         setOrders(loadedOrders);
         setProducts(loadedProducts);
@@ -440,7 +444,51 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         </div>
       </div>
 
-      {/* 2. Role Perspective Status & Demo Switcher Banner */}
+      {/* 2. Terminal Health & Operational Status Strip (New section matching screenshot) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+        <div className="p-4 rounded-2xl border border-border border-crisp bg-card/60 flex items-center gap-4 shadow-2xs group hover:bg-card transition-colors">
+          <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+             <Monitor className="h-6 w-6" />
+          </div>
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-text/40">{language === 'th' ? 'รหัสเครื่องบันทึก' : 'Terminal Identity'}</div>
+            <div className="text-sm font-black text-text mt-0.5">{session?.registerId || 'REG-001'}</div>
+            <div className="flex items-center gap-1.5 mt-1">
+               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+               <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Authenticated & Secure</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl border border-border border-crisp bg-card/60 flex items-center gap-4 shadow-2xs group hover:bg-card transition-colors">
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform ${isFinancialAuthorized ? 'bg-indigo-500/10 text-indigo-500' : 'bg-amber-500/10 text-amber-500'}`}>
+             <ShieldCheck className="h-6 w-6" />
+          </div>
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-text/40">{language === 'th' ? 'สิทธิ์การใช้งาน' : 'Access Authorization'}</div>
+            <div className="text-sm font-black text-text mt-0.5 capitalize">{userRole} Level</div>
+            <div className="flex items-center gap-1.5 mt-1">
+               <span className="text-[10px] font-bold text-text/60">{language === 'th' ? 'ขอบเขตสิทธิ์: ' : 'Scoped to: '}{session?.currentStore.code}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl border border-border border-crisp bg-card/60 flex items-center gap-4 shadow-2xs group hover:bg-card transition-colors">
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform ${pendingCount > 0 ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+             {pendingCount > 0 ? <RotateCcw className="h-6 w-6 animate-spin-slow" /> : <CheckCircle2 className="h-6 w-6" />}
+          </div>
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-text/40">{language === 'th' ? 'สถานะการเชื่อมต่อ' : 'Connectivity & Sync'}</div>
+            <div className="text-sm font-black text-text mt-0.5">{pendingCount > 0 ? `${pendingCount} Items Pending` : 'Fully Synchronized'}</div>
+            <div className="flex items-center gap-1.5 mt-1">
+               <span className={`w-1.5 h-1.5 rounded-full ${pendingCount > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+               <span className={`text-[10px] font-bold ${pendingCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{pendingCount > 0 ? 'Awaiting Upload' : 'Cloud Ledger Verified'}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Role Perspective Status & Demo Switcher Banner */}
       <RolePerspectiveBanner isManager={isFinancialAuthorized} userRole={userRole} />
 
       {/* Customize Mode Active Banner */}
@@ -517,18 +565,18 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         <div className="flex items-center justify-between md:justify-end gap-2.5 pt-2 md:pt-0 border-t md:border-t-0 border-border">
           <div
             id="dashboard-telemetry-badge"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background border-border border-crisp text-xs font-mono"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background border-border border-crisp text-xs font-mono tabular-nums"
           >
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <span className="font-bold text-text">{filteredOrders.length}</span>
-            <span className="text-text/70">
+            <span className="text-text/70 whitespace-nowrap">
               {language === 'th' ? 'บิลที่ตรงเกณฑ์' : 'bills in range'}
             </span>
             <span className="text-text/30">·</span>
             {isFinancialAuthorized ? (
-              <span className="font-bold text-primary">{formatMoney(metrics.netSales)}</span>
+              <span className="font-bold text-primary whitespace-nowrap">{formatMoney(metrics.netSales)}</span>
             ) : (
-              <span className="font-bold text-primary">
+              <span className="font-bold text-primary whitespace-nowrap">
                 {metrics.totalItemsSold} {language === 'th' ? 'ชิ้นที่ขาย' : 'items sold'}
               </span>
             )}

@@ -77,6 +77,13 @@ export const createSessionIssuer = (
     if (device.organizationId !== credential.organizationId) return null;
     const current = now();
     if (credential.lockedUntil && credential.lockedUntil > current) return null;
+    // Never trust a client-controlled marker as proof of WebAuthn verification.
+    // WebAuthn must be verified by a server-owned challenge/credential flow before it can issue a session.
+    if (password.startsWith('WEBAUTHN_VERIFIED:')) {
+      await repository.recordFailedAttempt(credential.userId);
+      return null;
+    }
+
     let compromise: PasswordCompromiseCheck;
     try {
       compromise = await checkCompromisedPassword(password);

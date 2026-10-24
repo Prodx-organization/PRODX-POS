@@ -219,7 +219,7 @@ export const ReceiptValidationPortal: React.FC = () => {
           ) : (
             <form onSubmit={handleSubmitFeedback} className="space-y-4">
               <div className="flex items-center gap-1.5 text-xs font-bold text-text">
-                <MessageSquare className="h-4 w-4 text-orange-500" />
+                <MessageSquare className="h-4 w-4 text-primary" />
                 <span>{language === 'th' ? 'ให้คะแนนความพึงพอใจการบริการ' : 'Rate Your Shopping Experience'}</span>
               </div>
               

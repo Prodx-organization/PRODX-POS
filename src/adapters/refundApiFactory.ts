@@ -22,10 +22,12 @@ type ProductionRefundApi = ReturnType<typeof createProductionRefundApi> & {
   mode: "production";
 };
 
+import { shouldReadMock } from "./env";
+
 export function createRefundApi(
   token: string,
 ): MockRefundApi | ProductionRefundApi {
-  if (import.meta.env.DEV) {
+  if (shouldReadMock()) {
     return {
       mode: "mock",
       refundOrder: mockOrderApi.refundOrder.bind(mockOrderApi),

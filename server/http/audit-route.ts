@@ -22,4 +22,38 @@ export const registerAuditRoute = (app: Express, db: SqlQueryExecutor): void => 
       next(error);
     }
   });
+
+  app.post('/api/v1/audit/logs', async (request: Request, response: Response, next: NextFunction) => {
+    try {
+      const context = request.prodxContext;
+      if (!context) {
+        response.status(500).json({ error: { code: 'REQUEST_CONTEXT_MISSING', message: 'Request context is required.', requestId: request.id } });
+        return;
+      }
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const requestedStoreId = typeof body.storeId === 'string' && body.storeId.trim() ? body.storeId.trim() : context.principal.storeId;
+      if (requestedStoreId !== context.principal.storeId) {
+        response.status(403).json({ error: { code: 'STORE_SCOPE_MISMATCH', message: 'Audit log storeId must match authenticated store scope.', requestId: request.id } });
+        return;
+      }
+      const entry = await service.recordEvent({
+        organizationId: context.principal.organizationId,
+        storeId: context.principal.storeId,
+        userId: context.principal.userId,
+        userName: typeof body.userName === 'string' ? body.userName : undefined,
+        userRole: typeof body.userRole === 'string' ? body.userRole : undefined,
+        registerId: typeof body.registerId === 'string' ? body.registerId : undefined,
+        action: typeof body.action === 'string' ? body.action : '',
+        severity: typeof body.severity === 'string' ? body.severity : 'info',
+        details: body.details,
+      });
+      response.status(201).json(entry);
+    } catch (error) {
+      if (error instanceof AuditValidationError) {
+        response.status(400).json({ error: { code: error.code, message: error.message, requestId: request.id } });
+        return;
+      }
+      next(error);
+    }
+  });
 };

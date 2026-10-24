@@ -1,7 +1,7 @@
-import { createPostgresAuthenticationRepository, type SqlExecutor } from './postgres-repository';
-import { createSessionIssuer, type SessionIssuer } from './session';
-import { verifyPassword } from './password';
-import { checkPasswordCompromise } from './password-compromise';
+import { createPostgresAuthenticationRepository, type SqlExecutor } from './postgres-repository.ts';
+import { createSessionIssuer, type SessionIssuer } from './session.ts';
+import { verifyPassword } from './password.ts';
+import { checkPasswordCompromise } from './password-compromise.ts';
 
 /**
  * Application composition boundary for M2 authentication.

@@ -125,7 +125,7 @@ export const CartLineItem = React.memo<CartLineItemProps>(({
         <div className="relative flex items-start justify-between gap-2 pl-0.5">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-xs font-bold text-text leading-tight truncate group-hover:text-primary transition-colors">
+              <span className={`text-xs font-bold text-text leading-tight line-clamp-2 group-hover:text-primary transition-colors ${isRecentlyScanned ? 'drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]' : ''}`}>
                 {item.product.name}
               </span>
 

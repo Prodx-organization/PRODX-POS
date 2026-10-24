@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createPostgresPool, asSqlExecutor } from '../db/postgres';
+import { createPostgresPool, asSqlExecutor, resolveConfiguredDatabaseUrl } from '../db/postgres';
 import { createPostgresAuthentication } from './composition';
 import { hashPassword } from './password';
 import { hashSessionToken } from './session';
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = resolveConfiguredDatabaseUrl(process.env.DATABASE_URL);
 
 const ids = {
   organizationA: '00000000-0000-4000-8000-000000000201',

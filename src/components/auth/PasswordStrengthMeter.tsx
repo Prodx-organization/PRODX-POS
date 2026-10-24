@@ -41,7 +41,7 @@ export const PasswordStrengthMeter: React.FC<PasswordStrengthMeterProps> = ({
       let segmentColor = 'bg-slate-200';
       if (isFilled) {
         if (analysis.score < 30) segmentColor = 'bg-rose-500';
-        else if (analysis.score < 50) segmentColor = 'bg-orange-500';
+        else if (analysis.score < 50) segmentColor = 'bg-primary';
         else if (analysis.score < 75) segmentColor = 'bg-amber-500';
         else if (analysis.score < 90) segmentColor = 'bg-indigo-500';
         else segmentColor = 'bg-emerald-500';

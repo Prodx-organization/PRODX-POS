@@ -1,7 +1,9 @@
 import { Pool, type PoolConfig, type QueryResultRow } from 'pg';
 import type { SqlExecutor } from '../auth/postgres-repository.ts';
 
-const DEFAULT_DB_BROKER_URL = 'https://bbxoywnlayduqbrjeixj.supabase.co/functions/v1/prodx-db-broker';
+// Shared POS Supabase project. The bbxoywnlayduqbrjeixj project is isolated
+// for Owner Console Auth and must not be used as the POS transactional database.
+const DEFAULT_DB_BROKER_URL = 'https://sjgwesmmpegtzsqqqhvd.supabase.co/functions/v1/prodx-db-broker';
 
 const shouldResolveProductionDatabaseUrl = (): boolean =>
   process.env.VERCEL === '1' && process.env.NODE_ENV === 'production';
@@ -22,8 +24,8 @@ export const classifyProductionDatabaseTarget = (databaseUrl?: string): Producti
   if (!databaseUrl) return 'invalid';
   try {
     const hostname = new URL(databaseUrl).hostname;
-    if (hostname === 'aws-0-ap-southeast-1.pooler.supabase.com') return 'supabase_session_pooler';
-    if (hostname === 'db.bbxoywnlayduqbrjeixj.supabase.co') return 'supabase_direct';
+    if (hostname === 'aws-0-ap-northeast-1.pooler.supabase.com') return 'supabase_session_pooler';
+    if (hostname === 'db.sjgwesmmpegtzsqqqhvd.supabase.co') return 'supabase_direct';
     return 'other';
   } catch {
     return 'invalid';
@@ -60,6 +62,24 @@ export const resolveProductionDatabaseUrl = async (
     throw new Error('Production database broker returned no database URL.');
   }
 
+  if (shouldResolveProductionDatabaseUrl()) {
+    let databaseUrl: URL;
+    try {
+      databaseUrl = new URL(payload.databaseUrl);
+    } catch {
+      throw new Error('Production database broker returned an invalid PostgreSQL URL.');
+    }
+    const expectedRole = 'prodx_app.sjgwesmmpegtzsqqqhvd';
+    if (
+      !['postgres:', 'postgresql:'].includes(databaseUrl.protocol) ||
+      databaseUrl.hostname !== 'aws-0-ap-northeast-1.pooler.supabase.com' ||
+      databaseUrl.username !== expectedRole ||
+      databaseUrl.searchParams.get('sslmode') !== 'require'
+    ) {
+      throw new Error('Production database broker returned an unapproved runtime database target.');
+    }
+  }
+
   return payload.databaseUrl;
 };
 
@@ -81,7 +101,9 @@ export const createProductionPostgresPool = async (
   config: PoolConfig = {},
   vercelOidcToken?: string,
 ): Promise<Pool> => {
-  const connectionString = config.connectionString ?? await resolveProductionDatabaseUrl(vercelOidcToken);
+  const connectionString = shouldResolveProductionDatabaseUrl()
+    ? await resolveProductionDatabaseUrl(vercelOidcToken)
+    : config.connectionString ?? await resolveProductionDatabaseUrl(vercelOidcToken);
   if (shouldResolveProductionDatabaseUrl()) {
     console.info('PRODX production database target selected', {
       target: classifyProductionDatabaseTarget(connectionString),

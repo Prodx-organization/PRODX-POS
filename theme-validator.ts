@@ -205,41 +205,41 @@ export const THEME_RULES: ThemeRule[] = [
     replacement: 'dark:hover:bg-background',
   },
 
-  // 6. Accent & Brand Colors
+  // 7. Hardcoded Orange -> Primary (Fix for the dominant styling defect)
   {
-    id: 'focus-border-accent-brand',
+    id: 'bg-orange-to-primary',
     category: 'accent',
-    description: 'Convert hardcoded focus border to focus:border-primary',
-    match: /\bfocus:border-\[#(?:FF6A00|3B82F6|2563EB)\]/g,
-    replacement: 'focus:border-primary',
+    description: 'Convert hardcoded orange backgrounds to primary',
+    match: /\bbg-orange-(?:500|600)\b/g,
+    replacement: 'bg-primary',
   },
   {
-    id: 'focus-ring-accent-brand',
+    id: 'text-orange-to-primary',
     category: 'accent',
-    description: 'Convert hardcoded focus ring to focus:ring-primary',
-    match: /\bfocus:ring-\[#(?:FF6A00|3B82F6|2563EB)\]/g,
+    description: 'Convert hardcoded orange text to primary',
+    match: /\btext-orange-(?:500|600|700)\b/g,
+    replacement: 'text-primary',
+  },
+  {
+    id: 'bg-orange-subtle-to-primary-subtle',
+    category: 'accent',
+    description: 'Convert subtle orange backgrounds to primary/10',
+    match: /\bbg-orange-(?:50|100|500\/10)\b/g,
+    replacement: 'bg-primary/10',
+  },
+  {
+    id: 'border-orange-to-primary-border',
+    category: 'accent',
+    description: 'Convert orange borders to primary/30',
+    match: /\bborder-orange-(?:200|500\/20|500\/30)\b/g,
+    replacement: 'border-primary/30',
+  },
+  {
+    id: 'focus-ring-orange-to-primary',
+    category: 'accent',
+    description: 'Convert orange focus rings to primary',
+    match: /\bfocus:ring-orange-500\b/g,
     replacement: 'focus:ring-primary',
-  },
-  {
-    id: 'focus-ring-orange-preset',
-    category: 'accent',
-    description: 'Convert orange preset focus ring to focus:ring-primary',
-    match: /\bfocus:ring-orange-500\/30/g,
-    replacement: 'focus:ring-primary/30',
-  },
-  {
-    id: 'hover-border-orange-preset',
-    category: 'accent',
-    description: 'Convert orange preset hover border to hover:border-primary',
-    match: /\bhover:border-orange-500\/40/g,
-    replacement: 'hover:border-primary/40',
-  },
-  {
-    id: 'hover-border-accent-brand',
-    category: 'accent',
-    description: 'Convert hardcoded hover border to hover:border-primary/40',
-    match: /\bhover:border-\[#(?:FF6A00|3B82F6)\](?:\/40)?/g,
-    replacement: 'hover:border-primary/40',
   },
 ];
 
@@ -416,5 +416,9 @@ const isDirectExecution =
 if (isDirectExecution) {
   const isFix = !process.argv.includes('--check');
   const isVerbose = process.argv.includes('--verbose') || process.argv.includes('-v');
-  runThemeValidator({ fix: isFix, verbose: isVerbose });
+  const summary = runThemeValidator({ fix: isFix, verbose: isVerbose });
+  if (!isFix && summary.totalViolations > 0) {
+    process.exitCode = 1;
+  }
 }
+

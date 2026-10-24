@@ -6,7 +6,7 @@ import { useBreadcrumb, BreadcrumbLevel } from '../../context/BreadcrumbContext'
 import { createCatalogReadApi } from '../../adapters/catalogApiFactory';
 import { createCatalogApi } from '../../adapters/catalogApiFactory';
 import { Product, InventoryLedgerEntry, StockMovementReason, Category } from '../../domain/catalog';
-import { formatMoney, createMoney } from '../../domain/money';
+import { formatMoney, createMoney, parseDecimalToCents, parseDecimalToBps } from '../../domain/money';
 import { Card, CardHeader, CardBody } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { Button } from '../../components/common/Button';
@@ -40,6 +40,7 @@ import {
   UploadCloud,
   FileSpreadsheet,
   ClipboardList,
+  Building2,
 } from 'lucide-react';
 import { ShelfLabelPrintModal } from '../../components/inventory/ShelfLabelPrintModal';
 import { BulkInventoryUploadModal } from '../../components/inventory/BulkInventoryUploadModal';
@@ -47,6 +48,7 @@ import { LowStockThresholdModal } from '../../components/inventory/LowStockThres
 import { InventoryAiOptimizationModal } from './InventoryAiOptimizationModal';
 import { InventoryBarcodeLookupModal } from './InventoryBarcodeLookupModal';
 import { RestockNeededReportModal } from './RestockNeededReportModal';
+import { InterBranchTransferModule } from './InterBranchTransferModule';
 import { BulkImportResult } from '../../domain/catalog';
 import { generateInventoryCsv, downloadCsvFile } from '../../utils/csvExport';
 import { useBarcodeScanner } from '../../hooks/useBarcodeScanner';
@@ -73,6 +75,7 @@ export const InventoryScreen: React.FC = () => {
   const [isAiOptimizationModalOpen, setIsAiOptimizationModalOpen] = useState(false);
   const [isBarcodeLookupModalOpen, setIsBarcodeLookupModalOpen] = useState(false);
   const [isRestockReportModalOpen, setIsRestockReportModalOpen] = useState(false);
+  const [isInterBranchModalOpen, setIsInterBranchModalOpen] = useState(false);
   const [lastScannedBarcode, setLastScannedBarcode] = useState<string>('');
   const [scannedProduct, setScannedProduct] = useState<Product | null>(null);
   const [isScannerEnabled, setIsScannerEnabled] = useState<boolean>(true);
@@ -169,9 +172,9 @@ export const InventoryScreen: React.FC = () => {
   const handleBulkImportComplete = async (result: BulkImportResult) => {
     if (session) {
       const [freshProducts, freshCategories, freshLedger] = await Promise.all([
-        catalogReadApi.getProducts(),
-        catalogReadApi.getCategories(),
-        catalogReadApi.getInventoryLedger(),
+        catalogReadApi.getProducts(session.currentStore.id),
+        catalogReadApi.getCategories(session.currentStore.id),
+        catalogReadApi.getInventoryLedger(session.currentStore.id),
       ]);
       setProducts([...freshProducts]);
       setCategories([...freshCategories]);
@@ -258,12 +261,13 @@ export const InventoryScreen: React.FC = () => {
       totalOldCents += oldCents;
 
       let newCents = oldCents;
+      const bps = BigInt(parseDecimalToBps(bulkPriceValue));
       if (bulkPriceChangeType === 'set_amount') {
-        newCents = Math.round(bulkPriceValue * 100);
+        newCents = parseDecimalToCents(bulkPriceValue);
       } else if (bulkPriceChangeType === 'percent_markup') {
-        newCents = Math.round(oldCents * (1 + bulkPriceValue / 100));
+        newCents = Number((BigInt(oldCents) * (10000n + bps) + 5000n) / 10000n);
       } else if (bulkPriceChangeType === 'percent_discount') {
-        newCents = Math.round(oldCents * (1 - bulkPriceValue / 100));
+        newCents = Number((BigInt(oldCents) * (10000n - bps) + 5000n) / 10000n);
       }
       newCents = Math.max(0, newCents);
       totalNewCents += newCents;
@@ -283,7 +287,7 @@ export const InventoryScreen: React.FC = () => {
 
     const count = affectedProductsForPricing.length;
     const avgPctShift = count > 0 ? totalPercentageShift / count : 0;
-    const avgDeltaCents = count > 0 ? Math.round((totalNewCents - totalOldCents) / count) : 0;
+    const avgDeltaCents = count > 0 ? Number((BigInt(totalNewCents - totalOldCents) + BigInt(count) / 2n) / BigInt(count)) : 0;
     const currency = affectedProductsForPricing[0]?.price.currency || 'THB';
 
     return {
@@ -399,9 +403,9 @@ export const InventoryScreen: React.FC = () => {
     if (!session) return;
     try {
       const [prods, cats, ledger] = await Promise.all([
-        catalogReadApi.getProducts(),
-        catalogReadApi.getCategories(),
-        catalogReadApi.getInventoryLedger(),
+        catalogReadApi.getProducts(session.currentStore.id),
+        catalogReadApi.getCategories(session.currentStore.id),
+        catalogReadApi.getInventoryLedger(session.currentStore.id),
       ]);
       setProducts([...prods]);
       setCategories(cats);
@@ -562,8 +566,8 @@ export const InventoryScreen: React.FC = () => {
         const qty = restockQuantities[id] !== undefined ? restockQuantities[id] : item.smartRecommendedQty;
         if (qty <= 0) continue;
 
-        // Perform stock adjustment
-        const updated = await inventoryAdjustmentApi.adjustStock(
+        // Perform authoritative server stock adjustment
+        const entry = await inventoryAdjustmentApi.adjustStock(
           session.currentStore.id,
           id,
           qty,
@@ -572,28 +576,17 @@ export const InventoryScreen: React.FC = () => {
           language === 'th' ? 'การแนะนำสั่งสินค้าคงคลังอัจฉริยะ (Smart Restock)' : 'Executed smart restock replenishment'
         );
 
-        // Update local list
+        // Update local list with authoritative resultingStock from server
         const pIdx = updatedProductsList.findIndex((p) => p.id === id);
         if (pIdx !== -1) {
           updatedProductsList[pIdx] = {
             ...updatedProductsList[pIdx],
-            currentStock: updatedProductsList[pIdx].currentStock + qty,
+            currentStock: entry.resultingStock,
           };
         }
 
-        // Add to historical ledger logs
-        newLedgerEntries.unshift({
-          id: `led-restock-${Date.now()}-${id}`,
-          storeId: session.currentStore.id,
-          productId: id,
-          quantityDelta: qty,
-          resultingStock: updatedProductsList[pIdx]?.currentStock || qty,
-          reason: 'purchase_received',
-          referenceId: `RST-${Date.now().toString().slice(-6)}`,
-          timestamp: new Date().toISOString(),
-          performedByUserId: session.currentUser.id,
-          notes: language === 'th' ? 'นำเข้าจากระบบสั่งซื้ออัจฉริยะ' : 'Smart Restock replenishment execution',
-        });
+        // Add authoritative server ledger entry to historical logs
+        newLedgerEntries.unshift(entry);
       }
 
       setProducts(updatedProductsList);

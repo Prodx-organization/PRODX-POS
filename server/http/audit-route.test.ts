@@ -38,3 +38,50 @@ test('audit production route denies unauthorized access before database query', 
   try { const response = await fetch(`${server.baseUrl}/api/v1/audit/logs`); assert.equal(response.status,403); assert.equal(queried,false); }
   finally { await server.close(); }
 });
+
+test('POST /api/v1/audit/logs appends an authenticated store-scoped audit event and rejects cross-store writes', async () => {
+  const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
+  const db = {
+    query: async <T extends Record<string, unknown>>(sql: string, parameters: readonly unknown[] = []) => {
+      calls.push({ sql, parameters });
+      return { rows: [] as unknown as T[] };
+    },
+  };
+  const app = createApp({
+    authenticateRequest: () => principal,
+    authorizeRequest: () => true,
+    configureRoutes: (configuredApp) => registerAuditRoute(configuredApp, db),
+  });
+  const server = await start(app);
+  try {
+    const okRes = await fetch(`${server.baseUrl}/api/v1/audit/logs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        storeId: 'store-1',
+        action: 'order_completed',
+        severity: 'info',
+        details: 'Order ORD-101 completed',
+      }),
+    });
+    assert.equal(okRes.status, 201);
+    const body = await okRes.json();
+    assert.equal(body.action, 'order_completed');
+    assert.equal(body.storeId, 'store-1');
+    assert.equal(calls.length, 1);
+
+    const crossStoreRes = await fetch(`${server.baseUrl}/api/v1/audit/logs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        storeId: 'store-other',
+        action: 'order_completed',
+        severity: 'info',
+        details: 'Cross-store attempt',
+      }),
+    });
+    assert.equal(crossStoreRes.status, 403);
+  } finally {
+    await server.close();
+  }
+});

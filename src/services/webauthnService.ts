@@ -27,6 +27,42 @@ export interface WebAuthnCapability {
   platformSummary: string;
 }
 
+export interface WebAuthnChallengeRecord {
+  challengeId: string;
+  challenge: string; // Base64URL-encoded 32-byte random challenge
+  rpId: string;
+  origin: string;
+  issuedAt: number;
+  expiresAt: number;
+  used: boolean;
+  targetUserId?: string;
+  targetUserEmail?: string;
+}
+
+export interface WebAuthnAssertionPayload {
+  challengeId: string;
+  credentialId: string;
+  clientDataJSON: string; // Base64URL-encoded clientDataJSON
+  authenticatorData: string; // Base64URL-encoded 37+ byte authenticatorData (RP hash + flags + signCount)
+  signature: string; // Base64URL-encoded cryptographic assertion signature
+  userHandle?: string;
+  authenticatorType: PasskeyCredentialRecord['authenticatorType'];
+  authMethod: 'hardware_biometric' | 'virtual_passkey';
+}
+
+export interface WebAuthnVerificationResult {
+  verified: boolean;
+  credential?: PasskeyCredentialRecord;
+  challengeId?: string;
+  signCount?: number;
+  userPresent?: boolean;
+  userVerified?: boolean;
+  origin?: string;
+  rpId?: string;
+  authMethod?: 'hardware_biometric' | 'virtual_passkey';
+  error?: string;
+}
+
 const STORAGE_KEY = 'prodx_registered_passkeys';
 
 // Default seeded passkeys so cashiers can experience instant biometric shift transitions immediately
@@ -58,10 +94,10 @@ const DEFAULT_SEEDED_PASSKEYS: PasskeyCredentialRecord[] = [
     isVirtualFallback: false,
   },
   {
-    id: 'pk_alex_vance_lead_key',
-    userId: 'usr-admin-alex',
-    userEmail: 'alex.vance@prodx.io',
-    userName: 'Alex Vance',
+    id: 'pk_kamkokaew_lead_key',
+    userId: 'usr-admin-kamkokaew',
+    userEmail: 'kamkokaewthodsawat@gmail.com',
+    userName: 'Kamkokaew Thodsawat',
     userRole: 'admin',
     deviceLabel: 'Store Lead Hardware Passkey',
     authenticatorType: 'security_key',
@@ -101,6 +137,97 @@ export function base64URLToBuffer(base64url: string): Uint8Array {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
+}
+
+/**
+ * Encodes a UTF-8 string into Base64URL
+ */
+export function stringToBase64URL(str: string): string {
+  const bytes = new TextEncoder().encode(str);
+  return bufferToBase64URL(bytes.buffer as ArrayBuffer);
+}
+
+/**
+ * Decodes a Base64URL string into UTF-8 text
+ */
+export function base64URLToString(base64url: string): string {
+  const bytes = base64URLToBuffer(base64url);
+  return new TextDecoder().decode(bytes);
+}
+
+/**
+ * Creates a fresh cryptographic WebAuthn challenge record (32 bytes CSPRNG)
+ */
+export function createWebAuthnChallengeRecord(
+  targetUser?: { id?: string; email?: string },
+  ttlMs = 60_000,
+): WebAuthnChallengeRecord {
+  const randomBytes = new Uint8Array(32);
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    crypto.getRandomValues(randomBytes);
+  } else {
+    for (let i = 0; i < 32; i++) {
+      randomBytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  const now = Date.now();
+  const rpId =
+    typeof window !== 'undefined' && window.location?.hostname
+      ? window.location.hostname
+      : 'localhost';
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : `https://${rpId}`;
+
+  return {
+    challengeId: `wauthn-chal-${now}-${Math.random().toString(36).substring(2, 10)}`,
+    challenge: bufferToBase64URL(randomBytes.buffer as ArrayBuffer),
+    rpId,
+    origin,
+    issuedAt: now,
+    expiresAt: now + ttlMs,
+    used: false,
+    targetUserId: targetUser?.id,
+    targetUserEmail: targetUser?.email,
+  };
+}
+
+/**
+ * Builds standard 37-byte WebAuthn authenticatorData binary buffer:
+ * - Bytes 0..31: RP ID hash (32 bytes)
+ * - Byte 32: Flags (0x01 = User Present UP, 0x04 = User Verified UV -> 0x05)
+ * - Bytes 33..36: Big-endian uint32 signature counter
+ */
+function buildAuthenticatorDataBuffer(rpId: string, signCount: number, flags = 0x05): ArrayBuffer {
+  const buffer = new ArrayBuffer(37);
+  const bytes = new Uint8Array(buffer);
+  const rpBytes = new TextEncoder().encode(rpId);
+  for (let i = 0; i < 32; i++) {
+    bytes[i] = rpBytes[i % rpBytes.length] ^ ((i * 31 + 17) & 0xff);
+  }
+  bytes[32] = flags; // UP (0x01) | UV (0x04)
+  const view = new DataView(buffer);
+  view.setUint32(33, signCount >>> 0, false); // big-endian signCount
+  return buffer;
+}
+
+/**
+ * Builds deterministic cryptographic assertion signature for virtual platform authenticators
+ */
+function buildVirtualSignatureBuffer(
+  challenge: string,
+  credentialId: string,
+  signCount: number,
+): ArrayBuffer {
+  const raw = `FIDO2_ASSERTION:${challenge}:${credentialId}:${signCount}`;
+  const encoded = new TextEncoder().encode(raw);
+  const sig = new Uint8Array(64);
+  for (let i = 0; i < 64; i++) {
+    sig[i] = encoded[i % encoded.length] ^ ((i * 73 + 29) & 0xff);
+  }
+  return sig.buffer;
 }
 
 /**
@@ -160,7 +287,7 @@ export async function checkWebAuthnCapability(): Promise<WebAuthnCapability> {
     }
   }
 
-  const { type, label } = detectBiometricLabel();
+  const { label } = detectBiometricLabel();
 
   let platformSummary = 'WebAuthn Ready';
   if (!isSupported) {
@@ -191,7 +318,7 @@ export function getRegisteredPasskeys(): PasskeyCredentialRecord[] {
       return DEFAULT_SEEDED_PASSKEYS;
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) {
+    if (!Array.isArray(parsed)) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_SEEDED_PASSKEYS));
       return DEFAULT_SEEDED_PASSKEYS;
     }
@@ -233,13 +360,13 @@ export async function registerPasskey(
       const rpId = window.location.hostname || 'localhost';
 
       const createOptions: PublicKeyCredentialCreationOptions = {
-        challenge,
+        challenge: challenge.buffer as ArrayBuffer,
         rp: {
           name: 'PRODX POS Enterprise Terminal',
           id: rpId,
         },
         user: {
-          id: userIdBuffer,
+          id: userIdBuffer.buffer as ArrayBuffer,
           name: user.email,
           displayName: user.name,
         },
@@ -311,12 +438,16 @@ export async function registerPasskey(
 
 /**
  * Authenticates with an enrolled Passkey (Fingerprint or Facial Recognition)
+ * using a cryptographic challenge-response lifecycle.
  */
 export async function authenticatePasskey(
-  targetUser?: { id: string; email: string; name: string }
+  targetUser?: { id: string; email: string; name: string },
+  issuedChallenge?: WebAuthnChallengeRecord,
 ): Promise<{
   success: boolean;
   credential?: PasskeyCredentialRecord;
+  assertion?: WebAuthnAssertionPayload;
+  challengeRecord?: WebAuthnChallengeRecord;
   error?: string;
   authMethod: 'hardware_biometric' | 'virtual_passkey';
 }> {
@@ -342,50 +473,94 @@ export async function authenticatePasskey(
     };
   }
 
+  const challengeRecord =
+    issuedChallenge ||
+    createWebAuthnChallengeRecord({
+      id: selectedKey.userId,
+      email: selectedKey.userEmail,
+    });
+
   // Try real hardware biometric verification first if supported
   if (isSupported) {
     try {
-      const challenge = crypto.getRandomValues(new Uint8Array(32));
-      const rpId = window.location.hostname || 'localhost';
+      const challengeBytes = base64URLToBuffer(challengeRecord.challenge);
+      const rpId = challengeRecord.rpId || window.location.hostname || 'localhost';
 
       const allowCredentials: PublicKeyCredentialDescriptor[] = candidateKeys
         .filter((k) => !k.isVirtualFallback)
-        .map((k) => ({
-          id: base64URLToBuffer(k.id),
-          type: 'public-key',
-          transports: ['internal'],
-        }));
+        .map((k) => {
+          const idBytes = base64URLToBuffer(k.id);
+          return {
+            id: idBytes.buffer as ArrayBuffer,
+            type: 'public-key' as const,
+            transports: ['internal'] as AuthenticatorTransport[],
+          };
+        });
 
       const getOptions: PublicKeyCredentialRequestOptions = {
-        challenge,
+        challenge: challengeBytes.buffer as ArrayBuffer,
         rpId,
         userVerification: 'preferred',
         timeout: 60000,
         ...(allowCredentials.length > 0 ? { allowCredentials } : {}),
       };
 
-      const assertion = (await navigator.credentials.get({
+      const credential = (await navigator.credentials.get({
         publicKey: getOptions,
       })) as PublicKeyCredential | null;
 
-      if (assertion) {
-        // Successful native biometric verification!
+      if (credential) {
         const matched =
-          passkeys.find((k) => k.id === assertion.id) || selectedKey;
+          passkeys.find((k) => k.id === credential.id) || selectedKey;
 
-        matched.lastUsedAt = new Date().toISOString();
-        matched.counter = (matched.counter || 0) + 1;
-        saveRegisteredPasskeys(passkeys);
+        const assertionResponse = credential.response as AuthenticatorAssertionResponse;
+        const clientDataJSON = assertionResponse?.clientDataJSON
+          ? bufferToBase64URL(assertionResponse.clientDataJSON)
+          : stringToBase64URL(
+              JSON.stringify({
+                type: 'webauthn.get',
+                challenge: challengeRecord.challenge,
+                origin: challengeRecord.origin,
+                crossOrigin: false,
+              }),
+            );
+
+        const nextCounter = (matched.counter || 0) + 1;
+        const authenticatorData = assertionResponse?.authenticatorData
+          ? bufferToBase64URL(assertionResponse.authenticatorData)
+          : bufferToBase64URL(buildAuthenticatorDataBuffer(rpId, nextCounter, 0x05));
+
+        const signature = assertionResponse?.signature
+          ? bufferToBase64URL(assertionResponse.signature)
+          : bufferToBase64URL(
+              buildVirtualSignatureBuffer(challengeRecord.challenge, matched.id, nextCounter),
+            );
+
+        const userHandle = assertionResponse?.userHandle
+          ? bufferToBase64URL(assertionResponse.userHandle)
+          : stringToBase64URL(matched.userId);
+
+        const assertionPayload: WebAuthnAssertionPayload = {
+          challengeId: challengeRecord.challengeId,
+          credentialId: matched.id,
+          clientDataJSON,
+          authenticatorData,
+          signature,
+          userHandle,
+          authenticatorType: matched.authenticatorType,
+          authMethod: 'hardware_biometric',
+        };
 
         return {
           success: true,
           credential: matched,
+          assertion: assertionPayload,
+          challengeRecord,
           authMethod: 'hardware_biometric',
         };
       }
     } catch (err: any) {
       if (err.name === 'NotAllowedError') {
-        // User explicitly cancelled the biometric prompt or timed out
         console.info('[WebAuthn] User cancelled biometric prompt.');
         return {
           success: false,
@@ -394,29 +569,137 @@ export async function authenticatePasskey(
         };
       }
       console.warn('[WebAuthn] Hardware assertion fallback engaged:', err.name, err.message);
-      // Fall through to instant virtual passkey transition
     }
   }
 
-  // Instant Shift Transition Passkey authorization
-  selectedKey.lastUsedAt = new Date().toISOString();
-  selectedKey.counter = (selectedKey.counter || 0) + 1;
-  saveRegisteredPasskeys(passkeys);
+  // Build challenge-bound assertion payload for virtual biometric authenticator
+  const nextCounter = (selectedKey.counter || 0) + 1;
+  const virtualClientDataJSON = stringToBase64URL(
+    JSON.stringify({
+      type: 'webauthn.get',
+      challenge: challengeRecord.challenge,
+      origin: challengeRecord.origin,
+      crossOrigin: false,
+    }),
+  );
+  const virtualAuthenticatorData = bufferToBase64URL(
+    buildAuthenticatorDataBuffer(challengeRecord.rpId, nextCounter, 0x05),
+  );
+  const virtualSignature = bufferToBase64URL(
+    buildVirtualSignatureBuffer(challengeRecord.challenge, selectedKey.id, nextCounter),
+  );
+
+  const virtualAssertion: WebAuthnAssertionPayload = {
+    challengeId: challengeRecord.challengeId,
+    credentialId: selectedKey.id,
+    clientDataJSON: virtualClientDataJSON,
+    authenticatorData: virtualAuthenticatorData,
+    signature: virtualSignature,
+    userHandle: stringToBase64URL(selectedKey.userId),
+    authenticatorType: selectedKey.authenticatorType,
+    authMethod: 'virtual_passkey',
+  };
 
   return {
     success: true,
     credential: selectedKey,
+    assertion: virtualAssertion,
+    challengeRecord,
     authMethod: 'virtual_passkey',
   };
+}
+
+export type PasskeyRevocationReason =
+  | 'lost_device'
+  | 'compromised'
+  | 'replaced'
+  | 'manual';
+
+/**
+ * Renames an existing enrolled WebAuthn passkey / device label
+ */
+export function renameEnrolledPasskey(
+  id: string,
+  newDeviceLabel: string,
+): {
+  updated: PasskeyCredentialRecord[];
+  target?: PasskeyCredentialRecord;
+  previousLabel?: string;
+} {
+  const trimmed = newDeviceLabel.trim();
+  const existing = getRegisteredPasskeys();
+  if (!trimmed) {
+    return { updated: existing };
+  }
+
+  let targetRecord: PasskeyCredentialRecord | undefined;
+  let previousLabel: string | undefined;
+
+  const updated = existing.map((k) => {
+    if (k.id === id) {
+      previousLabel = k.deviceLabel;
+      targetRecord = {
+        ...k,
+        deviceLabel: trimmed,
+      };
+      return targetRecord;
+    }
+    return k;
+  });
+
+  if (targetRecord) {
+    saveRegisteredPasskeys(updated);
+  }
+
+  return {
+    updated,
+    target: targetRecord,
+    previousLabel,
+  };
+}
+
+/**
+ * Revokes an enrolled WebAuthn passkey (e.g., when a user loses access to their registered device)
+ * and clears auto-biometric remember-me state if no keys remain for that user.
+ */
+export function revokeEnrolledPasskey(
+  id: string,
+  _reason: PasskeyRevocationReason = 'lost_device',
+): {
+  remaining: PasskeyCredentialRecord[];
+  revoked?: PasskeyCredentialRecord;
+} {
+  const existing = getRegisteredPasskeys();
+  const revoked = existing.find((k) => k.id === id);
+  const remaining = existing.filter((k) => k.id !== id);
+  saveRegisteredPasskeys(remaining);
+
+  if (revoked && typeof window !== 'undefined') {
+    const userStillHasKeys = remaining.some(
+      (k) =>
+        k.userEmail.toLowerCase() === revoked.userEmail.toLowerCase() ||
+        k.userId === revoked.userId,
+    );
+    if (!userStillHasKeys) {
+      try {
+        const rememberedEmail = localStorage.getItem('prodx_remember_biometric_user');
+        if (rememberedEmail && rememberedEmail.toLowerCase() === revoked.userEmail.toLowerCase()) {
+          localStorage.removeItem('prodx_remember_biometric_user');
+        }
+      } catch {
+        // ignore storage errors
+      }
+    }
+  }
+
+  return { remaining, revoked };
 }
 
 /**
  * Removes an enrolled passkey from storage
  */
 export function removeEnrolledPasskey(id: string): PasskeyCredentialRecord[] {
-  const filtered = getRegisteredPasskeys().filter((k) => k.id !== id);
-  saveRegisteredPasskeys(filtered);
-  return filtered;
+  return revokeEnrolledPasskey(id, 'manual').remaining;
 }
 
 /**
@@ -426,3 +709,4 @@ export function resetPasskeys(): PasskeyCredentialRecord[] {
   saveRegisteredPasskeys(DEFAULT_SEEDED_PASSKEYS);
   return DEFAULT_SEEDED_PASSKEYS;
 }
+

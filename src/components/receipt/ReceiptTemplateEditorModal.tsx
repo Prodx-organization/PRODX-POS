@@ -196,7 +196,7 @@ export const ReceiptTemplateEditorModal: React.FC<ReceiptTemplateEditorModalProp
                   onClick={() => handlePaperWidthChange('58mm')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
                     currentTemplate.paperWidth === '58mm'
-                      ? 'bg-orange-500 text-white shadow-2xs'
+                      ? 'bg-primary text-white shadow-2xs'
                       : 'bg-background dark:bg-white/5 text-text/70 dark:text-white/60 hover:bg-zinc-200'
                   }`}
                 >
@@ -207,7 +207,7 @@ export const ReceiptTemplateEditorModal: React.FC<ReceiptTemplateEditorModalProp
                   onClick={() => handlePaperWidthChange('80mm')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
                     currentTemplate.paperWidth === '80mm'
-                      ? 'bg-orange-500 text-white shadow-2xs'
+                      ? 'bg-primary text-white shadow-2xs'
                       : 'bg-background dark:bg-white/5 text-text/70 dark:text-white/60 hover:bg-zinc-200'
                   }`}
                 >
@@ -230,7 +230,7 @@ export const ReceiptTemplateEditorModal: React.FC<ReceiptTemplateEditorModalProp
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
                     activeTab === tab.id
-                      ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold'
+                      ? 'bg-primary/10 text-primary dark:text-orange-400 font-bold'
                       : 'text-text/70 dark:text-white/60 hover:text-text'
                   }`}
                 >
@@ -419,7 +419,7 @@ export const ReceiptTemplateEditorModal: React.FC<ReceiptTemplateEditorModalProp
                       type="checkbox"
                       checked={Boolean((currentTemplate.layout as any)[toggle.key])}
                       onChange={(e) => handleFieldChange('layout', toggle.key, e.target.checked)}
-                      className="rounded text-orange-600 focus:ring-orange-500 h-4 w-4"
+                      className="rounded text-primary focus:ring-primary h-4 w-4"
                     />
                   </label>
                 ))}
@@ -461,8 +461,8 @@ export const ReceiptTemplateEditorModal: React.FC<ReceiptTemplateEditorModalProp
           {/* Tab 3: Hardware & ESC/POS */}
           {activeTab === 'hardware' && (
             <div className="space-y-4 overflow-y-auto max-h-[460px] pr-1 text-xs no-scrollbar">
-              <div className="p-3.5 rounded-xl border border-orange-500/20 bg-orange-500/5 text-orange-950 dark:text-orange-200 flex items-start gap-2.5">
-                <Cpu className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
+              <div className="p-3.5 rounded-xl border border-primary/30 bg-primary/5 text-orange-950 dark:text-orange-200 flex items-start gap-2.5">
+                <Cpu className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <div className="font-bold">Hardware ESC/POS Control Commands</div>
                   <div className="text-[11px] opacity-80 mt-0.5">
@@ -485,7 +485,7 @@ export const ReceiptTemplateEditorModal: React.FC<ReceiptTemplateEditorModalProp
                     type="checkbox"
                     checked={currentTemplate.hardware.autoCutPaper}
                     onChange={(e) => handleFieldChange('hardware', 'autoCutPaper', e.target.checked)}
-                    className="rounded text-orange-600 focus:ring-orange-500 h-4 w-4"
+                    className="rounded text-primary focus:ring-primary h-4 w-4"
                   />
                 </label>
 
@@ -502,7 +502,7 @@ export const ReceiptTemplateEditorModal: React.FC<ReceiptTemplateEditorModalProp
                     type="checkbox"
                     checked={currentTemplate.hardware.openCashDrawer}
                     onChange={(e) => handleFieldChange('hardware', 'openCashDrawer', e.target.checked)}
-                    className="rounded text-orange-600 focus:ring-orange-500 h-4 w-4"
+                    className="rounded text-primary focus:ring-primary h-4 w-4"
                   />
                 </label>
 
@@ -543,7 +543,7 @@ export const ReceiptTemplateEditorModal: React.FC<ReceiptTemplateEditorModalProp
                       type="checkbox"
                       checked={currentTemplate.hardware.doubleWidthHeader}
                       onChange={(e) => handleFieldChange('hardware', 'doubleWidthHeader', e.target.checked)}
-                      className="rounded text-orange-600 focus:ring-orange-500 h-4 w-4"
+                      className="rounded text-primary focus:ring-primary h-4 w-4"
                     />
                   </label>
 
@@ -553,7 +553,7 @@ export const ReceiptTemplateEditorModal: React.FC<ReceiptTemplateEditorModalProp
                       type="checkbox"
                       checked={currentTemplate.hardware.emphasizeTotals}
                       onChange={(e) => handleFieldChange('hardware', 'emphasizeTotals', e.target.checked)}
-                      className="rounded text-orange-600 focus:ring-orange-500 h-4 w-4"
+                      className="rounded text-primary focus:ring-primary h-4 w-4"
                     />
                   </label>
                 </div>
@@ -602,7 +602,7 @@ export const ReceiptTemplateEditorModal: React.FC<ReceiptTemplateEditorModalProp
         <div className="lg:col-span-5 flex flex-col space-y-2">
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-bold text-text flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-orange-500" />
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
               <span>Live Thermal Simulator</span>
             </span>
             <span className="text-[11px] font-mono text-text/50">

@@ -163,7 +163,7 @@ export function usePosKeyboardWedgeScanner({
       // Attempt remote query fallback if catalog adapter has this barcode
       if (catalogApi) {
         try {
-          const remoteProd = await catalogApi.getProductByBarcode(scannedSku);
+          const remoteProd = await catalogApi.getProductByBarcode(session!.currentStore.id, scannedSku);
           if (remoteProd) {
             if (remoteProd.currentStock <= 0) {
               handleOutOfStock(remoteProd, event);

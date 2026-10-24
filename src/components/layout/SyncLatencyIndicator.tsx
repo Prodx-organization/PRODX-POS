@@ -123,11 +123,11 @@ export const SyncLatencyIndicator: React.FC<SyncLatencyIndicatorProps> = ({
         };
       case 'high':
         return {
-          dotBg: 'bg-orange-500',
+          dotBg: 'bg-primary',
           dotRing: 'ring-orange-500/30',
-          textColor: 'text-orange-600 dark:text-orange-400',
-          border: 'border-orange-500/30',
-          bgLight: 'bg-orange-500/10',
+          textColor: 'text-primary dark:text-orange-400',
+          border: 'border-primary/30',
+          bgLight: 'bg-primary/10',
           badgeVariant: 'warning',
           label: t.syncLatency.statusHigh,
           shortLabel: language === 'th' ? 'สูง' : 'High',

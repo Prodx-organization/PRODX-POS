@@ -11,6 +11,7 @@ import { Order } from '../../domain/order';
 import { ThermalReceiptService } from '../../services/receipt/thermalReceiptService';
 import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
+import { ProdxReceiptLogo } from '../common/ProdxLogo';
 import { useTheme } from '../../context/ThemeContext';
 import {
   FileText,
@@ -66,7 +67,7 @@ export const ReceiptPaperPreview: React.FC<ReceiptPaperPreviewProps> = ({
             onClick={() => setViewMode('paper')}
             className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ${
               viewMode === 'paper'
-                ? 'bg-white dark:bg-white/10 text-orange-600 dark:text-orange-400 shadow-2xs font-bold'
+                ? 'bg-white dark:bg-white/10 text-primary dark:text-orange-400 shadow-2xs font-bold'
                 : 'text-text/70 dark:text-white/60 hover:text-text'
             }`}
           >
@@ -78,7 +79,7 @@ export const ReceiptPaperPreview: React.FC<ReceiptPaperPreviewProps> = ({
             onClick={() => setViewMode('raw_text')}
             className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ${
               viewMode === 'raw_text'
-                ? 'bg-white dark:bg-white/10 text-orange-600 dark:text-orange-400 shadow-2xs font-bold'
+                ? 'bg-white dark:bg-white/10 text-primary dark:text-orange-400 shadow-2xs font-bold'
                 : 'text-text/70 dark:text-white/60 hover:text-text'
             }`}
           >
@@ -90,7 +91,7 @@ export const ReceiptPaperPreview: React.FC<ReceiptPaperPreviewProps> = ({
             onClick={() => setViewMode('hex_dump')}
             className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 ${
               viewMode === 'hex_dump'
-                ? 'bg-white dark:bg-white/10 text-orange-600 dark:text-orange-400 shadow-2xs font-bold'
+                ? 'bg-white dark:bg-white/10 text-primary dark:text-orange-400 shadow-2xs font-bold'
                 : 'text-text/70 dark:text-white/60 hover:text-text'
             }`}
           >
@@ -146,16 +147,12 @@ export const ReceiptPaperPreview: React.FC<ReceiptPaperPreviewProps> = ({
             </div>
 
             {/* Receipt Content */}
-            {customLogo && (
-              <div className="flex justify-center mb-3 pt-2">
-                <img
-                  src={customLogo}
-                  alt="Store Logo"
-                  className="max-h-10 max-w-[100px] object-contain filter grayscale contrast-125"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-            )}
+            <div className="flex justify-center mb-3 pt-2">
+              <ProdxReceiptLogo
+                customLogoUrl={customLogo}
+                paperWidth={template.paperWidth}
+              />
+            </div>
             <pre className="font-mono text-inherit whitespace-pre overflow-x-auto text-zinc-900 leading-snug text-[10px] sm:text-[11.5px] no-scrollbar">
               {formatted.text}
             </pre>

@@ -22,9 +22,9 @@ const variantStyles: Record<ButtonVariant, string> = {
   ghost:
     'bg-transparent text-text/70 hover:text-text hover:bg-background/80 font-semibold',
   danger:
-    'bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow-xs ring-1 ring-rose-500/20',
+    'bg-danger hover:brightness-110 text-white font-semibold shadow-xs ring-1 ring-danger/20',
   success:
-    'bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs ring-1 ring-emerald-500/20',
+    'bg-success hover:brightness-110 text-white font-semibold shadow-xs ring-1 ring-success/20',
 };
 
 const sizeStyles: Record<ButtonSize, string> = {

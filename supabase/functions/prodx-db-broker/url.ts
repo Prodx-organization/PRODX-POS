@@ -1,6 +1,6 @@
-const DIRECT_HOST = "db.bbxoywnlayduqbrjeixj.supabase.co";
-const SESSION_POOLER_HOST = "aws-0-ap-southeast-1.pooler.supabase.com";
-const PROJECT_REF = "bbxoywnlayduqbrjeixj";
+const DIRECT_HOST = "db.sjgwesmmpegtzsqqqhvd.supabase.co";
+const SESSION_POOLER_HOST = "aws-0-ap-northeast-1.pooler.supabase.com";
+const PROJECT_REF = "sjgwesmmpegtzsqqqhvd";
 const RUNTIME_ROLE = "prodx_app";
 const POSTGRES_PROTOCOLS = new Set(["postgres:", "postgresql:"]);
 

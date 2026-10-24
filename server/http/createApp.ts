@@ -168,7 +168,7 @@ export const createApp = (options: BackendBoundaryOptions) => {
       sendError(response, 503, 'NOT_READY', 'The service is not ready.', request.id);
     }
   });
-  app.use(authenticate(options.authenticateRequest));
+  app.use('/api', authenticate(options.authenticateRequest));
 
   app.get('/api/v1/health', (_request, response) => {
     response.json({ status: 'ok' });
@@ -176,11 +176,18 @@ export const createApp = (options: BackendBoundaryOptions) => {
 
   options.configureRoutes?.(app);
 
-  app.use((_request, response) => {
+  app.use('/api', (_request, response) => {
     sendError(response, 404, 'NOT_FOUND', 'Route not found.', response.getHeader('x-request-id')?.toString() ?? 'unknown');
   });
 
   app.use((error: unknown, request: Request, response: Response, _next: NextFunction) => {
+    console.error('PRODX unhandled request error', {
+      requestId: request.id,
+      method: request.method,
+      path: request.path,
+      status: 500,
+      ...safeReadinessDiagnostic(error),
+    });
     const details = process.env.NODE_ENV === 'production'
       ? undefined
       : error instanceof Error ? error.message : error;

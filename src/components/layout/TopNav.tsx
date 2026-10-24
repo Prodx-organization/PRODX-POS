@@ -23,13 +23,18 @@ import {
   Cloud,
   RefreshCw,
   ShoppingCart,
-  Eye
+  Eye,
+  Building2,
+  ShieldCheck,
 } from 'lucide-react';
 import { ProdxLogo } from '../common/ProdxLogo';
+import { StaffAvatar } from '../common/StaffAvatar';
 import { NavRoute } from './Sidebar';
 import { SyncStatusIndicator } from './SyncStatusIndicator';
+import { ConnectivityStatusIndicator } from './ConnectivityStatusIndicator';
 import { CustomerDisplayLauncherModal } from '../customerDisplay/CustomerDisplayLauncherModal';
 import { GlobalSearchInput } from './GlobalSearchInput';
+import { LanguageSwitcher } from '../common/LanguageSwitcher';
 import { getZIndexClass } from '../../utils/ZIndexManager';
 import { AVAILABLE_LANGUAGES, SupportedLanguage } from '../../i18n/types';
 import { useVisualInspector } from '../../context/VisualInspectorContext';
@@ -37,6 +42,7 @@ import { useVisualInspector } from '../../context/VisualInspectorContext';
 export interface TopNavProps {
   currentRoute?: NavRoute;
   onNavigate?: (route: NavRoute) => void;
+  onOpenAdminConsole?: () => void;
   onOpenMobileMenu: () => void;
   onOpenHoldModal: () => void;
   onOpenCommandPalette: () => void;
@@ -45,6 +51,7 @@ export interface TopNavProps {
 export const TopNav: React.FC<TopNavProps> = ({
   currentRoute,
   onNavigate,
+  onOpenAdminConsole,
   onOpenMobileMenu,
   onOpenHoldModal,
   onOpenCommandPalette,
@@ -59,7 +66,6 @@ export const TopNav: React.FC<TopNavProps> = ({
 
   const [isStoreMenuOpen, setIsStoreMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const [isCurrencyMenuOpen, setIsCurrencyMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isCustomerDisplayModalOpen, setIsCustomerDisplayModalOpen] = useState(false);
@@ -85,13 +91,12 @@ export const TopNav: React.FC<TopNavProps> = ({
   return (
     <>
       {/* Backdrop for closing open dropdowns */}
-      {(isStoreMenuOpen || isUserMenuOpen || isLangMenuOpen || isCurrencyMenuOpen) && (
+      {(isStoreMenuOpen || isUserMenuOpen || isCurrencyMenuOpen) && (
         <div
           className={`fixed inset-0 ${getZIndexClass('dropdownBackdrop')} bg-transparent`}
           onClick={() => {
             setIsStoreMenuOpen(false);
             setIsUserMenuOpen(false);
-            setIsLangMenuOpen(false);
             setIsCurrencyMenuOpen(false);
           }}
         />
@@ -106,15 +111,20 @@ export const TopNav: React.FC<TopNavProps> = ({
           <button
             type="button"
             onClick={onOpenMobileMenu}
-            className="lg:hidden p-2 sm:p-2.5 min-h-[36px] sm:min-h-[44px] min-w-[36px] sm:min-w-[44px] rounded-xl text-text/70 hover:text-text hover:bg-background/80 transition-all duration-150 cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
+            className="lg:hidden p-2 min-h-[44px] min-w-[44px] rounded-xl text-text/70 hover:text-text hover:bg-background/80 transition-all duration-150 cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
             aria-label="Open navigation menu"
           >
             <Menu className="h-5 w-5" />
           </button>
 
-          {/* Desktop Brand Logo */}
-          <div className="hidden sm:flex items-center shrink-0 pr-1 sm:pr-2">
+          {/* Brand Logo - Hide on very small screens to save space */}
+          <div className="hidden min-[400px]:flex items-center shrink-0 pr-1 sm:pr-2">
             <ProdxLogo variant="horizontal" size="sm" showTagline={false} />
+          </div>
+
+          {/* Desktop Brand Logo fallback for very small screens */}
+          <div className="flex min-[400px]:hidden items-center shrink-0 pr-1">
+            <ProdxLogo variant="mark" size="sm" />
           </div>
 
           {/* Divider on larger screens */}
@@ -127,13 +137,12 @@ export const TopNav: React.FC<TopNavProps> = ({
               onClick={() => {
                 setIsStoreMenuOpen(!isStoreMenuOpen);
                 setIsCurrencyMenuOpen(false);
-                setIsLangMenuOpen(false);
                 setIsUserMenuOpen(false);
               }}
-              className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 min-h-[36px] sm:min-h-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background text-xs font-bold text-text transition-all duration-150 cursor-pointer active:scale-95"
+              className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 min-h-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background text-xs font-bold text-text transition-all duration-150 cursor-pointer active:scale-95"
             >
               <StoreIcon className="h-3.5 w-3.5 text-text/60 shrink-0" />
-              <span className="max-w-[70px] min-[380px]:max-w-[95px] sm:max-w-[130px] md:max-w-[170px] lg:max-w-[200px] truncate">
+              <span className="max-w-[60px] min-[360px]:max-w-[85px] sm:max-w-[130px] md:max-w-[170px] lg:max-w-[200px] truncate">
                 {session.currentStore.name}
               </span>
               <ChevronDown className="h-3.5 w-3.5 text-text/50 shrink-0" />
@@ -200,12 +209,12 @@ export const TopNav: React.FC<TopNavProps> = ({
           <button
             type="button"
             onClick={onOpenCommandPalette}
-            className="flex items-center justify-center p-2 sm:px-2.5 sm:py-2 min-h-[36px] sm:min-h-[44px] min-w-[36px] sm:min-w-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background text-text/70 hover:text-text text-xs font-semibold transition-all duration-150 cursor-pointer active:scale-95 shrink-0"
+            className="flex items-center justify-center p-2 min-h-[44px] min-w-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background text-text/70 hover:text-text text-xs font-semibold transition-all duration-150 cursor-pointer active:scale-95 shrink-0"
             title="Search Products, Customers, Orders (Ctrl+K / ⌘K)"
             aria-label="Search Products, Customers, Orders (Ctrl+K)"
           >
-            <Search className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-text/60" />
-            <span className="hidden sm:inline font-mono text-[10px] bg-card px-1.5 py-0.5 rounded border border-border/60">
+            <Search className="h-4 w-4 text-text/60" />
+            <span className="hidden sm:inline-flex ml-1.5 font-mono text-[10px] bg-card px-1.5 py-0.5 rounded border border-border/60">
               Ctrl+K
             </span>
           </button>
@@ -258,7 +267,6 @@ export const TopNav: React.FC<TopNavProps> = ({
               onClick={() => {
                 setIsCurrencyMenuOpen(!isCurrencyMenuOpen);
                 setIsStoreMenuOpen(false);
-                setIsLangMenuOpen(false);
                 setIsUserMenuOpen(false);
               }}
               className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 min-h-[44px] min-w-[44px] justify-center rounded-xl border border-border border-crisp bg-background/80 hover:bg-background text-text/80 hover:text-text text-xs font-bold transition-all duration-150 cursor-pointer active:scale-95"
@@ -309,68 +317,21 @@ export const TopNav: React.FC<TopNavProps> = ({
           </div>
 
           {/* Language Switcher Dropdown */}
-          <div className="relative hidden lg:block">
-            <button
-              type="button"
-              onClick={() => {
-                setIsLangMenuOpen(!isLangMenuOpen);
-                setIsStoreMenuOpen(false);
-                setIsCurrencyMenuOpen(false);
-                setIsUserMenuOpen(false);
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 min-h-[44px] min-w-[44px] justify-center rounded-xl border border-border border-crisp bg-background/80 hover:bg-background text-text/80 hover:text-text text-xs font-bold transition-all duration-150 cursor-pointer active:scale-95"
-              aria-label={t.topNav.selectLang}
-            >
-              <Globe className="h-3.5 w-3.5 text-text/60" />
-              <span>{AVAILABLE_LANGUAGES[language as SupportedLanguage]?.flag || '🌐'} {language.toUpperCase()}</span>
-            </button>
-
-            {isLangMenuOpen && (
-              <div
-                className={`${getZIndexClass('dropdown')} absolute right-0 mt-2 w-48 max-w-[90vw] overflow-x-hidden rounded-2xl border border-border border-crisp bg-card shadow-2xl py-2 animate-in fade-in zoom-in-95 duration-100`}
-                onMouseLeave={() => setIsLangMenuOpen(false)}
-              >
-                {Object.values(AVAILABLE_LANGUAGES).map((lang) => {
-                  const isSelected = language === lang.code;
-                  return (
-                    <button
-                      key={lang.code}
-                      type="button"
-                      onClick={() => {
-                        setLanguage(lang.code);
-                        setIsLangMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-3.5 py-2.5 min-h-[44px] text-xs flex items-center justify-between cursor-pointer hover:bg-background/80 transition-colors ${
-                        isSelected ? 'font-bold text-primary bg-primary/10' : 'text-text/80'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{lang.flag}</span>
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-xs leading-tight">{lang.nativeName}</span>
-                          <span className="text-[10px] text-text/50">{lang.name}</span>
-                        </div>
-                      </div>
-                      {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <LanguageSwitcher />
 
           {/* Theme Toggle */}
           <button
             type="button"
             onClick={toggleTheme}
             className="hidden lg:flex min-w-[44px] min-h-[44px] items-center justify-center p-2 rounded-xl border border-border border-crisp hover:bg-background text-text/70 transition-all duration-150 cursor-pointer active:scale-95"
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {theme === 'dark' ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-primary" />}
           </button>
 
-          {/* Offline-First Sync Status Indicator */}
+          {/* OfflineProvider Real-Time Connectivity Status Indicator (Online/Offline) */}
           <div className="flex items-center shrink-0">
-            <SyncStatusIndicator />
+            <ConnectivityStatusIndicator />
           </div>
 
           {/* Cashier / User Profile & Comprehensive Account Menu (Far Right) */}
@@ -381,24 +342,20 @@ export const TopNav: React.FC<TopNavProps> = ({
                 setIsUserMenuOpen(!isUserMenuOpen);
                 setIsStoreMenuOpen(false);
                 setIsCurrencyMenuOpen(false);
-                setIsLangMenuOpen(false);
               }}
-              className="flex items-center justify-center gap-1.5 sm:gap-2 p-1 sm:pl-2.5 sm:pr-2 py-1 sm:py-1.5 min-h-[36px] sm:min-h-[44px] min-w-[36px] sm:min-w-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background transition-all duration-150 cursor-pointer active:scale-95 shrink-0"
+              className="flex items-center justify-center gap-1.5 sm:gap-2 p-1.5 min-h-[44px] min-w-[44px] rounded-xl border border-border border-crisp bg-background/80 hover:bg-background transition-all duration-150 cursor-pointer active:scale-95 shrink-0"
             >
               <div className="flex flex-col items-end hidden xl:flex">
                 <span className="text-xs font-bold text-text leading-tight">{session.currentUser.name}</span>
                 <span className="text-[10px] font-bold text-text/50 uppercase leading-tight">{session.currentUser.role}</span>
               </div>
               {/* User Profile Avatar with Online Status Indicator Dot */}
-              <div className="relative shrink-0">
-                <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-xs font-bold text-white shadow-xs">
-                  {session.currentUser.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
-                </div>
-                <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-card" />
-                </span>
-              </div>
+              <StaffAvatar
+                name={session.currentUser.name}
+                size="sm"
+                showStatusIndicator
+                isOnline={isOnline}
+              />
             </button>
 
             {isUserMenuOpen && (
@@ -446,22 +403,67 @@ export const TopNav: React.FC<TopNavProps> = ({
                   </button>
                 </div>
 
-                {/* Quick Navigation to Settings from User Menu */}
-                {onNavigate && (
-                  <div className="py-1 px-2">
+                {/* Quick Navigation to Settings & Organization Admin Console from User Menu */}
+                <div className="py-1 px-2 space-y-1">
+                  {session.currentUser.role === 'cashier' ? (
+                    <div className="w-full px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                      <Lock className="h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        {language === 'th'
+                          ? 'สิทธิ์ User ทั่วไป: เฉพาะหน้า POS'
+                          : 'General User: POS-Only Access'}
+                      </span>
+                    </div>
+                  ) : (
+                    onNavigate && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          onNavigate('settings');
+                        }}
+                        className="w-full px-3 py-2.5 min-h-[44px] rounded-xl text-left text-xs font-bold text-text/80 hover:bg-background flex items-center justify-between gap-2 cursor-pointer transition-colors active:scale-95"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Settings className="h-4 w-4 text-text/60" />
+                          <span>
+                            {session.currentUser.role === 'admin'
+                              ? language === 'th'
+                                ? 'ตั้งค่าระดับองค์กรและระบบ'
+                                : 'Organization & System Settings'
+                              : language === 'th'
+                              ? 'ตั้งค่าระดับสาขา'
+                              : 'Store Settings'}
+                          </span>
+                        </span>
+                        <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                          {session.currentUser.role === 'admin' ? 'FULL ORG' : 'STORE'}
+                        </span>
+                      </button>
+                    )
+                  )}
+
+                  {session.currentUser.role === 'admin' && onOpenAdminConsole && (
                     <button
                       type="button"
                       onClick={() => {
                         setIsUserMenuOpen(false);
-                        onNavigate('settings');
+                        onOpenAdminConsole();
                       }}
-                      className="w-full px-3 py-2.5 min-h-[44px] rounded-xl text-left text-xs font-bold text-text/80 hover:bg-background flex items-center gap-2 cursor-pointer transition-colors active:scale-95"
+                      className="w-full px-3 py-2.5 min-h-[44px] rounded-xl text-left text-xs font-bold text-primary bg-primary/10 hover:bg-primary/15 border border-primary/25 flex items-center justify-between gap-2 cursor-pointer transition-colors active:scale-95"
                     >
-                      <Settings className="h-4 w-4 text-text/60" />
-                      <span>{language === 'th' ? 'ตั้งค่าระบบ' : 'Settings'}</span>
+                      <span className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 shrink-0" />
+                        <span>
+                          {language === 'th'
+                            ? 'จัดการองค์กร สาขา และเครื่อง POS'
+                            : 'Organization Admin Console'}
+                        </span>
+                      </span>
+                      <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Lock Terminal Option */}
                 <div className="py-1 px-2">

@@ -37,12 +37,12 @@ export const ProductCard = React.memo<ProductCardProps>(({ product, onAddToCart,
           }
         }
       }}
-      className={`group relative min-h-[128px] theme-btn-radius border-crisp border p-3.5 sm:p-4 text-left transition-all select-none flex flex-col justify-between shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-card ${
+      className={`group relative min-h-[128px] theme-btn-radius border-crisp border p-3.5 sm:p-4 text-left transition-all duration-300 select-none flex flex-col justify-between shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:focus-visible:ring-offset-card ${
         isOutOfStock
           ? 'opacity-50 border-border bg-card/60 cursor-not-allowed'
           : isFocused
-            ? 'ring-2 ring-primary border-primary bg-primary/10 cursor-pointer active-scale'
-            : 'border-border bg-card hover:border-primary/50 hover:shadow-xs cursor-pointer active-scale'
+            ? 'ring-2 ring-primary border-primary bg-primary/10 cursor-pointer active-scale shadow-[0_0_20px_rgba(59,130,246,0.15)]'
+            : 'border-border bg-card hover:border-primary/50 hover:bg-card/80 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] cursor-pointer active-scale'
       }`}
     >
       {/* Top Details */}
