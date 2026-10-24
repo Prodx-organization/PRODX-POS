@@ -20,7 +20,9 @@ jobs:
   generate:
     name: Generate candidate change (read-only credentials)
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    # Gemini 4 Argon long-decode can span multiple 20-minute REST hops.
+    # Eight 20-minute REST hops can require up to 160 minutes; keep a bounded job budget.
+    timeout-minutes: 180
     permissions:
       contents: read
       issues: read
