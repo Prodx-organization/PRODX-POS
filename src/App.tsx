@@ -27,6 +27,7 @@ import { AppShell } from './components/layout/AppShell';
 import { CustomerDisplayView } from './modules/customerDisplay/CustomerDisplayView';
 import { NavRoute } from './components/layout/Sidebar';
 import { LoginScreen } from './modules/auth/LoginScreen';
+import { OwnerPortal } from './modules/owner/OwnerPortal';
 import { AdminConsoleSection, AdminConsoleSkeleton } from './modules/admin/AdminConsoleLayout';
 
 // Optimized Lazy-Loaded Admin Components (Reduced main-bundle impact for standard staff)
@@ -465,6 +466,11 @@ const MainApplication: React.FC = () => {
 };
 
 export default function App() {
+  // Keep Owner authentication isolated from the staff/Firebase session tree.
+  if (typeof window !== 'undefined' && (window.location.pathname === '/owner' || window.location.pathname.startsWith('/owner/'))) {
+    return <OwnerPortal />;
+  }
+
 
   const isCustomerDisplayMode =
     typeof window !== 'undefined' &&
