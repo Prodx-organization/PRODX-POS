@@ -376,14 +376,14 @@ var createPostgresAuthorization = (db) => async (context, permission) => {
 
 // server/db/postgres.ts
 import { Pool } from "pg";
-var DEFAULT_DB_BROKER_URL = "https://sjgwesmmpegtzsqqqhvd.supabase.co/functions/v1/prodx-db-broker";
+var DEFAULT_DB_BROKER_URL = "https://bbxoywnlayduqbrjeixj.supabase.co/functions/v1/prodx-db-broker";
 var shouldResolveProductionDatabaseUrl = () => process.env.VERCEL === "1" && process.env.NODE_ENV === "production";
 var classifyProductionDatabaseTarget = (databaseUrl) => {
   if (!databaseUrl) return "invalid";
   try {
     const hostname = new URL(databaseUrl).hostname;
     if (hostname === "aws-0-ap-northeast-1.pooler.supabase.com") return "supabase_session_pooler";
-    if (hostname === "db.sjgwesmmpegtzsqqqhvd.supabase.co") return "supabase_direct";
+    if (hostname === "db.bbxoywnlayduqbrjeixj.supabase.co") return "supabase_direct";
     return "other";
   } catch {
     return "invalid";
