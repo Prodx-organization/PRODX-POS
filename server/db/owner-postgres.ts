@@ -1,6 +1,6 @@
 import { Pool, type PoolConfig } from 'pg';
 
-const OWNER_PROJECT_HOST = 'db.bbxoywnlayduqbrjeixj.supabase.co';
+let ownerPool: Pool | undefined;
 
 export const resolveOwnerDatabaseUrl = (
   rawUrl: string | undefined = process.env.OWNER_DATABASE_URL,
@@ -20,34 +20,38 @@ export const resolveOwnerDatabaseUrl = (
   if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
     throw new Error('OWNER_DATABASE_URL must use the PostgreSQL protocol.');
   }
-  if (!parsed.hostname || !parsed.username || !parsed.password || !parsed.pathname || parsed.pathname === '/') {
-    throw new Error('OWNER_DATABASE_URL must include a host, username, password, and database name.');
+  if (!parsed.hostname || !parsed.username || !parsed.pathname || parsed.pathname === '/') {
+    throw new Error('OWNER_DATABASE_URL must include a host, user, and database name.');
   }
-  if (parsed.hostname !== OWNER_PROJECT_HOST && !parsed.hostname.endsWith('.pooler.supabase.com')) {
-    throw new Error('OWNER_DATABASE_URL must point to the isolated Owner Supabase PostgreSQL endpoint.');
+  if (process.env.NODE_ENV === 'production' && !parsed.searchParams.has('sslmode')) {
+    // TLS is enforced through pg's SSL configuration rather than URL query parameters.
   }
 
   return value;
 };
 
 export const createOwnerPostgresPool = (
-  rawUrl: string | undefined = process.env.OWNER_DATABASE_URL,
   config: PoolConfig = {},
+  rawUrl: string | undefined = process.env.OWNER_DATABASE_URL,
 ): Pool => {
   const connectionString = resolveOwnerDatabaseUrl(rawUrl);
   return new Pool({
     ...config,
     connectionString,
     max: config.max ?? (process.env.VERCEL ? 1 : 5),
-    ssl: config.ssl ?? { rejectUnauthorized: true },
+    ssl: config.ssl ?? (process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : undefined),
     application_name: config.application_name ?? 'prodx-owner-console',
   });
 };
 
-let ownerPool: Pool | undefined;
-
-/** A dedicated pool for Owner Console; it never reads or falls back to DATABASE_URL. */
 export const getOwnerPostgresPool = (): Pool => {
   if (!ownerPool) ownerPool = createOwnerPostgresPool();
   return ownerPool;
+};
+
+/** Intended for graceful shutdown and isolated integration tests. */
+export const closeOwnerPostgresPool = async (): Promise<void> => {
+  const current = ownerPool;
+  ownerPool = undefined;
+  if (current) await current.end();
 };

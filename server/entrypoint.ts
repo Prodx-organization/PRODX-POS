@@ -4,11 +4,13 @@ import express from 'express';
 import { createPostgresAuthentication } from './auth/composition.ts';
 import { createPostgresAuthorization } from './auth/production-authorization.ts';
 import { asSqlExecutor, createProductionPostgresPool, resolveConfiguredDatabaseUrl } from './db/postgres.ts';
+import { getOwnerPostgresPool } from './db/owner-postgres.ts';
 import { createTransactionalPostgresExecutor } from './db/transaction.ts';
 import { createAIGatewayService } from './ai/production-composition.ts';
 import { pingFirestore } from './services/systemHealthCheckService.ts';
 import { registerCheckoutRoute } from './http/checkout-route.ts';
 import { registerAuthRoutes } from './http/auth-route.ts';
+import { registerOwnerRoutes } from './http/owner-route.ts';
 import { createApp } from './http/createApp.ts';
 import { registerRefundRoute } from './http/refund-route.ts';
 import { registerAuditRoute } from './http/audit-route.ts';
@@ -43,7 +45,6 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
       // PRODX-POS Readiness: We require at least one authoritative data store to be responsive.
       // While PostgreSQL is the primary transactional store, we also support Firestore
       // for audit logs and management entities.
-      
       let postgresOk = false;
       let firestoreOk = false;
       let postgresError: any = null;
@@ -87,6 +88,8 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
     configurePublicRoutes: (configuredApp) => {
       registerAuthRoutes(configuredApp, sql, sessions);
       registerPublicInfrastructureRoutes(configuredApp, pool);
+      // Owner Console uses its own database pool and token issuer; POS pool is untouched.
+      registerOwnerRoutes(configuredApp, { getPool: getOwnerPostgresPool });
     },
     authenticateRequest: async (request) => {
       const header = request.header('authorization');
