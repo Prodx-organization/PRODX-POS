@@ -18,7 +18,7 @@ import urllib.request
 from typing import Any
 
 GITHUB_API = "https://api.github.com"
-GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_MODEL = "gemini-4-argon"
 GEMINI_API = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 MAX_CONTEXT_CHARS = 75_000
 MAX_OUTPUT_CHARS = 500_000

@@ -6,11 +6,11 @@ from unittest.mock import patch
 import gemini_code_agent as agent
 
 class GeminiEndpointTests(unittest.TestCase):
-    def test_uses_current_stable_flash_model_for_generation(self):
-        self.assertEqual(agent.GEMINI_MODEL, 'gemini-3.8-flash')
+    def test_uses_gemini_4_argon_model_for_generation(self):
+        self.assertEqual(agent.GEMINI_MODEL, 'gemini-4-argon')
         self.assertEqual(
             agent.GEMINI_API,
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-4-argon:generateContent',
         )
         self.assertNotIn('key=', agent.GEMINI_API.lower())
 
