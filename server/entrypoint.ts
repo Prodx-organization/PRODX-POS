@@ -4,7 +4,6 @@ import express from 'express';
 import { createPostgresAuthentication } from './auth/composition.ts';
 import { createPostgresAuthorization } from './auth/production-authorization.ts';
 import { asSqlExecutor, createProductionPostgresPool, resolveConfiguredDatabaseUrl } from './db/postgres.ts';
-import { closeOwnerPostgresPool, getOwnerPostgresPool } from './db/owner-postgres.ts';
 import { createTransactionalPostgresExecutor } from './db/transaction.ts';
 import { createAIGatewayService } from './ai/production-composition.ts';
 import { pingFirestore } from './services/systemHealthCheckService.ts';
@@ -69,13 +68,7 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
     configurePublicRoutes: (configuredApp) => {
       registerAuthRoutes(configuredApp, sql, sessions);
       registerPublicInfrastructureRoutes(configuredApp, pool);
-      registerOwnerSessionRoute(configuredApp, { getRole: async (userId) => {
-        const result = await getOwnerPostgresPool().query<{ role: string }>(
-          'SELECT role FROM public.user_roles WHERE user_id = $1 LIMIT 1',
-          [userId],
-        );
-        return result.rows[0]?.role ?? null;
-      } });
+      registerOwnerSessionRoute(configuredApp);
     },
     authenticateRequest: async (request) => {
       const header = request.header('authorization');
@@ -115,7 +108,7 @@ export const startProductionServer = async (): Promise<void> => {
   const server = app.listen(port, host, () => console.log(`PRODX POS backend listening on ${host}:${port}`));
   const shutdown = async (signal: string) => {
     server.close(async () => {
-      await Promise.allSettled([pool.end(), closeOwnerPostgresPool()]);
+      await pool.end();
       console.log(`PRODX POS backend stopped after ${signal}`);
     });
   };
