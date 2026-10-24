@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { getOwnerSupabaseClient } from '../../lib/supabaseOwnerClient';
 
@@ -19,36 +19,6 @@ export const OwnerPortal: React.FC = () => {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-
-  const authorize = useCallback(async (candidate: User | null) => {
-    setUser(candidate);
-    setMessage('');
-    if (!candidate) {
-      setState('signed-out');
-      return;
-    }
-
-    setState('loading');
-    try {
-      // Read the role from PostgreSQL/RLS. Never trust a role supplied by client metadata.
-      const client = getOwnerSupabaseClient();
-      const { data, error } = await client
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', candidate.id)
-        .maybeSingle();
-      if (error) throw error;
-
-      if (data?.role === 'owner' || data?.role === 'admin') {
-        setState('authorized');
-      } else {
-        setState('denied');
-      }
-    } catch {
-      setMessage('ตรวจสอบสิทธิ์ไม่สำเร็จ กรุณาลองใหม่');
-      setState('error');
-    }
-  }, []);
 
   useEffect(() => {
     let alive = true;
