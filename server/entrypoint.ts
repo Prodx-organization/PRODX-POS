@@ -4,7 +4,7 @@ import express from 'express';
 import { createPostgresAuthentication } from './auth/composition.ts';
 import { createPostgresAuthorization } from './auth/production-authorization.ts';
 import { asSqlExecutor, createProductionPostgresPool, resolveConfiguredDatabaseUrl } from './db/postgres.ts';
-import { getOwnerPostgresPool } from './db/owner-postgres.ts';
+import { closeOwnerPostgresPool, getOwnerPostgresPool } from './db/owner-postgres.ts';
 import { createTransactionalPostgresExecutor } from './db/transaction.ts';
 import { createAIGatewayService } from './ai/production-composition.ts';
 import { pingFirestore } from './services/systemHealthCheckService.ts';
@@ -115,8 +115,7 @@ export const startProductionServer = async (): Promise<void> => {
   const server = app.listen(port, host, () => console.log(`PRODX POS backend listening on ${host}:${port}`));
   const shutdown = async (signal: string) => {
     server.close(async () => {
-      await pool.end();
-      await (async () => { const ownerPool = getOwnerPostgresPool(); await ownerPool.end().catch(() => undefined); })();
+      await Promise.allSettled([pool.end(), closeOwnerPostgresPool()]);
       console.log(`PRODX POS backend stopped after ${signal}`);
     });
   };
