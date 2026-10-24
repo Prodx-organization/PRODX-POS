@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { createPostgresAuthentication } from './auth/composition.ts';
 import { createPostgresAuthorization } from './auth/production-authorization.ts';
-import { asSqlExecutor, createProductionPostgresPool } from './db/postgres.ts';
+import { asSqlExecutor, classifyProductionDatabaseTarget, createProductionPostgresPool } from './db/postgres.ts';
 import { createPostgresReadinessCheck } from './db/readiness.ts';
 import { createTransactionalPostgresExecutor } from './db/transaction.ts';
 import { createAIGatewayService } from './ai/production-composition.ts';
@@ -39,7 +39,7 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
   const aiGateway = createAIGatewayService(sql, authorize);
 
   const app = createApp({
-    readinessCheck: createPostgresReadinessCheck(sql),
+    readinessCheck: createPostgresReadinessCheck(sql, classifyProductionDatabaseTarget(pool.options.connectionString)),
     configurePublicRoutes: (configuredApp) => {
       registerAuthRoutes(configuredApp, sql, sessions);
       registerPublicInfrastructureRoutes(configuredApp, pool);

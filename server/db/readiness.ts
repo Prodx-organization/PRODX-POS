@@ -1,8 +1,12 @@
 import type { SqlExecutor } from '../auth/postgres-repository.ts';
+import type { ProductionDatabaseTarget } from './postgres.ts';
 
 const ALLOWED_SYSCALLS = new Set(['getaddrinfo', 'connect', 'read', 'write']);
 
-export const createPostgresReadinessCheck = (sql: SqlExecutor) => async (): Promise<void> => {
+export const createPostgresReadinessCheck = (
+  sql: SqlExecutor,
+  databaseTarget?: ProductionDatabaseTarget,
+) => async (): Promise<void> => {
   try {
     // Query the exact pool used by production routes. Do not gate readiness on
     // DATABASE_URL: production obtains its connection string through the OIDC broker.
@@ -14,6 +18,7 @@ export const createPostgresReadinessCheck = (sql: SqlExecutor) => async (): Prom
     const diagnostic = new Error('PostgreSQL readiness query failed.');
     Object.assign(diagnostic, {
       stage: 'database_query',
+      ...(databaseTarget ? { databaseTarget } : {}),
       ...(typeof candidate.code === 'string' && /^[A-Z0-9_]{1,40}$/.test(candidate.code)
         ? { code: candidate.code }
         : {}),

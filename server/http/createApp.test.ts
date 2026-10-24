@@ -114,6 +114,7 @@ test('readiness logs safe DNS diagnostics without exposing the hostname or error
         hostname: sensitiveHostname,
         port: 5432,
         stage: 'database_query',
+        databaseTarget: 'supabase_session_pooler',
       });
     },
   });
@@ -131,6 +132,7 @@ test('readiness logs safe DNS diagnostics without exposing the hostname or error
     assert.equal(diagnostic.port, 5432);
     assert.equal(diagnostic.status, 503);
     assert.equal(diagnostic.stage, 'database_query');
+    assert.equal(diagnostic.databaseTarget, 'supabase_session_pooler');
     assert.equal('hostname' in diagnostic, false);
     assert.equal('message' in diagnostic, false);
     assert.equal('hostnameFingerprint' in diagnostic, false);
@@ -148,7 +150,7 @@ test('readiness logs only allowlisted diagnostic stages', async () => {
   const app = createApp({
     authenticateRequest: () => null,
     readinessCheck: async () => {
-      throw Object.assign(new Error('do not log this error'), { stage: 'secret-hostname=db.internal' });
+      throw Object.assign(new Error('do not log this error'), { stage: 'secret-hostname=db.internal', databaseTarget: 'secret-hostname=db.internal' });
     },
   });
   const server = await start(app);
@@ -157,6 +159,7 @@ test('readiness logs only allowlisted diagnostic stages', async () => {
     assert.equal(response.status, 503);
     const diagnostic = loggedArgs[1] as Record<string, unknown>;
     assert.equal('stage' in diagnostic, false);
+    assert.equal('databaseTarget' in diagnostic, false);
     assert.equal(JSON.stringify(loggedArgs).includes('secret-hostname'), false);
     assert.equal(JSON.stringify(loggedArgs).includes('do not log this error'), false);
   } finally {

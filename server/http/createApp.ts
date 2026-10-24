@@ -41,7 +41,7 @@ const sendError = (
 
 const safeReadinessDiagnostic = (error: unknown): Record<string, string | number> => {
   const candidate = error && typeof error === 'object'
-    ? error as { name?: unknown; code?: unknown; syscall?: unknown; port?: unknown; stage?: unknown }
+    ? error as { name?: unknown; code?: unknown; syscall?: unknown; port?: unknown; stage?: unknown; databaseTarget?: unknown }
     : {};
   const diagnostic: Record<string, string | number> = {
     name: typeof candidate.name === 'string' && /^[A-Za-z][A-Za-z0-9]*$/.test(candidate.name)
@@ -63,6 +63,11 @@ const safeReadinessDiagnostic = (error: unknown): Record<string, string | number
   if (candidate.stage === 'database_query' || candidate.stage === 'broker_fetch' ||
       candidate.stage === 'broker_http' || candidate.stage === 'broker_response') {
     diagnostic.stage = candidate.stage;
+  }
+  if (candidate.databaseTarget === 'supabase_session_pooler' ||
+      candidate.databaseTarget === 'supabase_direct' ||
+      candidate.databaseTarget === 'other' || candidate.databaseTarget === 'invalid') {
+    diagnostic.databaseTarget = candidate.databaseTarget;
   }
 
   return diagnostic;

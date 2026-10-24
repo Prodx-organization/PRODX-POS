@@ -61,3 +61,25 @@ test('PostgreSQL readiness discards unexpected diagnostic fields', async () => {
     return true;
   });
 });
+
+test('PostgreSQL readiness includes only the allowlisted database target class', async () => {
+  const sql = {
+    async query() {
+      throw Object.assign(new Error('getaddrinfo ENOTFOUND private-db-host.example'), {
+        code: 'ENOTFOUND',
+        syscall: 'getaddrinfo',
+        hostname: 'private-db-host.example',
+      });
+    },
+  } as unknown as SqlExecutor;
+
+  await assert.rejects(createPostgresReadinessCheck(sql, 'supabase_session_pooler')(), (error: unknown) => {
+    assert.ok(error instanceof Error);
+    const diagnostic = error as Error & { stage?: string; databaseTarget?: string; hostname?: string };
+    assert.equal(diagnostic.stage, 'database_query');
+    assert.equal(diagnostic.databaseTarget, 'supabase_session_pooler');
+    assert.equal(diagnostic.hostname, undefined);
+    assert.equal(error.message.includes('private-db-host.example'), false);
+    return true;
+  });
+});
