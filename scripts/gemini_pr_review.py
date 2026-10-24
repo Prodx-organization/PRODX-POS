@@ -38,7 +38,7 @@ def _request_json(
     payload: dict[str, Any] | None = None,
 ) -> Any:
     headers = {
-        "Accept": "application/vnd.github+json",
+        "Accept": "application/json" if api_key else "application/vnd.github+json",
         "User-Agent": "PRODX-Gemini-PR-Review",
     }
     if token:
@@ -299,7 +299,8 @@ def post_comment(repo: str, number: int, token: str, body: str) -> None:
             raise ReviewError("GitHub returned an invalid issue-comment list.")
         existing = next(
             (comment for comment in comments if isinstance(comment, dict) and
-             isinstance(comment.get("body"), str) and comment["body"].startswith(COMMENT_MARKER)),
+             isinstance(comment.get("body"), str) and comment["body"].startswith(COMMENT_MARKER) and
+             isinstance(comment.get("user"), dict) and comment["user"].get("login") == "github-actions[bot]"),
             None,
         )
         if existing or len(comments) < 100:
@@ -366,6 +367,26 @@ def main() -> int:
                 "findings": [],
                 "head_sha": head_sha,
             }
+
+    # Never publish a PASS for a stale diff if the PR head moved during review.
+    try:
+        current_pr = fetch_pr(repo, number, token)
+        if current_pr["head"]["sha"] != head_sha:
+            result = {
+                "verdict": "BLOCKED",
+                "coverage": "partial",
+                "summary": "The pull request head changed during review; rerun against the new exact head.",
+                "findings": [],
+                "head_sha": head_sha,
+            }
+    except ReviewError:
+        result = {
+            "verdict": "BLOCKED",
+            "coverage": "partial",
+            "summary": "The pull request state could not be revalidated after review; rerun required.",
+            "findings": [],
+            "head_sha": head_sha,
+        }
 
     comment = render_comment(result, head_sha)
     try:
