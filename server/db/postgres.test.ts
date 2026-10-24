@@ -130,7 +130,6 @@ test('createProductionPostgresPool ignores caller connectionString in Vercel pro
     });
   };
 
-  let pool: ReturnType<typeof createProductionPostgresPool> extends Promise<infer T> ? T : never;
   try {
     await withEnvironment({
       VERCEL: '1',
@@ -139,7 +138,7 @@ test('createProductionPostgresPool ignores caller connectionString in Vercel pro
       VERCEL_OIDC_TOKEN: undefined,
       PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
     }, async () => {
-      pool = await createProductionPostgresPool({ connectionString: 'postgresql://caller-controlled.example/prodx' }, 'request-oidc-token');
+      const pool = await createProductionPostgresPool({ connectionString: 'postgresql://caller-controlled.example/prodx' }, 'request-oidc-token');
       assert.equal(requestedUrl, 'https://broker.example/prodx-db');
       assert.equal((pool as unknown as { options: { connectionString: string } }).options.connectionString,
         'postgresql://broker-issued.example/prodx');
