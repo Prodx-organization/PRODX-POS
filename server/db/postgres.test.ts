@@ -25,7 +25,7 @@ const withEnvironment = async (
 
 test('classifies production database targets without returning or logging hostnames', () => {
   assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres'), 'supabase_session_pooler');
-  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.sjgwesmmpegtzsqqqhvd.supabase.co:5432/postgres'), 'supabase_direct');
+  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.bbxoywnlayduqbrjeixj.supabase.co:5432/postgres'), 'supabase_direct');
   assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.example.internal:5432/postgres'), 'other');
   assert.equal(classifyProductionDatabaseTarget('not a database URL'), 'invalid');
 });
@@ -46,6 +46,24 @@ test('resolveProductionDatabaseUrl fails closed when no Vercel runtime token is 
       await assert.rejects(
         resolveProductionDatabaseUrl(),
         /Vercel OIDC token is required/,
+      );
+    },
+  );
+});
+
+test('resolveProductionDatabaseUrl fails closed when the production broker endpoint is not configured', async () => {
+  await withEnvironment(
+    {
+      VERCEL: '1',
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://legacy.example/prodx',
+      VERCEL_OIDC_TOKEN: undefined,
+      PRODX_DB_BROKER_URL: undefined,
+    },
+    async () => {
+      await assert.rejects(
+        resolveProductionDatabaseUrl('request-oidc-token'),
+        /PRODX_DB_BROKER_URL is required/,
       );
     },
   );
