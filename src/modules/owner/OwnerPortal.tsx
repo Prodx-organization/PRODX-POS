@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { getOwnerSupabaseClient } from '../../lib/supabaseOwnerClient';
 
@@ -20,29 +20,91 @@ export const OwnerPortal: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
+  const authorize = useCallback(async (candidate: User | null) => {
+    setUser(candidate);
+    setMessage('');
+    if (!candidate) {
+      setState('signed-out');
+      return;
+    }
+
+    setState('loading');
+    try {
+      // Read the role from PostgreSQL/RLS. Never trust a role supplied by client metadata.
+      const client = getOwnerSupabaseClient();
+      const { data, error } = await client
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', candidate.id)
+        .maybeSingle();
+      if (error) throw error;
+
+      if (data?.role === 'owner' || data?.role === 'admin') {
+        setState('authorized');
+      } else {
+        setState('denied');
+      }
+    } catch {
+      setMessage('ตรวจสอบสิทธิ์ไม่สำเร็จ กรุณาลองใหม่');
+      setState('error');
+    }
+  }, []);
+
   useEffect(() => {
     let alive = true;
     let client: ReturnType<typeof getOwnerSupabaseClient>;
-    const authorize = async (candidate: User | null) => {
+    const check = async (candidate: User | null) => {
       if (!alive) return;
       setUser(candidate);
-      if (!candidate) { setState('signed-out'); return; }
-      const { data, error } = await client.from('user_roles').select('role').eq('user_id', candidate.id).maybeSingle();
-      if (!alive) return;
-      if (error) { setMessage('ตรวจสอบสิทธิ์ไม่สำเร็จ กรุณาลองใหม่'); setState('error'); return; }
-      if (data?.role === 'owner' || data?.role === 'admin') { setState('authorized'); setMessage(''); }
-      else { setState('denied'); }
+      if (!candidate) {
+        setState('signed-out');
+        return;
+      }
+
+      setState('loading');
+      try {
+        const { data, error } = await client
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', candidate.id)
+          .maybeSingle();
+        if (!alive) return;
+        if (error) throw error;
+        setState(data?.role === 'owner' || data?.role === 'admin' ? 'authorized' : 'denied');
+        setMessage('');
+      } catch {
+        if (alive) {
+          setMessage('ตรวจสอบสิทธิ์ไม่สำเร็จ กรุณาลองใหม่');
+          setState('error');
+        }
+      }
     };
+
     try {
       client = getOwnerSupabaseClient();
-      void client.auth.getUser().then(({ data, error }) => {
-        if (error) { if (alive) setState('signed-out'); return; }
-        return authorize(data.user);
-      }).catch(() => { if (alive) { setMessage('ไม่สามารถเชื่อมต่อระบบยืนยันตัวตนได้'); setState('error'); } });
+      void client.auth.getUser()
+        .then(({ data, error }) => {
+          if (!alive) return;
+          if (error) {
+            setState('signed-out');
+            return;
+          }
+          return check(data.user);
+        })
+        .catch(() => {
+          if (alive) {
+            setMessage('ไม่สามารถเชื่อมต่อระบบยืนยันตัวตนได้');
+            setState('error');
+          }
+        });
+
       const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
-        void authorize(session?.user ?? null);
+        void check(session?.user ?? null);
       });
-      return () => { alive = false; listener.subscription.unsubscribe(); };
+      return () => {
+        alive = false;
+        listener.subscription.unsubscribe();
+      };
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Owner auth configuration error');
       setState('error');
@@ -52,7 +114,8 @@ export const OwnerPortal: React.FC = () => {
 
   const signIn = async (event: React.FormEvent) => {
     event.preventDefault();
-    setBusy(true); setMessage('');
+    setBusy(true);
+    setMessage('');
     try {
       const client = getOwnerSupabaseClient();
       const { error } = await client.auth.signInWithPassword({ email: email.trim(), password });
@@ -60,14 +123,22 @@ export const OwnerPortal: React.FC = () => {
       setPassword('');
     } catch {
       setMessage('เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบอีเมลและรหัสผ่าน หรือสถานะบัญชี');
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const signOut = async () => {
     setBusy(true);
-    try { await getOwnerSupabaseClient().auth.signOut(); setUser(null); setState('signed-out'); }
-    catch { setMessage('ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง'); }
-    finally { setBusy(false); }
+    try {
+      await getOwnerSupabaseClient().auth.signOut();
+      setUser(null);
+      setState('signed-out');
+    } catch {
+      setMessage('ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return <main style={styles.page}><section style={styles.card}>
