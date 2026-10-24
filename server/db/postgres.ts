@@ -1,18 +1,35 @@
+import { existsSync } from 'node:fs';
 import { Pool, type PoolConfig, type QueryResultRow } from 'pg';
-import type { SqlExecutor } from '../auth/postgres-repository';
+import type { SqlExecutor } from '../auth/postgres-repository.ts';
 
-const DEFAULT_DB_BROKER_URL = 'https://sjgwesmmpegtzsqqqhvd.supabase.co/functions/v1/prodx-db-broker';
+const DEFAULT_DB_BROKER_URL = 'https://bbxoywnlayduqbrjeixj.supabase.co/functions/v1/prodx-db-broker';
+const LOCAL_POSTGRES_SOCKET = '/tmp/pgrun/.s.PGSQL.5432';
+const LOCAL_FALLBACK_DATABASE_URL = 'postgresql://postgres@127.0.0.1:5432/prodx_pos';
 
 const shouldResolveProductionDatabaseUrl = (): boolean =>
   process.env.VERCEL === '1' && process.env.NODE_ENV === 'production';
 
+export const resolveConfiguredDatabaseUrl = (
+  rawUrl: string | undefined = process.env.DATABASE_URL,
+): string | undefined => {
+  const trimmed = rawUrl?.trim();
+  if (!trimmed || trimmed === 'postgresql://...' || trimmed === 'postgres://...') {
+    if (!shouldResolveProductionDatabaseUrl() && process.env.NODE_ENV !== 'production') {
+      return LOCAL_FALLBACK_DATABASE_URL;
+    }
+    return undefined;
+  }
+  return trimmed;
+};
+
 export type ProductionDatabaseTarget = 'supabase_session_pooler' | 'supabase_direct' | 'other' | 'invalid';
 
-export const classifyProductionDatabaseTarget = (databaseUrl: string): ProductionDatabaseTarget => {
+export const classifyProductionDatabaseTarget = (databaseUrl?: string): ProductionDatabaseTarget => {
+  if (!databaseUrl) return 'invalid';
   try {
     const hostname = new URL(databaseUrl).hostname;
-    if (hostname === 'aws-0-ap-northeast-1.pooler.supabase.com') return 'supabase_session_pooler';
-    if (hostname === 'db.sjgwesmmpegtzsqqqhvd.supabase.co') return 'supabase_direct';
+    if (hostname === 'aws-0-ap-southeast-1.pooler.supabase.com') return 'supabase_session_pooler';
+    if (hostname === 'db.bbxoywnlayduqbrjeixj.supabase.co') return 'supabase_direct';
     return 'other';
   } catch {
     return 'invalid';
@@ -21,13 +38,9 @@ export const classifyProductionDatabaseTarget = (databaseUrl: string): Productio
 
 export const resolveProductionDatabaseUrl = async (
   vercelOidcToken?: string,
-): Promise<string> => {
+): Promise<string | undefined> => {
   if (!shouldResolveProductionDatabaseUrl()) {
-    const connectionString = process.env.DATABASE_URL;
-    if (!connectionString) {
-      throw new Error('DATABASE_URL is required to create the PostgreSQL pool.');
-    }
-    return connectionString;
+    return resolveConfiguredDatabaseUrl(process.env.DATABASE_URL);
   }
 
   const oidcToken = vercelOidcToken ?? process.env.VERCEL_OIDC_TOKEN;
@@ -57,9 +70,16 @@ export const resolveProductionDatabaseUrl = async (
 };
 
 export const createPostgresPool = (config: PoolConfig = {}): Pool => {
-  const connectionString = config.connectionString ?? process.env.DATABASE_URL;
+  const connectionString = resolveConfiguredDatabaseUrl(config.connectionString ?? process.env.DATABASE_URL);
   if (!connectionString) {
-    throw new Error('DATABASE_URL is required to create the PostgreSQL pool.');
+    console.warn('DATABASE_URL is missing or unconfigured. PostgreSQL pool created in mock/degraded mode.');
+    // Return a dummy pool that fails safely on query
+    return {
+      query: () => Promise.reject(new Error('PostgreSQL is not configured (DATABASE_URL is missing).')),
+      on: () => {},
+      end: () => Promise.resolve(),
+      connect: () => Promise.reject(new Error('PostgreSQL is not configured.')),
+    } as unknown as Pool;
   }
 
   return new Pool({
