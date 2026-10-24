@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import { classifyProductionDatabaseTarget, resolveConfiguredDatabaseUrl, resolveProductionDatabaseUrl } from './postgres';
 
 const withEnvironment = async (
@@ -29,6 +30,12 @@ test('classifies production database targets without returning or logging hostna
   assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.bbxoywnlayduqbrjeixj.supabase.co:5432/postgres'), 'other');
   assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.example.internal:5432/postgres'), 'other');
   assert.equal(classifyProductionDatabaseTarget('not a database URL'), 'invalid');
+});
+
+test('tracked production bundle does not approve the Owner Console Supabase host', async () => {
+  const bundle = await readFile(new URL('../entrypoint.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(bundle, /db\.bbxoywnlayduqbrjeixj\.supabase\.co/);
+  assert.match(bundle, /aws-0-ap-northeast-1\.pooler\.supabase\.com/);
 });
 
 test('resolveProductionDatabaseUrl uses DATABASE_URL outside Vercel production', async () => {
