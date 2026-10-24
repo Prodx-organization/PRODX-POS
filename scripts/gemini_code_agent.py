@@ -163,12 +163,32 @@ ISSUE #{issue_number}: {title}\nISSUE BODY (untrusted):\n{body[:12000]}\n\nREPOS
                                             "required": ["path", "content"]}}},
                                         "required": ["summary", "files"]}}}
     response = request_json(GEMINI_API, api_key=api_key, payload=payload)
+    if not isinstance(response, dict):
+        raise AgentError("AI response did not satisfy the machine-readable change contract.")
+    candidates = response.get("candidates")
+    prompt_feedback = response.get("promptFeedback")
+    if not isinstance(candidates, list) or not candidates:
+        block_reason = prompt_feedback.get("blockReason") if isinstance(prompt_feedback, dict) else None
+        reason = safe_text(block_reason, 80) or "no candidate returned"
+        raise AgentError(f"Gemini returned no candidates ({reason}); model={GEMINI_MODEL}.")
+    candidate = candidates[0]
+    if not isinstance(candidate, dict):
+        raise AgentError(f"Gemini returned an invalid candidate; model={GEMINI_MODEL}.")
+    content = candidate.get("content")
+    parts = content.get("parts") if isinstance(content, dict) else None
+    raw = "".join(part.get("text", "") for part in parts if isinstance(part, dict) and isinstance(part.get("text"), str)) if isinstance(parts, list) else ""
+    if not raw.strip():
+        finish_reason = safe_text(candidate.get("finishReason"), 80) or "unspecified"
+        usage = response.get("usageMetadata")
+        output_tokens = usage.get("candidatesTokenCount") if isinstance(usage, dict) else None
+        raise AgentError(
+            f"Gemini returned no text; model={GEMINI_MODEL}, finishReason={finish_reason}, "
+            f"candidateParts={len(parts) if isinstance(parts, list) else 0}, outputTokens={output_tokens}."
+        )
     try:
-        parts = response["candidates"][0]["content"]["parts"]
-        raw = "".join(part.get("text", "") for part in parts if isinstance(part, dict))
         result = json.loads(raw)
-    except (KeyError, IndexError, TypeError, json.JSONDecodeError):
-        raise AgentError("AI response did not satisfy the machine-readable change contract.") from None
+    except json.JSONDecodeError:
+        raise AgentError(f"Gemini response was not valid JSON; model={GEMINI_MODEL}, responseChars={len(raw)}.") from None
     if not isinstance(result, dict) or not isinstance(result.get("files"), list) or len(result["files"]) > MAX_FILES:
         raise AgentError("AI response contains an invalid file list.")
     changes: list[dict[str, str]] = []

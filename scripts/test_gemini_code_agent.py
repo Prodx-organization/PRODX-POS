@@ -14,6 +14,31 @@ class GeminiEndpointTests(unittest.TestCase):
         )
         self.assertNotIn('key=', agent.GEMINI_API.lower())
 
+    def test_empty_candidate_response_reports_safe_model_diagnostics(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict('os.environ', {
+            'GITHUB_REPOSITORY': 'Prodx-organization/PRODX-POS',
+            'GITHUB_TOKEN': 'test-token',
+            'GEMINI_API_KEY': 'test-api-key',
+        }), patch.object(agent, 'issue_context', return_value=('Small task', 'Add a documentation note.')), \
+             patch.object(agent, 'gather_context', return_value='minimal context'), \
+             patch.object(agent, 'request_json', return_value={
+                 'candidates': [{'content': {'parts': []}, 'finishReason': 'STOP'}],
+                 'usageMetadata': {'candidatesTokenCount': 0},
+             }):
+            with self.assertRaisesRegex(agent.AgentError, r'model=gemini-4-argon, finishReason=STOP.*outputTokens=0'):
+                agent.generate(164, pathlib.Path(temp) / 'candidate.json')
+
+    def test_blocked_prompt_reports_reason_without_response_body(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict('os.environ', {
+            'GITHUB_REPOSITORY': 'Prodx-organization/PRODX-POS',
+            'GITHUB_TOKEN': 'test-token',
+            'GEMINI_API_KEY': 'test-api-key',
+        }), patch.object(agent, 'issue_context', return_value=('Small task', 'Add a documentation note.')), \
+             patch.object(agent, 'gather_context', return_value='minimal context'), \
+             patch.object(agent, 'request_json', return_value={'promptFeedback': {'blockReason': 'SAFETY'}}):
+            with self.assertRaisesRegex(agent.AgentError, r'no candidates \(SAFETY\); model=gemini-4-argon'):
+                agent.generate(164, pathlib.Path(temp) / 'candidate.json')
+
 class PathPolicyTests(unittest.TestCase):
     def test_allows_source_and_regression_test_paths(self):
         self.assertEqual(agent.validate_path('server/http/example.test.ts'), 'server/http/example.test.ts')
