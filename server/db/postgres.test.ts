@@ -148,6 +148,7 @@ test('resolveProductionDatabaseUrl rejects a broker failure', async () => {
         NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://legacy.example/prodx',
         VERCEL_OIDC_TOKEN: undefined,
+        PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
       },
       async () => {
         await assert.rejects(
