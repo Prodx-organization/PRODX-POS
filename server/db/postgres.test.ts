@@ -154,3 +154,35 @@ test('resolveConfiguredDatabaseUrl preserves valid URLs and rejects placeholder 
   );
 });
 
+test('production database broker defaults to the sole PRODX-POS Supabase project', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = '';
+  globalThis.fetch = async (input) => {
+    requestedUrl = String(input);
+    return new Response(JSON.stringify({ databaseUrl: 'postgresql://supabase.example/prodx' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    await withEnvironment(
+      {
+        VERCEL: '1',
+        NODE_ENV: 'production',
+        DATABASE_URL: undefined,
+        VERCEL_OIDC_TOKEN: undefined,
+        PRODX_DB_BROKER_URL: undefined,
+      },
+      async () => {
+        await resolveProductionDatabaseUrl('request-oidc-token');
+        assert.equal(
+          requestedUrl,
+          'https://bbxoywnlayduqbrjeixj.supabase.co/functions/v1/prodx-db-broker',
+        );
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
