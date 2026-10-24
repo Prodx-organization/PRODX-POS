@@ -40,7 +40,12 @@ jobs:
           metadata="$(gh pr view "$EVENT_PR" --repo "$REPO" --json number,state,headRepositoryOwner,headRepository,headRefName,headRefOid,baseRefName)"
           test "$(jq -r '.number' <<<"$metadata")" = "$EVENT_PR"
           test "$(jq -r '.state' <<<"$metadata")" = "OPEN"
-          test "$(jq -r '.baseRefName' <<<"$metadata")" = "main"
+          base_ref="$(jq -r '.baseRefName' <<<"$metadata")"
+          if [[ "$base_ref" != "main" ]]; then
+            open_prs="$(gh pr list --repo "$REPO" --state open --json number,headRefName,headRepositoryOwner,headRepository)"
+            parent_count="$(jq --arg base_ref "$base_ref" --arg owner "${REPO%%/*}" --arg name "${REPO#*/}" '[.[] | select(.headRefName == $base_ref and .headRepositoryOwner.login == $owner and .headRepository.name == $name)] | length' <<<"$open_prs")"
+            test "$parent_count" -ge 1
+          fi
           head_repo="$(jq -r '.headRepositoryOwner.login + "/" + .headRepository.name' <<<"$metadata")"
           test "$head_repo" = "$REPO"
           head_ref="$(jq -r '.headRefName' <<<"$metadata")"
@@ -60,7 +65,12 @@ jobs:
           set -euo pipefail
           gh pr view "$PR" --repo "$REPO" --json number,title,state,body,headRefName,headRefOid,baseRefName,files,commits,reviews,statusCheckRollup > pr.json
           test "$(jq -r '.headRefOid' pr.json)" = "$HEAD_SHA"
-          test "$(jq -r '.baseRefName' pr.json)" = "main"
+          base_ref="$(jq -r '.baseRefName' pr.json)"
+          if [[ "$base_ref" != "main" ]]; then
+            open_prs="$(gh pr list --repo "$REPO" --state open --json number,headRefName,headRepositoryOwner,headRepository)"
+            parent_count="$(jq --arg base_ref "$base_ref" --arg owner "${REPO%%/*}" --arg name "${REPO#*/}" '[.[] | select(.headRefName == $base_ref and .headRepositoryOwner.login == $owner and .headRepository.name == $name)] | length' <<<"$open_prs")"
+            test "$parent_count" -ge 1
+          fi
           jq '{number,title,state,headRefName,headRefOid,baseRefName,files,commits,statusCheckRollup}' pr.json > executor-report.json
           echo "Validated PR metadata and checks only."
           echo "No PR-controlled source was checked out or executed."
