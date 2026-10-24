@@ -19,6 +19,7 @@ export const OwnerPortal: React.FC = () => {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -28,6 +29,7 @@ export const OwnerPortal: React.FC = () => {
       setUser(candidate);
       if (!candidate) {
         setState('signed-out');
+        setAuthChecked(true);
         return;
       }
 
@@ -42,10 +44,12 @@ export const OwnerPortal: React.FC = () => {
         if (error) throw error;
         setState(data?.role === 'owner' || data?.role === 'admin' ? 'authorized' : 'denied');
         setMessage('');
+        setAuthChecked(true);
       } catch {
         if (alive) {
           setMessage('ตรวจสอบสิทธิ์ไม่สำเร็จ กรุณาลองใหม่');
           setState('error');
+          setAuthChecked(true);
         }
       }
     };
@@ -57,6 +61,7 @@ export const OwnerPortal: React.FC = () => {
           if (!alive) return;
           if (error) {
             setState('signed-out');
+            setAuthChecked(true);
             return;
           }
           return check(data.user);
@@ -65,6 +70,7 @@ export const OwnerPortal: React.FC = () => {
           if (alive) {
             setMessage('ไม่สามารถเชื่อมต่อระบบยืนยันตัวตนได้');
             setState('error');
+            setAuthChecked(true);
           }
         });
 
@@ -104,6 +110,7 @@ export const OwnerPortal: React.FC = () => {
       await getOwnerSupabaseClient().auth.signOut();
       setUser(null);
       setState('signed-out');
+      setAuthChecked(true);
     } catch {
       setMessage('ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง');
     } finally {
