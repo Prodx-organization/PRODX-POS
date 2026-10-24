@@ -87,6 +87,15 @@ jobs:
           END $$;
           SQL
 
+      - name: Verify migration idempotency
+        shell: bash
+        run: |
+          set -euo pipefail
+          before=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations")
+          for migration in db/migrations/*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration" >/dev/null; done
+          after=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations")
+          test "$before" = "$after"
+
   # Branch rulesets require a workflow-level status context in addition to the
   # detailed PostgreSQL job. This summary must fail whenever the real gate fails.
   m13-required-context:
@@ -105,12 +114,3 @@ jobs:
             exit 1
           fi
           echo "M1.3 Device Session Gate passed."
-
-      - name: Verify migration idempotency
-        shell: bash
-        run: |
-          set -euo pipefail
-          before=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations")
-          for migration in db/migrations/*.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration" >/dev/null; done
-          after=$(psql "$DATABASE_URL" -Atqc "SELECT count(*) FROM prodx_schema_migrations")
-          test "$before" = "$after"
