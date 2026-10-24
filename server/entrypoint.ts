@@ -3,10 +3,9 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { createPostgresAuthentication } from './auth/composition.ts';
 import { createPostgresAuthorization } from './auth/production-authorization.ts';
-import { asSqlExecutor, createProductionPostgresPool, resolveConfiguredDatabaseUrl } from './db/postgres.ts';
+import { asSqlExecutor, createProductionPostgresPool } from './db/postgres.ts';
 import { createTransactionalPostgresExecutor } from './db/transaction.ts';
 import { createAIGatewayService } from './ai/production-composition.ts';
-import { pingFirestore } from './services/systemHealthCheckService.ts';
 import { registerCheckoutRoute } from './http/checkout-route.ts';
 import { registerAuthRoutes } from './http/auth-route.ts';
 import { createApp } from './http/createApp.ts';
@@ -40,48 +39,20 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
 
   const app = createApp({
     readinessCheck: async () => {
-      // PRODX-POS Readiness: We require at least one authoritative data store to be responsive.
-      // While PostgreSQL is the primary transactional store, we also support Firestore
-      // for audit logs and management entities.
-      
-      let postgresOk = false;
-      let firestoreOk = false;
-      let postgresError: any = null;
-      let firestoreError: any = null;
-
-      // 1. Check PostgreSQL (if configured)
-      const connectionString = resolveConfiguredDatabaseUrl();
-      if (connectionString) {
-        try {
-          await sql.query<{ ok: number }>('SELECT 1 AS ok');
-          postgresOk = true;
-        } catch (error: unknown) {
-          postgresError = error;
-        }
-      }
-
-      // 2. Check Firestore
+      // PostgreSQL is the authoritative transactional store for POS. Probe the same
+      // broker-backed pool used by transactions; Firestore availability must not mask
+      // a PostgreSQL outage or a missing production database configuration.
       try {
-        const firestoreResult = await pingFirestore();
-        firestoreOk = firestoreResult.statusCode === 200;
+        await sql.query<{ ok: number }>('SELECT 1 AS ok');
       } catch (error: unknown) {
-        firestoreError = error;
-      }
-
-      // If both are down, the service is truly not ready.
-      if (!postgresOk && !firestoreOk) {
-        const error = new Error('Database readiness check failed: Both PostgreSQL and Firestore are unreachable.');
-        Object.assign(error, {
-          postgres: postgresError ? { code: postgresError.code, syscall: postgresError.syscall } : 'unconfigured',
-          firestore: firestoreError ? { message: firestoreError.message } : 'failed',
+        const candidate = error && typeof error === 'object'
+          ? error as { code?: unknown; syscall?: unknown }
+          : {};
+        throw Object.assign(new Error('PostgreSQL readiness query failed.'), {
+          code: candidate.code,
+          syscall: candidate.syscall,
+          stage: 'database_query',
         });
-        throw error;
-      }
-
-      if (!postgresOk) {
-        console.warn('PRODX POS starting in DEGRADED mode (PostgreSQL unreachable, Firestore OK).');
-      } else if (!firestoreOk) {
-        console.warn('PRODX POS starting in DEGRADED mode (Firestore unreachable, PostgreSQL OK).');
       }
     },
     configurePublicRoutes: (configuredApp) => {
