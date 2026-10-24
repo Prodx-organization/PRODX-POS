@@ -150,15 +150,15 @@ jobs:
         run: |
           set -euo pipefail
           branch="ai/issue-${ISSUE_NUMBER}-run-${RUN_ID}"
-          if [[ -z "$(git status --porcelain --untracked-files=all)" ]]; then
-            echo "No source changes remain after verification; refusing to open an empty PR."
-            exit 1
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           summary="$(python3 -c 'import json; print(json.load(open("candidate.json")).get("summary", "AI-generated candidate change"))')"
           while IFS= read -r -d '' path; do git add -- "$path"; done < <(python3 -c 'import json; [print(f["path"], end="\0") for f in json.load(open("candidate.json"))["files"]]')
           rm -f candidate.json
+          if git diff --cached --quiet; then
+            echo "Candidate produced no effective source changes; refusing to open an empty PR."
+            exit 1
+          fi
           git diff --cached --check
           git commit -m "ai: propose implementation for issue #${ISSUE_NUMBER}"
           auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
