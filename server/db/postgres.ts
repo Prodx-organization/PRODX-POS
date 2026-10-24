@@ -96,7 +96,11 @@ export const createProductionPostgresPool = async (
   config: PoolConfig = {},
   vercelOidcToken?: string,
 ): Promise<Pool> => {
-  const connectionString = config.connectionString ?? await resolveProductionDatabaseUrl(vercelOidcToken);
+  // Production must always resolve the approved database through the authenticated broker.
+  // Caller-supplied PoolConfig.connectionString must never bypass this trust boundary.
+  const connectionString = shouldResolveProductionDatabaseUrl()
+    ? await resolveProductionDatabaseUrl(vercelOidcToken)
+    : config.connectionString ?? await resolveProductionDatabaseUrl(vercelOidcToken);
   if (shouldResolveProductionDatabaseUrl()) {
     console.info('PRODX production database target selected', {
       target: classifyProductionDatabaseTarget(connectionString),
