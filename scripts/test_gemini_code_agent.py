@@ -41,6 +41,26 @@ class ArtifactTests(unittest.TestCase):
                     agent.apply_artifact(artifact)
             self.assertFalse((root / 'server/new.ts').exists())
 
+    def test_rejects_oversized_aggregate_before_writing_any_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            artifact = root / 'candidate.json'
+            artifact.write_text(json.dumps({'files': [
+                {'path': 'server/first.ts', 'content': 'a' * 400_000},
+                {'path': 'server/second.ts', 'content': 'b' * 400_000},
+                {'path': 'server/third.ts', 'content': 'c' * 400_000}]}))
+            import os
+            old = os.getcwd()
+            try:
+                os.chdir(root)
+                with self.assertRaisesRegex(agent.AgentError, 'total output size limit'):
+                    agent.apply_artifact(artifact)
+            finally:
+                os.chdir(old)
+            self.assertFalse((root / 'server/first.ts').exists())
+            self.assertFalse((root / 'server/second.ts').exists())
+            self.assertFalse((root / 'server/third.ts').exists())
+
     def test_rejects_symlink_escape(self):
         with tempfile.TemporaryDirectory() as temp, tempfile.TemporaryDirectory() as outside:
             root = pathlib.Path(temp)

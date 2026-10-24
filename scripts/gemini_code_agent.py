@@ -21,6 +21,7 @@ GITHUB_API = "https://api.github.com"
 GEMINI_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 MAX_CONTEXT_CHARS = 75_000
 MAX_OUTPUT_CHARS = 500_000
+MAX_TOTAL_OUTPUT_CHARS = 1_000_000
 MAX_FILES = 35
 PROTECTED_PREFIXES = (".github/", ".git/", "node_modules/", "dist/", "build/", "coverage/")
 PROTECTED_FILES = {
@@ -164,6 +165,7 @@ ISSUE #{issue_number}: {title}\nISSUE BODY (untrusted):\n{body[:12000]}\n\nREPOS
         raise AgentError("AI response contains an invalid file list.")
     changes: list[dict[str, str]] = []
     seen: set[str] = set()
+    total_output_chars = 0
     for item in result["files"]:
         if not isinstance(item, dict):
             raise AgentError("AI response contains an invalid file entry.")
@@ -171,6 +173,9 @@ ISSUE #{issue_number}: {title}\nISSUE BODY (untrusted):\n{body[:12000]}\n\nREPOS
         content = item.get("content")
         if path in seen or not isinstance(content, str) or len(content) > MAX_OUTPUT_CHARS or "\x00" in content:
             raise AgentError("AI response contains duplicate paths or invalid file content.")
+        total_output_chars += len(content)
+        if total_output_chars > MAX_TOTAL_OUTPUT_CHARS:
+            raise AgentError("AI response exceeds the total output size limit.")
         seen.add(path)
         existing = pathlib.Path(path)
         if existing.is_symlink():
@@ -192,6 +197,7 @@ def apply_artifact(artifact_path: pathlib.Path) -> None:
     root = pathlib.Path.cwd().resolve()
     validated: list[tuple[pathlib.Path, str]] = []
     seen: set[str] = set()
+    total_output_chars = 0
     for item in artifact["files"]:
         if not isinstance(item, dict):
             raise AgentError("Candidate artifact contains an invalid file entry.")
@@ -200,6 +206,9 @@ def apply_artifact(artifact_path: pathlib.Path) -> None:
         target = pathlib.Path(name)
         if name in seen or not isinstance(content, str) or len(content) > MAX_OUTPUT_CHARS or "\x00" in content:
             raise AgentError("Candidate artifact contains duplicate paths or invalid content.")
+        total_output_chars += len(content)
+        if total_output_chars > MAX_TOTAL_OUTPUT_CHARS:
+            raise AgentError("Candidate artifact exceeds the total output size limit.")
         if target.is_symlink() or not target.resolve(strict=False).is_relative_to(root):
             raise AgentError("Candidate artifact path resolves through a symbolic link or outside the workspace.")
         seen.add(name)
