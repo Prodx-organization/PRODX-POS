@@ -1,13 +1,14 @@
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { Express, Request, Response } from 'express';
-import { getOwnerPostgresPool } from '../db/owner-postgres';
 
 const OWNER_ACCOUNT_EMAIL = 'prodx.owner@gmail.com';
+const OWNER_PROJECT_HOST = 'bbxoywnlayduqbrjeixj.supabase.co';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 type OwnerIdentity = { userId: string; email: string };
 type OwnerRouteDependencies = {
   verifyToken?: (token: string) => Promise<OwnerIdentity | null>;
-  getRole?: (userId: string) => Promise<string | null>;
+  getRole?: (userId: string, accessToken: string) => Promise<string | null>;
 };
 let remoteJwks: ReturnType<typeof createRemoteJWKSet> | undefined;
 
@@ -18,8 +19,7 @@ const verifyOwnerToken = async (token: string): Promise<OwnerIdentity | null> =>
   const issuerUrl = new URL(ownerUrl);
   const keysUrl = new URL(jwksUrl);
   if (issuerUrl.protocol !== 'https:' || keysUrl.protocol !== 'https:' ||
-      issuerUrl.hostname !== 'bbxoywnlayduqbrjeixj.supabase.co' ||
-      keysUrl.hostname !== issuerUrl.hostname ||
+      issuerUrl.hostname !== OWNER_PROJECT_HOST || keysUrl.hostname !== issuerUrl.hostname ||
       keysUrl.pathname !== '/auth/v1/.well-known/jwks.json' ||
       issuerUrl.username || issuerUrl.password || keysUrl.username || keysUrl.password) {
     throw new Error('Owner Supabase issuer configuration is invalid.');
@@ -35,6 +35,31 @@ const verifyOwnerToken = async (token: string): Promise<OwnerIdentity | null> =>
   return { userId: payload.sub, email: payload.email.trim().toLowerCase() };
 };
 
+const createOwnerUserClient = (accessToken: string): SupabaseClient => {
+  const ownerUrl = process.env.SUPABASE_OWNER_URL?.trim();
+  const publishableKey = process.env.VITE_OWNER_SUPABASE_PUBLISHABLE_KEY?.trim();
+  if (!ownerUrl || !publishableKey) throw new Error('Owner Supabase role lookup is not configured.');
+  const parsed = new URL(ownerUrl);
+  if (parsed.protocol !== 'https:' || parsed.hostname !== OWNER_PROJECT_HOST ||
+      parsed.username || parsed.password) {
+    throw new Error('Owner Supabase role lookup configuration is invalid.');
+  }
+  return createClient(ownerUrl, publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+  });
+};
+
+const queryOwnerRole = async (userId: string, accessToken: string): Promise<string | null> => {
+  const client = createOwnerUserClient(accessToken);
+  const { data, error } = await client.from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw new Error('Owner role lookup failed.');
+  return typeof data?.role === 'string' ? data.role : null;
+};
+
 export const registerOwnerSessionRoute = (
   app: Express,
   dependencies: OwnerRouteDependencies = {},
@@ -45,8 +70,13 @@ export const registerOwnerSessionRoute = (
       response.status(401).json({ error: { code: 'UNAUTHENTICATED' } });
       return;
     }
+    const accessToken = authorization.slice(7).trim();
+    if (!accessToken) {
+      response.status(401).json({ error: { code: 'UNAUTHENTICATED' } });
+      return;
+    }
     try {
-      const identity = await (dependencies.verifyToken ?? verifyOwnerToken)(authorization.slice(7).trim());
+      const identity = await (dependencies.verifyToken ?? verifyOwnerToken)(accessToken);
       if (!identity) {
         response.status(401).json({ error: { code: 'UNAUTHENTICATED' } });
         return;
@@ -55,13 +85,7 @@ export const registerOwnerSessionRoute = (
         response.status(403).json({ error: { code: 'FORBIDDEN' } });
         return;
       }
-      const role = await (dependencies.getRole ?? (async (userId: string) => {
-        const result = await getOwnerPostgresPool().query<{ role: string }>(
-          'SELECT role FROM public.user_roles WHERE user_id = $1 LIMIT 1',
-          [userId],
-        );
-        return result.rows[0]?.role ?? null;
-      }))(identity.userId);
+      const role = await (dependencies.getRole ?? queryOwnerRole)(identity.userId, accessToken);
       if (role !== 'owner') {
         response.status(403).json({ error: { code: 'FORBIDDEN' } });
         return;
