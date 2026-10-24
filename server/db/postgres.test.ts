@@ -51,6 +51,24 @@ test('resolveProductionDatabaseUrl fails closed when no Vercel runtime token is 
   );
 });
 
+test('resolveProductionDatabaseUrl fails closed when the production broker endpoint is not configured', async () => {
+  await withEnvironment(
+    {
+      VERCEL: '1',
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://legacy.example/prodx',
+      VERCEL_OIDC_TOKEN: undefined,
+      PRODX_DB_BROKER_URL: undefined,
+    },
+    async () => {
+      await assert.rejects(
+        resolveProductionDatabaseUrl('request-oidc-token'),
+        /PRODX_DB_BROKER_URL is required/,
+      );
+    },
+  );
+});
+
 test('resolveProductionDatabaseUrl uses the Vercel request token instead of DATABASE_URL', async () => {
   const originalFetch = globalThis.fetch;
   let requestedUrl = '';
@@ -160,6 +178,7 @@ test('resolveProductionDatabaseUrl rejects a broker failure', async () => {
         NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://legacy.example/prodx',
         VERCEL_OIDC_TOKEN: undefined,
+        PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
       },
       async () => {
         await assert.rejects(
