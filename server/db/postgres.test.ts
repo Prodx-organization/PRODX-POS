@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { classifyProductionDatabaseTarget, resolveConfiguredDatabaseUrl, resolveProductionDatabaseUrl } from './postgres';
+import { classifyProductionDatabaseTarget, createPostgresPool, resolveConfiguredDatabaseUrl, resolveProductionDatabaseUrl } from './postgres';
 
 const withEnvironment = async (
   values: Record<string, string | undefined>,
@@ -45,10 +45,7 @@ test('resolveProductionDatabaseUrl fails closed when no Vercel runtime token is 
   await withEnvironment(
     { VERCEL: '1', NODE_ENV: 'production', DATABASE_URL: 'postgresql://legacy.example/prodx', VERCEL_OIDC_TOKEN: undefined },
     async () => {
-      await assert.rejects(
-        resolveProductionDatabaseUrl(),
-        /Vercel OIDC token is required/,
-      );
+      await assert.rejects(resolveProductionDatabaseUrl(), /Vercel OIDC token is required/);
     },
   );
 });
@@ -77,10 +74,7 @@ test('resolveProductionDatabaseUrl uses the Vercel request token instead of DATA
         PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
       },
       async () => {
-        assert.equal(
-          await resolveProductionDatabaseUrl('request-oidc-token'),
-          'postgresql://supabase.example/prodx',
-        );
+        assert.equal(await resolveProductionDatabaseUrl('request-oidc-token'), 'postgresql://supabase.example/prodx');
         assert.equal(requestedUrl, 'https://broker.example/prodx-db');
         assert.equal(requestedAuthorization, 'Bearer request-oidc-token');
       },
@@ -127,17 +121,9 @@ test('resolveProductionDatabaseUrl rejects a broker failure', async () => {
 
   try {
     await withEnvironment(
-      {
-        VERCEL: '1',
-        NODE_ENV: 'production',
-        DATABASE_URL: 'postgresql://legacy.example/prodx',
-        VERCEL_OIDC_TOKEN: undefined,
-      },
+      { VERCEL: '1', NODE_ENV: 'production', DATABASE_URL: 'postgresql://legacy.example/prodx', VERCEL_OIDC_TOKEN: undefined },
       async () => {
-        await assert.rejects(
-          resolveProductionDatabaseUrl('request-oidc-token'),
-          /broker rejected the request with HTTP 503/,
-        );
+        await assert.rejects(resolveProductionDatabaseUrl('request-oidc-token'), /broker rejected the request with HTTP 503/);
       },
     );
   } finally {
@@ -145,13 +131,22 @@ test('resolveProductionDatabaseUrl rejects a broker failure', async () => {
   }
 });
 
-test('resolveConfiguredDatabaseUrl preserves valid URLs and rejects placeholder strings in Vercel production', async () => {
+test('resolveConfiguredDatabaseUrl preserves valid URLs and rejects missing or placeholder strings', async () => {
   assert.equal(resolveConfiguredDatabaseUrl('postgresql://local.example/prodx'), 'postgresql://local.example/prodx');
+  assert.equal(resolveConfiguredDatabaseUrl('postgresql://...'), undefined);
+  assert.equal(resolveConfiguredDatabaseUrl('postgres://...'), undefined);
+  assert.equal(resolveConfiguredDatabaseUrl('  '), undefined);
+  assert.equal(resolveConfiguredDatabaseUrl(undefined), undefined);
+});
+
+test('createPostgresPool refuses to create a degraded dummy pool without a database URL', async () => {
   await withEnvironment(
-    { VERCEL: '1', NODE_ENV: 'production' },
+    { VERCEL: '1', NODE_ENV: 'production', DATABASE_URL: undefined },
     async () => {
-      assert.equal(resolveConfiguredDatabaseUrl('postgresql://...'), undefined);
-      assert.equal(resolveConfiguredDatabaseUrl('   '), undefined);
+      assert.throws(
+        () => createPostgresPool(),
+        /DATABASE_URL is missing or unconfigured/,
+      );
     },
   );
 });
