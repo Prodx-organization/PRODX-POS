@@ -2,6 +2,9 @@
 -- The application role must not have broad policies on tenant-scoped tables.
 -- Authentication bootstrap functions are SECURITY DEFINER with a fixed search_path;
 -- they expose only the columns/operations required before an authenticated principal exists.
+-- Only PRODX-owned tables (public.prodx_*) are classified; tables owned by other applications that
+-- share the database (for example the Owner Console's public.user_roles) are never granted to
+-- or given policies for prodx_app.
 
 CREATE OR REPLACE FUNCTION public.prodx_auth_resolve_device(
   p_organization_code text,
@@ -367,6 +370,7 @@ BEGIN
       JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
      WHERE n.nspname = 'public'
        AND c.relkind = 'r'
+       AND c.relname LIKE 'prodx\_%' ESCAPE '\'
        AND c.relname NOT IN ('prodx_schema_migrations', 'prodx_migration_lock')
      GROUP BY c.relname
   LOOP
