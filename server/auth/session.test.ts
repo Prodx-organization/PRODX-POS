@@ -16,10 +16,10 @@ const repositoryFixture = () => {
   let currentCredential = { ...credential };
   const calls = { failed: 0, reset: 0, touched: 0, revoked: 0, lastLockedUntil: null as Date | null };
   const repository: AuthenticationRepository = {
-    findCredentialByUsername: async (username, organizationId) =>
-      username === currentCredential.username && (organizationId === undefined || organizationId === currentCredential.organizationId)
+    findCredentialByUsername: async (username, deviceId) =>
+      username === currentCredential.username && deviceId === device.id
         ? currentCredential : null,
-    recordFailedAttempt: async (_userId) => {
+    recordFailedAttempt: async (_userId, _organizationId) => {
       calls.failed += 1;
       const next = currentCredential.failedAttempts + 1;
       const lockedUntil = next >= 5 ? new Date(clock.getTime() + 15 * 60 * 1000) : currentCredential.lockedUntil;
@@ -30,7 +30,7 @@ const repositoryFixture = () => {
     createSession: async (input) => { session = { ...input, revokedAt: null, userStatus: 'active' }; },
     findSessionByTokenHash: async (tokenHash) => session?.tokenHash === tokenHash ? session : null,
     findDevice: async (deviceId) => deviceId === device.id ? device : null,
-    revokeSession: async (_sessionId, at) => { calls.revoked += 1; if (session) session = { ...session, revokedAt: at }; },
+    revokeSession: async (_sessionId, _tokenHash, at) => { calls.revoked += 1; if (session) session = { ...session, revokedAt: at }; },
     touchSession: async () => { calls.touched += 1; },
   };
   return { repository, calls, getSession: () => session, getCredential: () => currentCredential };
