@@ -1,6 +1,6 @@
 -- Dedicated backend runtime role for PRODX-POS.
 -- Tenant/store isolation is enforced by the fail-closed policies in migration 0036.
--- This role never bypasses RLS, and this migration deliberately installs no permissive policies.
+-- This migration deliberately installs no permissive policy; access remains fail-closed once RLS is enabled.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'prodx_app') THEN
@@ -15,6 +15,9 @@ BEGIN
   END IF;
 END
 $$;
+
+ALTER ROLE prodx_app
+  WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
 
 COMMENT ON ROLE prodx_app IS
   'PRODX-POS backend runtime role. Tenant/store access is constrained by explicit RLS policies and server-verified request context.';

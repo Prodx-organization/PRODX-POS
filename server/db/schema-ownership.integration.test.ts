@@ -8,12 +8,15 @@ const shouldRun = Boolean(databaseUrl) && process.env.NODE_ENV !== 'production';
 test('PRODX runtime role cannot access foreign public objects or inherit future grants', { skip: !shouldRun }, async () => {
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
-    const role = await pool.query<{ rolname: string; rolsuper: boolean; rolbypassrls: boolean }>(
-      `SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = 'prodx_app'`,
+    const role = await pool.query<{ rolsuper: boolean; rolbypassrls: boolean; rolcreatedb: boolean; rolcreaterole: boolean; rolinherit: boolean }>(
+      `SELECT rolsuper, rolbypassrls, rolcreatedb, rolcreaterole, rolinherit FROM pg_roles WHERE rolname = 'prodx_app'`,
     );
     assert.equal(role.rows.length, 1, 'prodx_app role must exist after migrations');
     assert.equal(role.rows[0].rolsuper, false);
     assert.equal(role.rows[0].rolbypassrls, false);
+    assert.equal(role.rows[0].rolcreatedb, false);
+    assert.equal(role.rows[0].rolcreaterole, false);
+    assert.equal(role.rows[0].rolinherit, false);
 
     const foreignTables = await pool.query<{ relname: string }>(
       `SELECT c.relname

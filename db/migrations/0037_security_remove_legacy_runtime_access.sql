@@ -13,6 +13,8 @@ BEGIN
     RAISE EXCEPTION 'prodx_app role is required for legacy privilege cleanup';
   END IF;
 
+  EXECUTE 'ALTER ROLE prodx_app WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS';
+
   FOR policy_row IN
     SELECT n.nspname, c.relname, p.polname
       FROM pg_policy p
