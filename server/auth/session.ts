@@ -61,8 +61,8 @@ export const createSupabaseTokenVerifier = (
       const jwksIsLoopback = ['localhost', '127.0.0.1', '[::1]'].includes(jwksUrl.hostname);
       const jwksUrlIsSecure = jwksUrl.protocol === 'https:' || (jwksUrl.protocol === 'http:' && jwksIsLoopback);
       // In production, the JWKS endpoint must share the configured POS Auth host.
-      // Loopback JWKS is allowed only for isolated local verifier tests.
-      const jwksHostMatches = jwksUrl.hostname === authUrl.hostname || jwksIsLoopback;
+      // Loopback JWKS is allowed only when the configured Auth endpoint is also loopback.
+      const jwksHostMatches = jwksUrl.hostname === authUrl.hostname || (authIsLoopback && jwksIsLoopback);
       if (authUrlIsSecure && jwksUrlIsSecure && jwksHostMatches) {
         supabaseJwks = createRemoteJWKSet(jwksUrl);
       }
