@@ -214,6 +214,9 @@ test('Security Gate 8: legacy policy cleanup removes only the named prodx_app po
     path.join(workspaceRoot, 'db/migrations/0037_security_remove_legacy_runtime_access.sql'),
     'utf8',
   );
+  assert.match(migration, /DROP\s+POLICY\s+IF\s+EXISTS\s+prodx_app_global_permissions_read\s+ON\s+public\.prodx_permissions/i);
+  assert.match(migration, /CREATE\s+POLICY\s+prodx_app_global_permissions_read[\s\S]*?USING\s*\(permission_key IS NOT NULL AND length\(btrim\(permission_key\)\) > 0\)/i);
+  assert.doesNotMatch(migration, /CREATE\s+POLICY\s+prodx_app_global_permissions_read[^;]*USING\s*\(\s*true\s*\)/i);
   assert.match(migration, /polname\s*=\s*'prodx_app_runtime_access'/);
   assert.match(migration, /polroles\s*=\s*ARRAY\[app_role_oid\]/);
   assert.match(migration, /c\.relkind\s+IN\s+\('r',\s*'p',\s*'v',\s*'m',\s*'f'\)/);

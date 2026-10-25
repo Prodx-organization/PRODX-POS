@@ -52,6 +52,15 @@ BEGIN
 END
 $$;
 
+-- Converge upgrades that already recorded 0036 with the old unconditional global-catalog policy.
+-- prodx_permissions is global reference data; its schema CHECK constraint guarantees a nonblank key.
+DROP POLICY IF EXISTS prodx_app_global_permissions_read ON public.prodx_permissions;
+CREATE POLICY prodx_app_global_permissions_read ON public.prodx_permissions
+  FOR SELECT TO prodx_app
+  USING (permission_key IS NOT NULL AND length(btrim(permission_key)) > 0);
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.prodx_permissions FROM prodx_app;
+GRANT SELECT ON TABLE public.prodx_permissions TO prodx_app;
+
 -- Remove legacy default grants from the migration owner for both global and public-schema objects.
 ALTER DEFAULT PRIVILEGES
   REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM prodx_app;
