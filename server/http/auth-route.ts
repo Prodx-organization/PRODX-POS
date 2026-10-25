@@ -354,8 +354,7 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
     const rows = await withPrincipalContext(request, principal, () =>
       db.query<{ id: string; organization_id: string; code: string; name: string; business_timezone: string }>(
         `SELECT id, organization_id, code, name, business_timezone
-           FROM public.prodx_auth_list_member_stores()
-          WHERE lower(code) = lower($1)
+           FROM public.prodx_auth_list_member_stores($1)
           ORDER BY code`,
         [request.params.orgSlug],
       ));
