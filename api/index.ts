@@ -1,26 +1,25 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createProductionApp } from '../server-bundle.js';
+import { createRetryableInitialization } from '../server/http/retryable-initialization.ts';
 
 type VercelRequest = IncomingMessage & {
   headers: IncomingMessage['headers'];
 };
-
-let appPromise: ReturnType<typeof createProductionApp> | undefined;
 
 const getVercelOidcToken = (request: VercelRequest): string | undefined => {
   const value = request.headers['x-vercel-oidc-token'];
   return Array.isArray(value) ? value[0] : value;
 };
 
+const initializeProductionApp = createRetryableInitialization((request: VercelRequest) =>
+  createProductionApp({
+    vercelOidcToken: getVercelOidcToken(request),
+  }),
+);
+
 export default async function handler(request: VercelRequest, response: ServerResponse): Promise<void> {
   try {
-    if (!appPromise) {
-      appPromise = createProductionApp({
-        vercelOidcToken: getVercelOidcToken(request),
-      });
-    }
-
-    const { app } = await appPromise;
+    const { app } = await initializeProductionApp(request);
     app(request as never, response as never);
   } catch {
     response.statusCode = 503;
