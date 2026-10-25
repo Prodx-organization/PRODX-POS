@@ -111,10 +111,10 @@ test('PRODX runtime role cannot access foreign public objects or inherit future 
         sequence_can_use: boolean;
         sequence_can_select: boolean;
       }>(
-        `SELECT has_table_privilege('prodx_app', format('public.%I', $1), 'SELECT') AS can_select,
-                has_table_privilege('prodx_app', format('public.%I', $1), 'INSERT,UPDATE,DELETE') AS can_write,
-                has_sequence_privilege('prodx_app', pg_get_serial_sequence(format('public.%I', $1), 'id'), 'USAGE') AS sequence_can_use,
-                has_sequence_privilege('prodx_app', pg_get_serial_sequence(format('public.%I', $1), 'id'), 'SELECT') AS sequence_can_select`,
+        `SELECT has_table_privilege('prodx_app', format('public.%I', $1::text), 'SELECT') AS can_select,
+                has_table_privilege('prodx_app', format('public.%I', $1::text), 'INSERT,UPDATE,DELETE') AS can_write,
+                has_sequence_privilege('prodx_app', pg_get_serial_sequence(format('public.%I', $1::text), 'id'), 'USAGE') AS sequence_can_use,
+                has_sequence_privilege('prodx_app', pg_get_serial_sequence(format('public.%I', $1::text), 'id'), 'SELECT') AS sequence_can_select`,
         [probeTable],
       );
       assert.deepEqual(futurePrivileges.rows[0], {
