@@ -77,6 +77,7 @@ test('every POS table is prodx_-prefixed, has RLS enabled, and prodx_app cannot 
          CROSS JOIN LATERAL aclexplode(d.defaclacl) AS acl
          JOIN pg_roles grantee ON grantee.oid = acl.grantee
         WHERE grantee.rolname = 'prodx_app'
+          AND d.defaclrole = (SELECT oid FROM pg_roles WHERE rolname = current_user)
           AND d.defaclnamespace IN (0::oid, 'public'::regnamespace::oid)
           AND d.defaclobjtype IN ('r', 'S')
           AND acl.privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'USAGE')
