@@ -113,11 +113,12 @@ const authenticate = (authenticator: AuthenticateRequest) => {
         return;
       }
 
-      request.prodxContext = {
+      const context = {
         requestId: request.id,
         principal,
       };
-      runWithRequestContext(request.prodxContext, next);
+      request.prodxContext = context;
+      runWithRequestContext(context, next);
     } catch {
       sendError(response, 401, 'UNAUTHENTICATED', 'Authentication could not be verified.', request.id);
     }
