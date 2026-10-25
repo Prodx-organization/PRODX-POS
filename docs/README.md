@@ -1,5 +1,7 @@
 # PRODX POS — Production Documentation
 
+> Current infrastructure transition status: [Engineering Status — 2026-10-25](STATUS-2026-10-25.md). This supersedes older status snapshots for the current database-target decision.
+
 **Status:** Evidence-driven engineering documentation  
 **Source of truth:** `Prodx-organization/PRODX-POS`  
 **Last documentation review:** 2026-10-15  

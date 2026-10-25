@@ -25,7 +25,8 @@ const withEnvironment = async (
 };
 
 test('classifies production database targets without returning or logging hostnames', () => {
-  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres'), 'supabase_session_pooler');
+  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres'), 'supabase_session_pooler');
+  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@aws-0-eu-west-1.pooler.supabase.com:5432/postgres'), 'supabase_session_pooler');
   // Owner Console project is not an approved POS transactional database.
   assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.bbxoywnlayduqbrjeixj.supabase.co:5432/postgres'), 'other');
   assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.example.internal:5432/postgres'), 'other');
@@ -35,7 +36,7 @@ test('classifies production database targets without returning or logging hostna
 test('tracked production bundle does not approve the Owner Console Supabase host', async () => {
   const bundle = await readFile(new URL('../entrypoint.js', import.meta.url), 'utf8');
   assert.doesNotMatch(bundle, /db\.bbxoywnlayduqbrjeixj\.supabase\.co/);
-  assert.match(bundle, /aws-0-ap-northeast-1\.pooler\.supabase\.com/);
+  assert.match(bundle, /hostname\.endsWith\("\.pooler\.supabase\.com"\)/);
 });
 
 test('resolveProductionDatabaseUrl uses DATABASE_URL outside Vercel production', async () => {
