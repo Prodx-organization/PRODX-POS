@@ -7,11 +7,10 @@ const shouldRun = Boolean(databaseUrl) && process.env.NODE_ENV !== 'production';
 
 const MIGRATION_TABLES = ['prodx_schema_migrations', 'prodx_migration_lock'];
 
-// Schema-ownership guard. Migrations 0033/0034/0036 only classify tables named public.prodx_*.
-// This test fails if a POS table is ever created without that prefix (it would silently escape
-// RLS classification), and proves tables owned by other applications that share the database
-// are unreachable from the prodx_app runtime role.
-test('every POS table is prodx_-prefixed, has RLS enabled, and prodx_app cannot reach foreign tables', { skip: !shouldRun }, async () => {
+// Schema-ownership guard. Migrations 0033/0034/0036 classify only public.prodx_* objects.
+// Verify every PRODX table has RLS and that shared foreign tables/sequences remain inaccessible
+// to the runtime role, including objects created after the migrations.
+test('PRODX tables have RLS and foreign objects remain inaccessible to prodx_app', { skip: !shouldRun }, async () => {
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
     const tables = await pool.query<{ relname: string; rls: boolean }>(
