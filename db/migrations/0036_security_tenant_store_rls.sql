@@ -321,7 +321,9 @@ AS $function$
   RETURNING failed_attempts, locked_until
 $function$;
 
-CREATE OR REPLACE FUNCTION public.prodx_auth_list_member_stores()
+DROP FUNCTION IF EXISTS public.prodx_auth_list_member_stores();
+
+CREATE OR REPLACE FUNCTION public.prodx_auth_list_member_stores(p_organization_code text)
 RETURNS TABLE(id uuid, organization_id uuid, code text, name text, business_timezone text)
 LANGUAGE sql
 STABLE
@@ -335,7 +337,9 @@ AS $function$
      AND m.store_id = s.id
      AND m.user_id = NULLIF(current_setting('app.user_id', true), '')::uuid
      AND m.active = TRUE
+   JOIN public.prodx_organizations o ON o.id = s.organization_id
    WHERE s.organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid
+     AND lower(o.code) = lower(p_organization_code)
      AND s.active = TRUE
    ORDER BY s.code
 $function$;
@@ -434,7 +438,7 @@ REVOKE ALL ON FUNCTION public.prodx_auth_revoke_session(uuid, text, timestamptz)
 REVOKE ALL ON FUNCTION public.prodx_auth_touch_session(uuid, text, timestamptz) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.prodx_auth_login_throttle_check(text, timestamptz) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.prodx_auth_login_throttle_record_failure(text, timestamptz) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.prodx_auth_list_member_stores() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.prodx_auth_list_member_stores(text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.prodx_auth_resolve_device(text, text, text) TO prodx_app;
 GRANT EXECUTE ON FUNCTION public.prodx_auth_find_device(uuid) TO prodx_app;
@@ -447,7 +451,7 @@ GRANT EXECUTE ON FUNCTION public.prodx_auth_revoke_session(uuid, text, timestamp
 GRANT EXECUTE ON FUNCTION public.prodx_auth_touch_session(uuid, text, timestamptz) TO prodx_app;
 GRANT EXECUTE ON FUNCTION public.prodx_auth_login_throttle_check(text, timestamptz) TO prodx_app;
 GRANT EXECUTE ON FUNCTION public.prodx_auth_login_throttle_record_failure(text, timestamptz) TO prodx_app;
-GRANT EXECUTE ON FUNCTION public.prodx_auth_list_member_stores() TO prodx_app;
+GRANT EXECUTE ON FUNCTION public.prodx_auth_list_member_stores(text) TO prodx_app;
 
 INSERT INTO prodx_schema_migrations(version)
 VALUES ('0036_security_tenant_store_rls')
