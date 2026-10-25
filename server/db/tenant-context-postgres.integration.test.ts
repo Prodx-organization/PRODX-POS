@@ -77,11 +77,23 @@ test('runtime role enforces fail-closed tenant/store RLS for SELECT, INSERT, UPD
     categoryA2: '00000000-0000-4000-8000-000000000922',
     categoryB: '00000000-0000-4000-8000-000000000923',
     categoryNew: '00000000-0000-4000-8000-000000000924',
+    userA: '00000000-0000-4000-8000-000000000941',
+    userB: '00000000-0000-4000-8000-000000000942',
+    deviceA: '00000000-0000-4000-8000-000000000951',
+    deviceB: '00000000-0000-4000-8000-000000000952',
+    sessionA: '00000000-0000-4000-8000-000000000961',
+    sessionB: '00000000-0000-4000-8000-000000000962',
   };
   const storeIds = [ids.storeA, ids.storeA2, ids.storeB];
   const categoryIds = [ids.categoryA, ids.categoryA2, ids.categoryB, ids.categoryNew];
+  const userIds = [ids.userA, ids.userB];
+  const deviceIds = [ids.deviceA, ids.deviceB];
+  const sessionIds = [ids.sessionA, ids.sessionB];
   const cleanup = async () => {
+    await pool.query('DELETE FROM public.prodx_sessions WHERE id = ANY($1::uuid[])', [sessionIds]);
     await pool.query('DELETE FROM public.prodx_categories WHERE id = ANY($1::uuid[])', [categoryIds]);
+    await pool.query('DELETE FROM public.prodx_devices WHERE id = ANY($1::uuid[])', [deviceIds]);
+    await pool.query('DELETE FROM public.prodx_users WHERE id = ANY($1::uuid[])', [userIds]);
     await pool.query('DELETE FROM public.prodx_stores WHERE id = ANY($1::uuid[])', [storeIds]);
     await pool.query('DELETE FROM public.prodx_organizations WHERE id = ANY($1::uuid[])', [[ids.organizationA, ids.organizationB]]);
   };
@@ -111,6 +123,25 @@ test('runtime role enforces fail-closed tenant/store RLS for SELECT, INSERT, UPD
       [ids.categoryA, ids.categoryA2, ids.categoryB, ids.organizationA, ids.storeA, ids.storeA2, ids.organizationB, ids.storeB],
     );
 
+    await pool.query(
+      `INSERT INTO public.prodx_users (id, organization_id, username, display_name, status) VALUES
+        ($1, $3, 'rls-user-a', 'RLS User A', 'active'),
+        ($2, $3, 'rls-user-b', 'RLS User B', 'active')`,
+      [ids.userA, ids.userB, ids.organizationA],
+    );
+    await pool.query(
+      `INSERT INTO public.prodx_devices (id, organization_id, store_id, device_key, name, status) VALUES
+        ($1, $3, $4, 'rls-device-a', 'RLS Device A', 'active'),
+        ($2, $3, $4, 'rls-device-b', 'RLS Device B', 'active')`,
+      [ids.deviceA, ids.deviceB, ids.organizationA, ids.storeA],
+    );
+    await pool.query(
+      `INSERT INTO public.prodx_sessions (id, organization_id, user_id, device_id, token_hash, expires_at) VALUES
+        ($1, $3, $4, $6, 'rls-session-token-a', CURRENT_TIMESTAMP + INTERVAL '1 hour'),
+        ($2, $3, $5, $7, 'rls-session-token-b', CURRENT_TIMESTAMP + INTERVAL '1 hour')`,
+      [ids.sessionA, ids.sessionB, ids.organizationA, ids.userA, ids.userB, ids.deviceA, ids.deviceB],
+    );
+
     const role = await pool.query<{ rolsuper: boolean; rolbypassrls: boolean }>(
       'SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = $1',
       ['prodx_app'],
@@ -133,6 +164,19 @@ test('runtime role enforces fail-closed tenant/store RLS for SELECT, INSERT, UPD
       assert.notEqual(policy.with_check?.trim().toLowerCase(), 'true', `${policy.tablename} must not allow every inserted/updated row`);
     }
 
+    const unboundedPolicies = await pool.query<{ tablename: string; policyname: string; qual: string | null; with_check: string | null }>(
+      `SELECT tablename, policyname, qual, with_check
+         FROM pg_policies
+        WHERE schemaname = 'public'
+          AND ('prodx_app'::name = ANY(roles) OR 'public'::name = ANY(roles))
+          AND tablename <> 'prodx_permissions'
+          AND (
+            lower(regexp_replace(coalesce(qual, ''), '[[:space:]()]', '', 'g')) = 'true'
+            OR lower(regexp_replace(coalesce(with_check, ''), '[[:space:]()]', '', 'g')) = 'true'
+          )`,
+    );
+    assert.deepEqual(unboundedPolicies.rows, [], 'tenant/internal RLS policies must not grant unconditional access');
+
     await client.query('SET ROLE prodx_app');
     roleSet = true;
     await client.query('BEGIN');
@@ -141,11 +185,19 @@ test('runtime role enforces fail-closed tenant/store RLS for SELECT, INSERT, UPD
       `SELECT set_config('app.organization_id', $1, true),
               set_config('app.store_id', $2, true),
               set_config('app.user_id', $3, true)`,
-      [ids.organizationA, ids.storeA, '00000000-0000-4000-8000-000000000931'],
+      [ids.organizationA, ids.storeA, ids.userA],
     );
 
     const visible = await client.query<{ id: string }>('SELECT id FROM public.prodx_categories ORDER BY id');
     assert.deepEqual(visible.rows.map((row) => row.id), [ids.categoryA]);
+
+    const visibleSessions = await client.query<{ id: string }>('SELECT id FROM public.prodx_sessions ORDER BY id');
+    assert.deepEqual(visibleSessions.rows.map((row) => row.id), [ids.sessionA]);
+    const otherUserSession = await client.query<{ id: string }>(
+      'SELECT id FROM public.prodx_sessions WHERE id = $1',
+      [ids.sessionB],
+    );
+    assert.equal(otherUserSession.rowCount, 0, 'same-store sessions belonging to another user must not be visible');
 
     const crossStoreUpdate = await client.query(
       'UPDATE public.prodx_categories SET name = $1 WHERE id = $2',
