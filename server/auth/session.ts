@@ -16,6 +16,7 @@ export type SessionRecord = {
 export type DeviceRecord = { id: string; organizationId: string; storeId: string; status: 'active' | 'disabled'; };
 export type AuthenticationRepository = {
   findCredentialByUsername: (username: string, deviceId: string) => Promise<CredentialRecord | null>;
+  findCredentialBySupabaseUserId: (supabaseUserId: string, deviceId: string) => Promise<CredentialRecord | null>;
   recordFailedAttempt: (userId: string, organizationId: string) => Promise<void>;
   resetFailedAttempts: (userId: string, organizationId: string) => Promise<void>;
   createSession: (input: { id: string; organizationId: string; userId: string; deviceId: string; tokenHash: string; expiresAt: Date }) => Promise<void>;
@@ -40,30 +41,64 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 export const hashSessionToken = (token: string): string => crypto.createHash('sha256').update(token, 'utf8').digest('hex');
 const newBearerToken = (): string => crypto.randomBytes(32).toString('base64url');
 
-const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
-const supabaseJwksUrl = process.env.SUPABASE_JWKS_URL?.trim()
-  || (supabaseUrl ? supabaseUrl + '/auth/v1/.well-known/jwks.json' : null);
-const supabaseJwks = supabaseJwksUrl ? createRemoteJWKSet(new URL(supabaseJwksUrl)) : null;
+type VerifiedSupabaseIdentity = { userId: string; expiresAt: Date };
+type SupabaseTokenVerifier = (token: string) => Promise<VerifiedSupabaseIdentity | null>;
 
-const verifySupabaseToken = async (token: string) => {
-  if (!supabaseJwks || !supabaseUrl || !token) return null;
-  try {
-    const { payload } = await jwtVerify(token, supabaseJwks, {
-      issuer: supabaseUrl + '/auth/v1',
-      audience: 'authenticated',
-    });
-    if (typeof payload.sub !== 'string' || typeof payload.email !== 'string' || typeof payload.exp !== 'number') return null;
-    return { userId: payload.sub, email: payload.email, expiresAt: new Date(payload.exp * 1000) };
-  } catch {
-    return null;
+export const createSupabaseTokenVerifier = (
+  configuredSupabaseUrl: string | undefined,
+  configuredJwksUrl?: string | null,
+): SupabaseTokenVerifier => {
+  const supabaseUrl = configuredSupabaseUrl?.trim().replace(/\/$/, '');
+  const supabaseJwksUrl = configuredJwksUrl?.trim()
+    || (supabaseUrl ? supabaseUrl + '/auth/v1/.well-known/jwks.json' : null);
+  let supabaseJwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+  if (supabaseUrl && supabaseJwksUrl) {
+    try {
+      const authUrl = new URL(supabaseUrl);
+      const authIsLoopback = ['localhost', '127.0.0.1', '[::1]'].includes(authUrl.hostname);
+      const authUrlIsSecure = authUrl.protocol === 'https:' || (authUrl.protocol === 'http:' && authIsLoopback);
+      const jwksUrl = new URL(supabaseJwksUrl);
+      const jwksIsLoopback = ['localhost', '127.0.0.1', '[::1]'].includes(jwksUrl.hostname);
+      const jwksUrlIsSecure = jwksUrl.protocol === 'https:' || (jwksUrl.protocol === 'http:' && jwksIsLoopback);
+      // In production, the JWKS endpoint must share the configured POS Auth host.
+      // Loopback JWKS is allowed only for isolated local verifier tests.
+      const jwksHostMatches = jwksUrl.hostname === authUrl.hostname || jwksIsLoopback;
+      if (authUrlIsSecure && jwksUrlIsSecure && jwksHostMatches) {
+        supabaseJwks = createRemoteJWKSet(jwksUrl);
+      }
+    } catch {
+      // Invalid or insecure verifier configuration must fail closed.
+    }
   }
+
+  return async (token) => {
+    if (!supabaseJwks || !supabaseUrl || !token) return null;
+    try {
+      const { payload } = await jwtVerify(token, supabaseJwks, {
+        issuer: supabaseUrl + '/auth/v1',
+        audience: 'authenticated',
+      });
+      // Supabase Auth subject is a UUID. Never use mutable email or user metadata
+      // as the POS identity key; the subject must be explicitly linked in Postgres.
+      if (typeof payload.sub !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(payload.sub) || typeof payload.exp !== 'number') return null;
+      return { userId: payload.sub, expiresAt: new Date(payload.exp * 1000) };
+    } catch {
+      return null;
+    }
+  };
 };
+
+export const verifySupabaseToken: SupabaseTokenVerifier = createSupabaseTokenVerifier(
+  process.env.SUPABASE_POS_AUTH_URL,
+  process.env.SUPABASE_POS_AUTH_JWKS_URL,
+);
 
 export const createSessionIssuer = (
   repository: AuthenticationRepository,
   verifySecret: (secret: string, encodedHash: string) => Promise<boolean>,
   now: () => Date = () => new Date(),
   checkCompromisedPassword: (password: string) => Promise<PasswordCompromiseCheck> = checkPasswordCompromise,
+  verifySupabaseIdentity: SupabaseTokenVerifier = verifySupabaseToken,
 ): SessionIssuer => ({
   authenticateCredentials: async ({ username, password, deviceId }) => {
     const normalizedUsername = username.trim();
@@ -109,11 +144,11 @@ export const createSessionIssuer = (
     return { token, sessionId, expiresAt };
   },
   authenticateSupabaseToken: async ({ token: supabaseToken, deviceId }) => {
-    const verified = await verifySupabaseToken(supabaseToken);
+    const verified = await verifySupabaseIdentity(supabaseToken);
     if (!verified) return null;
     const device = await repository.findDevice(deviceId);
     if (!device || device.status !== 'active') return null;
-    const credential = await repository.findCredentialByUsername(verified.email, device.id);
+    const credential = await repository.findCredentialBySupabaseUserId(verified.userId, device.id);
     if (!credential || credential.status !== 'active') return null;
     const nowValue = now();
     if (verified.expiresAt <= nowValue) return null;

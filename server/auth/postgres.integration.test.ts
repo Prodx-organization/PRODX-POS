@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createPostgresPool, asSqlExecutor, resolveConfiguredDatabaseUrl } from '../db/postgres';
 import { createPostgresAuthentication } from './composition';
+import { createPostgresAuthenticationRepository } from './postgres-repository';
 import { hashPassword } from './password';
 import { hashSessionToken } from './session';
 
@@ -16,6 +17,8 @@ const ids = {
   userB: '00000000-0000-4000-8000-000000000222',
   deviceA: '00000000-0000-4000-8000-000000000231',
   deviceB: '00000000-0000-4000-8000-000000000232',
+  supabaseUserA: '00000000-0000-4000-8000-000000000241',
+  supabaseUserB: '00000000-0000-4000-8000-000000000242',
 };
 
 const pool = databaseUrl ? createPostgresPool({ connectionString: databaseUrl, max: 2 }) : null;
@@ -45,10 +48,10 @@ const seed = async (): Promise<void> => {
     [ids.storeA, ids.storeB, ids.organizationA, ids.organizationB],
   );
   await pool.query(
-    `INSERT INTO prodx_users (id, organization_id, username, display_name) VALUES
-      ($1, $3, 'm2-user-a', 'M2 User A'),
-      ($2, $4, 'm2-user-b', 'M2 User B')`,
-    [ids.userA, ids.userB, ids.organizationA, ids.organizationB],
+    `INSERT INTO prodx_users (id, organization_id, username, display_name, supabase_auth_user_id) VALUES
+      ($1, $3, 'm2-user-a', 'M2 User A', $5),
+      ($2, $4, 'm2-user-b', 'M2 User B', $6)`,
+    [ids.userA, ids.userB, ids.organizationA, ids.organizationB, ids.supabaseUserA, ids.supabaseUserB],
   );
   await pool.query(
     `INSERT INTO prodx_user_credentials (user_id, credential_type, secret_hash)
@@ -90,6 +93,18 @@ test('M2 PostgreSQL authentication enforces credential, tenant, session, token-h
     await cleanup();
     await pool.end();
   });
+
+  const identityRepository = createPostgresAuthenticationRepository(asSqlExecutor(pool));
+  const linkedIdentity = await identityRepository.findCredentialBySupabaseUserId(ids.supabaseUserA, ids.deviceA);
+  assert.equal(linkedIdentity?.userId, ids.userA);
+  assert.equal(await identityRepository.findCredentialBySupabaseUserId(ids.supabaseUserB, ids.deviceA), null,
+    'a valid identity linked to another organization must not resolve on this device');
+  assert.equal(await identityRepository.findCredentialBySupabaseUserId(ids.supabaseUserA, ids.deviceB), null,
+    'a linked identity must not cross into another organization through a different device');
+  await pool.query('UPDATE prodx_users SET supabase_auth_user_id = NULL WHERE id = $1', [ids.userA]);
+  assert.equal(await identityRepository.findCredentialBySupabaseUserId(ids.supabaseUserA, ids.deviceA), null,
+    'an unlinked Supabase subject must fail closed');
+  await pool.query('UPDATE prodx_users SET supabase_auth_user_id = $2 WHERE id = $1', [ids.userA, ids.supabaseUserA]);
 
   const result = await authentication.authenticateCredentials({
     username: 'm2-user-a',
