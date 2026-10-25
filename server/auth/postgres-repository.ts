@@ -16,7 +16,7 @@ export const createPostgresAuthenticationRepository = (db: SqlExecutor): Authent
     return { userId: row.userId, organizationId: row.organizationId, username: row.username, status: row.status,
       credentialType: row.credential_type, secretHash: row.secret_hash, failedAttempts: row.failed_attempts, lockedUntil: row.locked_until };
   },
-  async recordFailedAttempt(userId) {
+  async recordFailedAttempt(userId, organizationId) {
     await db.query(
       `SELECT public.prodx_auth_record_failed_attempt($1::uuid, $2::uuid, $3::uuid)`,
       [userId, organizationId, crypto.randomUUID()],
