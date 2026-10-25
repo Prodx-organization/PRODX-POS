@@ -44,5 +44,8 @@ Then set `PRODX_DB_BROKER_URL` on the Vercel production environment to the funct
 
 Run `bun run db:migrate` against the target project with an administrative connection first (it creates the
 `prodx_app` role without a password), then set the role's password and use it in `PRODX_RUNTIME_DATABASE_URL`.
-Migrations 0033, 0034 and 0036 only touch `public.prodx_*` tables, so other applications sharing the
+Migrations 0033, 0034 and 0036 only touch `public.prodx_*` tables and sequences, so other applications sharing the
 database (for example the Owner Console's `public.user_roles`) stay unreachable from `prodx_app`.
+Do not add broad default privileges for `public`; future POS migrations must explicitly grant the runtime role
+access only to the PRODX tables and sequences they create. The schema-ownership integration test checks existing
+foreign objects, sequence privileges, default ACLs, and objects created by another application.
