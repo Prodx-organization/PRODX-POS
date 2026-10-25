@@ -15,7 +15,7 @@ BEGIN
       JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE n.nspname = 'public'
        AND c.relkind = 'r'
-       AND c.relname NOT LIKE 'prodx\\_%' ESCAPE '\\'
+       AND c.relname NOT LIKE 'prodx\_%' ESCAPE '\'
        AND c.relname NOT IN ('prodx_schema_migrations', 'prodx_migration_lock')
   LOOP
     FOREACH policy_name IN ARRAY ARRAY[
@@ -37,7 +37,7 @@ BEGIN
       JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE n.nspname = 'public'
        AND c.relkind = 'S'
-       AND c.relname NOT LIKE 'prodx\\_%' ESCAPE '\\'
+       AND c.relname NOT LIKE 'prodx\_%' ESCAPE '\'
   LOOP
     EXECUTE format('REVOKE ALL PRIVILEGES ON SEQUENCE public.%I FROM prodx_app', sequence_name);
   END LOOP;
