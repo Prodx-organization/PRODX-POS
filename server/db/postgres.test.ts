@@ -36,7 +36,8 @@ test('classifies production database targets without returning or logging hostna
 test('tracked production bundle does not approve the Owner Console Supabase host', async () => {
   const bundle = await readFile(new URL('../entrypoint.js', import.meta.url), 'utf8');
   assert.doesNotMatch(bundle, /db\.bbxoywnlayduqbrjeixj\.supabase\.co/);
-  assert.match(bundle, /aws-0-ap-northeast-1\.pooler\.supabase\.com/);
+  assert.match(bundle, /hostname\.endsWith\("\.pooler\.supabase\.com"\)/);
+  assert.doesNotMatch(bundle, /ap-northeast-1/);
 });
 
 test('resolveProductionDatabaseUrl uses DATABASE_URL outside Vercel production', async () => {
