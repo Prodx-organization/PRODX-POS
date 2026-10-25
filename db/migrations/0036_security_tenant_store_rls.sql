@@ -396,7 +396,7 @@ BEGIN
     ELSIF table_row.relname = 'prodx_user_credentials' THEN
       scope_expression := 'EXISTS (SELECT 1 FROM public.prodx_users u WHERE u.id = user_id AND u.organization_id = NULLIF(current_setting(''app.organization_id'', true), '''')::uuid)';
     ELSIF table_row.relname = 'prodx_sessions' THEN
-      scope_expression := 'organization_id = NULLIF(current_setting(''app.organization_id'', true), '''')::uuid AND EXISTS (SELECT 1 FROM public.prodx_devices d WHERE d.id = device_id AND d.organization_id = NULLIF(current_setting(''app.organization_id'', true), '''')::uuid AND d.store_id = NULLIF(current_setting(''app.store_id'', true), '''')::uuid)';
+      scope_expression := 'organization_id = NULLIF(current_setting(''app.organization_id'', true), '''')::uuid AND user_id = NULLIF(current_setting(''app.user_id'', true), '''')::uuid AND EXISTS (SELECT 1 FROM public.prodx_devices d WHERE d.id = device_id AND d.organization_id = NULLIF(current_setting(''app.organization_id'', true), '''')::uuid AND d.store_id = NULLIF(current_setting(''app.store_id'', true), '''')::uuid)';
     ELSIF table_row.relname = 'prodx_security_audit_events' THEN
       scope_expression := 'organization_id = NULLIF(current_setting(''app.organization_id'', true), '''')::uuid';
     ELSIF table_row.has_organization_id AND table_row.has_store_id THEN
