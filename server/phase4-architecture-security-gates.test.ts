@@ -89,7 +89,6 @@ test('Database & Security Gate 4: PostgreSQL append-only audit trigger, RLS, and
   });
 
   try {
-    // 1. Verify append-only trigger on prodx_audit_log
     const triggerRes = await pool.query<{ tgname: string; tgenabled: string }>(
       `SELECT tgname, tgenabled
          FROM pg_trigger
@@ -99,7 +98,6 @@ test('Database & Security Gate 4: PostgreSQL append-only audit trigger, RLS, and
     assert.equal(triggerRes.rows.length, 1, 'prodx_audit_log_immutable_guard trigger must exist');
     assert.equal(triggerRes.rows[0].tgenabled, 'O', 'prodx_audit_log_immutable_guard trigger must be enabled');
 
-    // 2. Verify Row-Level Security (RLS) is enabled on core tenant tables
     const rlsTables = [
       'prodx_orders',
       'prodx_order_items',
@@ -122,7 +120,6 @@ test('Database & Security Gate 4: PostgreSQL append-only audit trigger, RLS, and
       assert.equal(row.relrowsecurity, true, `RLS must be enabled on ${row.relname}`);
     }
 
-    // 3. Verify least-privilege prodx_app role flags
     const roleRes = await pool.query<{
       rolname: string;
       rolsuper: boolean;
@@ -146,4 +143,17 @@ test('Database & Security Gate 4: PostgreSQL append-only audit trigger, RLS, and
     }
     throw err;
   }
+});
+
+test('Security Gate 5: RLS enablement migration must not alter tables owned by other applications', () => {
+  const migration = fs.readFileSync(
+    path.join(workspaceRoot, 'db/migrations/0034_security_enable_rls_all_tables.sql'),
+    'utf8',
+  );
+  assert.match(migration, /c\.relname\s+LIKE\s+'prodx\\_%'\s+ESCAPE\s+'\\'/);
+  assert.doesNotMatch(
+    migration,
+    /WHERE\s+n\.nspname\s*=\s*'public'\s+AND\s+c\.relkind\s*=\s*'r'\s+AND\s+c\.relname\s+NOT\s+IN/i,
+    'RLS migration must not enable RLS indiscriminately on every public table',
+  );
 });
