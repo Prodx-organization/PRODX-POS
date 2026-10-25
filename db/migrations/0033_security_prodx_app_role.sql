@@ -2,6 +2,10 @@
 -- The application connects directly to PostgreSQL and performs authorization in
 -- the server layer. RLS is enabled on the public POS tables, so the runtime
 -- role receives explicit RLS policies rather than BYPASSRLS.
+--
+-- Scope: only PRODX-owned tables (public.prodx_*) are granted to or given policies for
+-- prodx_app. A database shared with other applications (for example the Owner Console's
+-- public.user_roles) must never become reachable from the POS runtime role.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'prodx_app') THEN
@@ -27,8 +31,26 @@ END
 $$;
 GRANT USAGE ON SCHEMA public TO prodx_app;
 
-GRANT SELECT, INSERT, UPDATE, DELETE
-  ON ALL TABLES IN SCHEMA public TO prodx_app;
+DO $$
+DECLARE
+  table_name text;
+BEGIN
+  FOR table_name IN
+    SELECT c.relname
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relkind = 'r'
+      AND c.relname LIKE 'prodx\_%' ESCAPE '\'
+      AND c.relname NOT IN ('prodx_schema_migrations', 'prodx_migration_lock')
+  LOOP
+    EXECUTE format(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.%I TO prodx_app',
+      table_name
+    );
+  END LOOP;
+END
+$$;
 
 REVOKE ALL
   ON TABLE public.prodx_schema_migrations, public.prodx_migration_lock
@@ -49,6 +71,7 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public'
       AND c.relkind = 'r'
+      AND c.relname LIKE 'prodx\_%' ESCAPE '\'
       AND c.relname NOT IN ('prodx_schema_migrations', 'prodx_migration_lock')
   LOOP
     EXECUTE format(
