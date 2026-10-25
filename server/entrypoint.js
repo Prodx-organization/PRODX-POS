@@ -381,7 +381,7 @@ var classifyProductionDatabaseTarget = (databaseUrl) => {
   if (!databaseUrl) return "invalid";
   try {
     const hostname = new URL(databaseUrl).hostname;
-    if (hostname === "aws-0-ap-northeast-1.pooler.supabase.com") return "supabase_session_pooler";
+    if (hostname.endsWith(".pooler.supabase.com")) return "supabase_session_pooler";
     return "other";
   } catch {
     return "invalid";
