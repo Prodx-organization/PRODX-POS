@@ -54,7 +54,7 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
       await assertPostgresReady(pool);
     },
     configurePublicRoutes: (configuredApp) => {
-      registerAuthRoutes(configuredApp, sql, sessions);
+      registerAuthRoutes(configuredApp, requestScopedSql, sessions);
       registerPublicInfrastructureRoutes(configuredApp, pool);
     },
     authenticateRequest: async (request) => {
