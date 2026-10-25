@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
+import type { QueryResultRow } from 'pg';
 import { createPostgresAuthentication } from './auth/composition.ts';
 import { createPostgresAuthorization } from './auth/production-authorization.ts';
 import { asSqlExecutor, createProductionPostgresPool } from './db/postgres.ts';
@@ -34,9 +35,17 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
   const pool = await createProductionPostgresPool({}, options.vercelOidcToken);
   const sql = asSqlExecutor(pool);
   const transactions = createTransactionalPostgresExecutor(pool);
+  // Authentication bootstrap remains a separate pre-principal boundary. All
+  // post-auth authorization and AI data queries use the request-scoped executor.
+  const requestScopedSql = {
+    async query<T extends Record<string, unknown>>(statement: string, parameters: readonly unknown[] = []): Promise<readonly T[]> {
+      const result = await transactions.query<T & QueryResultRow>(statement, parameters);
+      return result.rows;
+    },
+  };
   const sessions = createPostgresAuthentication(sql);
-  const authorize = createPostgresAuthorization(sql);
-  const aiGateway = createAIGatewayService(sql, authorize);
+  const authorize = createPostgresAuthorization(requestScopedSql);
+  const aiGateway = createAIGatewayService(requestScopedSql, authorize);
 
   const app = createApp({
     readinessCheck: async () => {
