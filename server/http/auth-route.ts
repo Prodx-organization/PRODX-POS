@@ -8,6 +8,7 @@ type Permission =
   | 'org:read' | 'org:manage' | 'branch:manage' | 'terminal:manage' | 'rbac:manage';
 import type { AuthenticatedSession, SessionIssuer } from '../auth/session';
 import type { SqlExecutor } from '../auth/postgres-repository';
+import { runWithRequestContext } from './request-context-storage.ts';
 import { checkLoginThrottle, recordLoginFailure } from '../auth/login-rate-limit';
 
 type LoginBody = {
@@ -104,6 +105,12 @@ const asyncRoute = (handler: (request: Request, response: Response) => Promise<v
   (request: Request, response: Response, next: NextFunction): void => {
     handler(request, response).catch(next);
   };
+
+const withPrincipalContext = <T>(
+  request: Request,
+  principal: AuthenticatedSession,
+  work: () => Promise<T>,
+): Promise<T> => runWithRequestContext({ requestId: request.id, principal }, work);
 
 const isAdminConsoleRegister = (registerId: string): boolean => {
   const normalized = registerId.trim().toUpperCase();
@@ -225,12 +232,7 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
       return;
     }
     const devices = await db.query<{ id: string; store_id: string }>(
-      `SELECT d.id, d.store_id
-         FROM prodx_organizations o
-         JOIN prodx_stores s ON s.organization_id = o.id AND lower(s.code) = lower($2) AND s.active = TRUE
-         JOIN prodx_devices d ON d.organization_id = o.id AND d.store_id = s.id AND d.device_key = $3 AND d.status = 'active'
-        WHERE lower(o.code) = lower($1)
-        LIMIT 1`,
+      `SELECT id, store_id FROM public.prodx_auth_resolve_device($1, $2, $3)`,
       [organizationSlug, storeCode, registerId],
     );
     const device = devices[0];
@@ -243,7 +245,7 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
       sendAuthFailed(request, response);
       return;
     }
-    const context = await loadSessionContext(db, principal, issued.token, issued.expiresAt);
+    const context = await withPrincipalContext(request, principal, () => loadSessionContext(db, principal, issued.token, issued.expiresAt));
     if (!context) {
       await sessions.revokeBearer(issued.token);
       sendAuthFailed(request, response, 'Session scope could not be established.');
@@ -276,12 +278,7 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
     }
 
     const devices = await db.query<{ id: string; store_id: string }>(
-      `SELECT d.id, d.store_id
-         FROM prodx_organizations o
-         JOIN prodx_stores s ON s.organization_id = o.id AND lower(s.code) = lower($2) AND s.active = TRUE
-         JOIN prodx_devices d ON d.organization_id = o.id AND d.store_id = s.id AND d.device_key = $3 AND d.status = 'active'
-        WHERE lower(o.code) = lower($1)
-        LIMIT 1`,
+      `SELECT id, store_id FROM public.prodx_auth_resolve_device($1, $2, $3)`,
       [body.organizationSlug, body.storeCode, body.registerId],
     );
     const device = devices[0];
@@ -301,7 +298,7 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
       return;
     }
 
-    const context = await loadSessionContext(db, principal, issued.token, issued.expiresAt);
+    const context = await withPrincipalContext(request, principal, () => loadSessionContext(db, principal, issued.token, issued.expiresAt));
     if (!context) {
       await sessions.revokeBearer(issued.token);
       sendAuthFailed(request, response, 'Session scope could not be established.');
@@ -336,13 +333,15 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
     if (!token) { sendUnauthenticated(request, response); return; }
     const principal = await sessions.authenticateBearer(token);
     if (!principal) { sendUnauthenticated(request, response, 'Authentication session is invalid.'); return; }
-    const sessionRows = await db.query<{ expires_at: Date }>(
-      `SELECT expires_at FROM prodx_sessions WHERE id = $1 AND revoked_at IS NULL LIMIT 1`,
-      [principal.sessionId],
-    );
-    const expiresAt = sessionRows[0]?.expires_at;
-    if (!expiresAt) { sendUnauthenticated(request, response, 'Authentication session is invalid.'); return; }
-    const context = await loadSessionContext(db, principal, token, expiresAt);
+    const context = await withPrincipalContext(request, principal, async () => {
+      const sessionRows = await db.query<{ expires_at: Date }>(
+        `SELECT expires_at FROM public.prodx_sessions WHERE id = $1 AND revoked_at IS NULL LIMIT 1`,
+        [principal.sessionId],
+      );
+      const expiresAt = sessionRows[0]?.expires_at;
+      if (!expiresAt) return null;
+      return loadSessionContext(db, principal, token, expiresAt);
+    });
     if (!context) { sendUnauthenticated(request, response, 'Authentication session is invalid.'); return; }
     response.json(context);
   }));
@@ -352,16 +351,14 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
     if (!token) { sendUnauthenticated(request, response); return; }
     const principal = await sessions.authenticateBearer(token);
     if (!principal) { sendUnauthenticated(request, response, 'Authentication session is invalid.'); return; }
-    const rows = await db.query<{ id: string; organization_id: string; code: string; name: string; business_timezone: string }>(
-      `SELECT s.id, s.organization_id, s.code, s.name, s.business_timezone
-         FROM prodx_stores s
-         JOIN prodx_organizations o ON o.id = s.organization_id
-         JOIN prodx_store_memberships m ON m.organization_id = s.organization_id AND m.store_id = s.id
-          AND m.user_id = $2 AND m.active = TRUE
-        WHERE o.id = $1 AND lower(o.code) = lower($3) AND s.active = TRUE
-        ORDER BY s.code`,
-      [principal.organizationId, principal.userId, request.params.orgSlug],
-    );
+    const rows = await withPrincipalContext(request, principal, () =>
+      db.query<{ id: string; organization_id: string; code: string; name: string; business_timezone: string }>(
+        `SELECT id, organization_id, code, name, business_timezone
+           FROM public.prodx_auth_list_member_stores()
+          WHERE lower(code) = lower($1)
+          ORDER BY code`,
+        [request.params.orgSlug],
+      ));
     response.json(rows.map(mapStore));
   }));
 };
