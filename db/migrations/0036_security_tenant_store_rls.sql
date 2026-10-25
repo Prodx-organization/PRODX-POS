@@ -385,7 +385,9 @@ BEGIN
 
     IF table_row.relname = 'prodx_permissions' THEN
       REVOKE INSERT, UPDATE, DELETE ON public.prodx_permissions FROM prodx_app;
-      EXECUTE 'CREATE POLICY prodx_app_global_permissions_read ON public.prodx_permissions FOR SELECT TO prodx_app USING (true)';
+      -- This is global reference data (permission key + description), not tenant data.
+      -- Keep the policy explicit and aligned with prodx_permissions' nonblank-key CHECK constraint.
+      EXECUTE 'CREATE POLICY prodx_app_global_permissions_read ON public.prodx_permissions FOR SELECT TO prodx_app USING (permission_key IS NOT NULL AND length(btrim(permission_key)) > 0)';
       CONTINUE;
     ELSIF table_row.relname = 'prodx_auth_login_throttles' THEN
       -- The table is internal operational state; only the narrow SECURITY DEFINER

@@ -188,6 +188,25 @@ test('Security Gate 7: tenant RLS classification and sequence grants are scoped 
   );
   assert.match(migration, /c\.relname\s+LIKE\s+'prodx\\_%'\s+ESCAPE\s+'\\'/);
   assert.match(migration, /GRANT\s+USAGE,\s*SELECT\s+ON\s+SEQUENCE\s+public\.%I\s+TO\s+prodx_app/);
+  assert.doesNotMatch(
+    migration,
+    /CREATE\s+POLICY[^;]*USING\s*\(\s*true\s*\)|CREATE\s+POLICY[^;]*WITH\s+CHECK\s*\(\s*true\s*\)/i,
+    'tenant RLS migration must not create unconditional policies',
+  );
+  assert.match(
+    migration,
+    /CREATE\s+POLICY\s+prodx_app_global_permissions_read[\s\S]*?USING\s*\(permission_key IS NOT NULL AND length\(btrim\(permission_key\)\) > 0\)/i,
+    'global permission catalog must use an explicit nonblank-key predicate',
+  );
+  const permissionSchema = fs.readFileSync(
+    path.join(workspaceRoot, 'db/migrations/0004_m1_2_rbac.sql'),
+    'utf8',
+  );
+  const permissionTable = permissionSchema.match(/CREATE TABLE IF NOT EXISTS prodx_permissions \([\s\S]*?\);/i)?.[0];
+  assert.ok(permissionTable, 'canonical global permission table schema must be present');
+  assert.doesNotMatch(permissionTable, /\b(organization_id|store_id)\b/i);
+  assert.match(permissionTable, /permission_key TEXT NOT NULL/i);
+  assert.match(permissionTable, /CHECK \(length\(btrim\(permission_key\)\) > 0\)/i);
 });
 
 test('Security Gate 8: legacy policy cleanup removes only the named prodx_app policy and foreign grants', () => {
