@@ -163,20 +163,20 @@ test('Security Gate 6: tenant RLS migration only classifies PRODX-owned tables a
     path.join(workspaceRoot, 'db/migrations/0036_security_tenant_store_rls.sql'),
     'utf8',
   );
-  assert.match(migration, /c\\.relname\\s+LIKE\\s+'prodx\\\\_%'\\s+ESCAPE\\s+'\\\\'/);
+  assert.match(migration, /c\.relname\s+LIKE\s+'prodx\\_%'\s+ESCAPE\s+'\\'/);
   assert.doesNotMatch(
     migration,
-    /WHERE\\s+n\\.nspname\\s*=\\s*'public'\\s+AND\\s+c\\.relkind\\s*=\\s*'r'\\s+AND\\s+c\\.relname\\s+NOT\\s+IN/i,
+    /WHERE\s+n\.nspname\s*=\s*'public'\s+AND\s+c\.relkind\s*=\s*'r'\s+AND\s+c\.relname\s+NOT\s+IN/i,
     'Tenant RLS migration must not classify every table in public',
   );
   assert.doesNotMatch(
     migration,
-    /REVOKE\\s+USAGE\\s*,\\s*SELECT\\s+ON\\s+ALL\\s+SEQUENCES\\s+IN\\s+SCHEMA\\s+public/i,
+    /REVOKE\s+USAGE\s*,\s*SELECT\s+ON\s+ALL\s+SEQUENCES\s+IN\s+SCHEMA\s+public/i,
     'Tenant RLS migration must not revoke sequence privileges from other applications',
   );
   assert.doesNotMatch(
     migration,
-    /ALTER\\s+DEFAULT\\s+PRIVILEGES\\s+IN\\s+SCHEMA\\s+public/i,
+    /ALTER\s+DEFAULT\s+PRIVILEGES\s+IN\s+SCHEMA\s+public/i,
     'Tenant RLS migration must not alter schema-wide default privileges',
   );
 });
@@ -186,9 +186,9 @@ test('Security Gate 7: shared-schema cleanup revokes only known PRODX grants fro
     path.join(workspaceRoot, 'db/migrations/0037_security_cleanup_shared_schema_grants.sql'),
     'utf8',
   );
-  assert.match(migration, /DROP\\s+POLICY\\s+IF\\s+EXISTS/i);
-  assert.match(migration, /REVOKE\\s+ALL\\s+PRIVILEGES\\s+ON\\s+TABLE/i);
-  assert.match(migration, /c\\.relname\\s+NOT\\s+LIKE\\s+'prodx\\\\_%'\\s+ESCAPE\\s+'\\\\'/);
-  assert.match(migration, /VALUES\\s*\\('0037_security_cleanup_shared_schema_grants'\\)/);
+  assert.match(migration, /DROP\s+POLICY\s+IF\s+EXISTS/i);
+  assert.match(migration, /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+TABLE/i);
+  assert.match(migration, /c\.relname\s+NOT\s+LIKE\s+'prodx\\_%'\s+ESCAPE\s+'\\'/);
+  assert.match(migration, /VALUES\s*\('0037_security_cleanup_shared_schema_grants'\)/);
 });
 
