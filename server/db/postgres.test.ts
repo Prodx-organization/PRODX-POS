@@ -198,7 +198,13 @@ test('resolveProductionDatabaseUrl rejects a broker failure', async () => {
       async () => {
         await assert.rejects(
           resolveProductionDatabaseUrl('request-oidc-token'),
-          /broker rejected the request with HTTP 503/,
+          (error: unknown) => {
+            assert.ok(error instanceof Error);
+            assert.match(error.message, /broker rejected the request with HTTP 503/);
+            assert.equal((error as Error & { stage?: string }).stage, 'broker_http');
+            assert.equal((error as Error & { brokerStatus?: number }).brokerStatus, 503);
+            return true;
+          },
         );
       },
     );
@@ -218,3 +224,38 @@ test('resolveConfiguredDatabaseUrl preserves valid URLs and rejects placeholder 
   );
 });
 
+test('resolveProductionDatabaseUrl labels broker DNS failures without flattening the cause', async () => {
+  const originalFetch = globalThis.fetch;
+  const dnsFailure = Object.assign(
+    new Error('getaddrinfo ENOTFOUND private-broker.example'),
+    { code: 'ENOTFOUND', syscall: 'getaddrinfo' },
+  );
+  globalThis.fetch = async () => {
+    throw Object.assign(new TypeError('fetch failed'), { cause: dnsFailure });
+  };
+
+  try {
+    await withEnvironment(
+      {
+        VERCEL: '1',
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://legacy.example/prodx',
+        VERCEL_OIDC_TOKEN: undefined,
+        PRODX_DB_BROKER_URL: 'https://private-broker.example/prodx-db',
+      },
+      async () => {
+        await assert.rejects(
+          resolveProductionDatabaseUrl('request-oidc-token'),
+          (error: unknown) => {
+            assert.ok(error instanceof Error);
+            assert.equal((error as Error & { stage?: string }).stage, 'broker_fetch');
+            assert.ok((error as Error & { cause?: unknown }).cause instanceof TypeError);
+            return true;
+          },
+        );
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

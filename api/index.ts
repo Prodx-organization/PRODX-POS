@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createProductionApp } from '../server-bundle.js';
 import { createRetryableInitialization } from '../server/http/retryable-initialization.ts';
+import { safeDependencyDiagnostic } from '../server/http/safe-dependency-diagnostic.ts';
 
 type VercelRequest = IncomingMessage & {
   headers: IncomingMessage['headers'];
@@ -21,7 +22,18 @@ export default async function handler(request: VercelRequest, response: ServerRe
   try {
     const { app } = await initializeProductionApp(request);
     app(request as never, response as never);
-  } catch {
+  } catch (error: unknown) {
+    const suppliedRequestId = request.headers['x-request-id'];
+    const requestIdValue = Array.isArray(suppliedRequestId) ? suppliedRequestId[0] : suppliedRequestId;
+    const safeRequestId = typeof requestIdValue === 'string' &&
+      /^[A-Za-z0-9._:-]{1,128}$/.test(requestIdValue)
+      ? requestIdValue
+      : 'unknown';
+    console.error('PRODX production app initialization failed', {
+      requestId: safeRequestId,
+      status: 503,
+      ...safeDependencyDiagnostic(error),
+    });
     response.statusCode = 503;
     response.setHeader('content-type', 'application/json');
     response.end(JSON.stringify({

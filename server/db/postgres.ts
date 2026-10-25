@@ -34,6 +34,22 @@ export const classifyProductionDatabaseTarget = (databaseUrl?: string): Producti
   }
 };
 
+type ProductionBrokerStage = 'broker_config' | 'broker_fetch' | 'broker_http' | 'broker_response';
+type ProductionBrokerError = Error & { stage: ProductionBrokerStage; cause?: unknown; brokerStatus?: number };
+
+const productionBrokerError = (
+  message: string,
+  stage: ProductionBrokerStage,
+  cause?: unknown,
+  brokerStatus?: number,
+): ProductionBrokerError => {
+  const error = new Error(message) as ProductionBrokerError;
+  error.stage = stage;
+  if (cause !== undefined) error.cause = cause;
+  if (brokerStatus !== undefined) error.brokerStatus = brokerStatus;
+  return error;
+};
+
 export const resolveProductionDatabaseUrl = async (
   vercelOidcToken?: string,
 ): Promise<string | undefined> => {
@@ -43,29 +59,44 @@ export const resolveProductionDatabaseUrl = async (
 
   const oidcToken = vercelOidcToken ?? process.env.VERCEL_OIDC_TOKEN;
   if (!oidcToken) {
-    throw new Error('Vercel OIDC token is required to resolve the production PostgreSQL connection.');
+    throw productionBrokerError('Vercel OIDC token is required to resolve the production PostgreSQL connection.', 'broker_config');
   }
 
   // Require an explicitly approved endpoint; never silently target a retired project.
   const brokerUrl = process.env.PRODX_DB_BROKER_URL?.trim();
   if (!brokerUrl) {
-    throw new Error('PRODX_DB_BROKER_URL is required to resolve the production PostgreSQL connection.');
+    throw productionBrokerError('PRODX_DB_BROKER_URL is required to resolve the production PostgreSQL connection.', 'broker_config');
   }
-  const response = await fetch(brokerUrl, {
-    method: 'GET',
-    headers: {
-      authorization: `Bearer ${oidcToken}`,
-      accept: 'application/json',
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(brokerUrl, {
+      method: 'GET',
+      headers: {
+        authorization: `Bearer ${oidcToken}`,
+        accept: 'application/json',
+      },
+    });
+  } catch (cause: unknown) {
+    throw productionBrokerError('Production database broker request failed.', 'broker_fetch', cause);
+  }
 
   if (!response.ok) {
-    throw new Error(`Production database broker rejected the request with HTTP ${response.status}.`);
+    throw productionBrokerError(
+      `Production database broker rejected the request with HTTP ${response.status}.`,
+      'broker_http',
+      undefined,
+      response.status,
+    );
   }
 
-  const payload = await response.json() as { databaseUrl?: unknown };
+  let payload: { databaseUrl?: unknown };
+  try {
+    payload = await response.json() as { databaseUrl?: unknown };
+  } catch (cause: unknown) {
+    throw productionBrokerError('Production database broker returned an invalid response.', 'broker_response', cause);
+  }
   if (typeof payload.databaseUrl !== 'string' || payload.databaseUrl.length === 0) {
-    throw new Error('Production database broker returned no database URL.');
+    throw productionBrokerError('Production database broker returned no database URL.', 'broker_response');
   }
 
   return payload.databaseUrl;
