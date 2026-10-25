@@ -367,6 +367,7 @@ BEGIN
       JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
      WHERE n.nspname = 'public'
        AND c.relkind = 'r'
+       AND c.relname LIKE 'prodx\\_%' ESCAPE '\\'
        AND c.relname NOT IN ('prodx_schema_migrations', 'prodx_migration_lock')
      GROUP BY c.relname
   LOOP
@@ -423,7 +424,23 @@ REVOKE ALL ON TABLE public.prodx_user_credentials, public.prodx_auth_login_throt
 REVOKE INSERT, UPDATE, DELETE ON TABLE public.prodx_sessions, public.prodx_security_audit_events FROM PUBLIC;
 REVOKE INSERT, UPDATE, DELETE ON TABLE public.prodx_sessions, public.prodx_security_audit_events FROM prodx_app;
 GRANT SELECT ON TABLE public.prodx_sessions, public.prodx_security_audit_events, public.prodx_permissions TO prodx_app;
-REVOKE USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public FROM prodx_app;
+-- Restrict sequence privilege changes to PRODX-owned sequences only.
+DO $
+DECLARE
+  sequence_name text;
+BEGIN
+  FOR sequence_name IN
+    SELECT c.relname
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = 'public'
+       AND c.relkind = 'S'
+       AND c.relname LIKE 'prodx\\_%' ESCAPE '\\'
+  LOOP
+    EXECUTE format('REVOKE USAGE, SELECT ON SEQUENCE public.%I FROM prodx_app', sequence_name);
+  END LOOP;
+END
+$;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM prodx_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE USAGE, SELECT ON SEQUENCES FROM prodx_app;
 
