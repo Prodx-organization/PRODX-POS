@@ -46,6 +46,17 @@ test('transaction-local tenant context is isolated and cleared on pooled connect
       });
     }));
 
+    await assert.rejects(
+      runWithRequestContext(first, () => executor.transaction(async (tx) => {
+        const result = await tx.query<{ organization_id: string }>(
+          `SELECT current_setting('app.organization_id', true) AS organization_id`,
+        );
+        assert.equal(result.rows[0]?.organization_id, first.principal.organizationId);
+        throw new Error('intentional rollback context probe');
+      })),
+      /intentional rollback context probe/,
+    );
+
     // max:1 forces the next query to reuse the released client. A local setting
     // from either prior transaction must not remain active on that connection.
     const afterRelease = await pool.query<{ organization_id: string | null; store_id: string | null; user_id: string | null }>(
@@ -164,6 +175,13 @@ test('runtime role enforces fail-closed tenant/store RLS for SELECT, INSERT, UPD
       assert.notEqual(policy.with_check?.trim().toLowerCase(), 'true', `${policy.tablename} must not allow every inserted/updated row`);
     }
 
+    const globalPermissionDml = await pool.query<{ can_insert: boolean; can_update: boolean; can_delete: boolean }>(
+      `SELECT has_table_privilege('prodx_app', 'public.prodx_permissions', 'INSERT') AS can_insert,
+              has_table_privilege('prodx_app', 'public.prodx_permissions', 'UPDATE') AS can_update,
+              has_table_privilege('prodx_app', 'public.prodx_permissions', 'DELETE') AS can_delete`,
+    );
+    assert.deepEqual(globalPermissionDml.rows[0], { can_insert: false, can_update: false, can_delete: false });
+
     const unboundedPolicies = await pool.query<{ tablename: string; policyname: string; qual: string | null; with_check: string | null }>(
       `SELECT tablename, policyname, qual, with_check
          FROM pg_policies
@@ -190,6 +208,16 @@ test('runtime role enforces fail-closed tenant/store RLS for SELECT, INSERT, UPD
 
     const visible = await client.query<{ id: string }>('SELECT id FROM public.prodx_categories ORDER BY id');
     assert.deepEqual(visible.rows.map((row) => row.id), [ids.categoryA]);
+    assert.equal(
+      (await client.query('SELECT id FROM public.prodx_categories WHERE id = $1', [ids.categoryA2])).rowCount,
+      0,
+      'same-organization cross-store SELECT must be denied',
+    );
+    assert.equal(
+      (await client.query('SELECT id FROM public.prodx_categories WHERE id = $1', [ids.categoryB])).rowCount,
+      0,
+      'cross-organization SELECT must be denied',
+    );
 
     const visibleSessions = await client.query<{ id: string }>('SELECT id FROM public.prodx_sessions ORDER BY id');
     assert.deepEqual(visibleSessions.rows.map((row) => row.id), [ids.sessionA]);
@@ -204,6 +232,16 @@ test('runtime role enforces fail-closed tenant/store RLS for SELECT, INSERT, UPD
       ['must not update', ids.categoryA2],
     );
     assert.equal(crossStoreUpdate.rowCount, 0);
+    const crossOrganizationUpdate = await client.query(
+      'UPDATE public.prodx_categories SET name = $1 WHERE id = $2',
+      ['must not update cross organization', ids.categoryB],
+    );
+    assert.equal(crossOrganizationUpdate.rowCount, 0);
+    const crossStoreDelete = await client.query(
+      'DELETE FROM public.prodx_categories WHERE id = $1',
+      [ids.categoryA2],
+    );
+    assert.equal(crossStoreDelete.rowCount, 0);
     const crossOrganizationDelete = await client.query(
       'DELETE FROM public.prodx_categories WHERE id = $1',
       [ids.categoryB],
