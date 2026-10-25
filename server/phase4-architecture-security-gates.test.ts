@@ -181,7 +181,7 @@ test('Security Gate 6: tenant RLS migration only classifies PRODX-owned tables a
   );
 });
 
-test('Security Gate 7: shared-schema cleanup revokes only known PRODX grants from non-PRODX objects', () => {
+test('Security Gate 7: shared-schema cleanup avoids changing defaults and removes only known PRODX policies', () => {
   const migration = fs.readFileSync(
     path.join(workspaceRoot, 'db/migrations/0037_security_cleanup_shared_schema_grants.sql'),
     'utf8',
@@ -190,5 +190,10 @@ test('Security Gate 7: shared-schema cleanup revokes only known PRODX grants fro
   assert.match(migration, /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+TABLE/i);
   assert.match(migration, /c\.relname\s+NOT\s+LIKE\s+'prodx\\_%'\s+ESCAPE\s+'\\'/);
   assert.match(migration, /VALUES\s*\('0037_security_cleanup_shared_schema_grants'\)/);
+  assert.doesNotMatch(
+    migration,
+    /ALTER\s+DEFAULT\s+PRIVILEGES\s+IN\s+SCHEMA\s+public/i,
+    'Shared-schema cleanup must not alter default privileges for other applications',
+  );
 });
 

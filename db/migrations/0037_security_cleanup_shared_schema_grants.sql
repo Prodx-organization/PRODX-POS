@@ -44,14 +44,7 @@ BEGIN
 END
 $$;
 
--- Undo schema-wide default grants/revokes introduced by the legacy PRODX role migrations
--- for the current migration owner. This avoids silently granting prodx_app access to
--- future shared-schema objects created by that owner.
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM prodx_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  REVOKE USAGE, SELECT ON SEQUENCES FROM prodx_app;
-
+-- Do not alter schema-wide default privileges: public may be shared by other applications.
 INSERT INTO prodx_schema_migrations(version)
 VALUES ('0037_security_cleanup_shared_schema_grants')
 ON CONFLICT(version) DO NOTHING;
