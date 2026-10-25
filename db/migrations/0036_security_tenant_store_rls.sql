@@ -367,7 +367,7 @@ BEGIN
       JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
      WHERE n.nspname = 'public'
        AND c.relkind = 'r'
-       AND c.relname LIKE 'prodx\\_%' ESCAPE '\\'
+       AND c.relname LIKE 'prodx\_%' ESCAPE '\'
        AND c.relname NOT IN ('prodx_schema_migrations', 'prodx_migration_lock')
      GROUP BY c.relname
   LOOP
@@ -435,7 +435,7 @@ BEGIN
       JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE n.nspname = 'public'
        AND c.relkind = 'S'
-       AND c.relname LIKE 'prodx\\_%' ESCAPE '\\'
+       AND c.relname LIKE 'prodx\_%' ESCAPE '\'
   LOOP
     EXECUTE format('REVOKE USAGE, SELECT ON SEQUENCE public.%I FROM prodx_app', sequence_name);
   END LOOP;
