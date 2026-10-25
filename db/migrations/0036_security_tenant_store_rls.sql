@@ -425,7 +425,7 @@ REVOKE INSERT, UPDATE, DELETE ON TABLE public.prodx_sessions, public.prodx_secur
 REVOKE INSERT, UPDATE, DELETE ON TABLE public.prodx_sessions, public.prodx_security_audit_events FROM prodx_app;
 GRANT SELECT ON TABLE public.prodx_sessions, public.prodx_security_audit_events, public.prodx_permissions TO prodx_app;
 -- Restrict sequence privilege changes to PRODX-owned sequences only.
-DO $
+DO $prodx_seq_revoke$
 DECLARE
   sequence_name text;
 BEGIN
@@ -440,7 +440,7 @@ BEGIN
     EXECUTE format('REVOKE USAGE, SELECT ON SEQUENCE public.%I FROM prodx_app', sequence_name);
   END LOOP;
 END
-$;
+$prodx_seq_revoke$;
 -- Do not alter schema-wide default privileges: public may be shared with other applications.
 -- Future PRODX objects must receive explicit grants in their owning migrations.
 
