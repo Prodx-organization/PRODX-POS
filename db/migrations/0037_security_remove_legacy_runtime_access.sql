@@ -1,6 +1,10 @@
 -- 0037: forward repair for databases that already recorded the legacy 0033 grants/policies.
 -- Remove only the legacy policy created by 0033 for prodx_app, never unrelated app policies.
 -- Revoke this role's access to non-PRODX public objects and restore PRODX sequence access only.
+-- Do not automatically DISABLE RLS on non-PRODX tables: after a legacy 0034 run,
+-- PostgreSQL does not retain the prior relrowsecurity value. Restoring it blindly could
+-- weaken an application's intentional RLS. Shared-table owners must verify intended RLS
+-- and policies from backups, migration history, or owner-approved schema records.
 DO $$
 DECLARE
   app_role_oid oid;

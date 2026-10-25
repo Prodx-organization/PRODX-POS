@@ -241,4 +241,14 @@ test('Security Gate 8: legacy policy cleanup removes only the named prodx_app po
     /ALTER\s+DEFAULT\s+PRIVILEGES\s+IN\s+SCHEMA\s+public\s+REVOKE\s+USAGE,\s*SELECT\s+ON\s+SEQUENCES\s+FROM\s+prodx_app/i,
     'legacy default sequence grants must be removed for the migration owner',
   );
+  assert.match(
+    migration,
+    /Do not automatically DISABLE RLS on non-PRODX tables[\s\S]*?prior relrowsecurity value/i,
+    'legacy repair must not blindly disable another application\'s RLS when its prior state is unknown',
+  );
+  assert.doesNotMatch(
+    migration,
+    /ALTER\s+TABLE\s+public\.%I\s+DISABLE\s+ROW\s+LEVEL\s+SECURITY/i,
+    'foreign-table RLS must not be disabled without owner-approved prior-state evidence',
+  );
 });
