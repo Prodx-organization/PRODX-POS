@@ -199,4 +199,24 @@ test('Security Gate 8: legacy policy cleanup removes only the named prodx_app po
   assert.match(migration, /polroles\s*=\s*ARRAY\[app_role_oid\]/);
   assert.match(migration, /c\.relkind\s+IN\s+\('r',\s*'p',\s*'v',\s*'m',\s*'f'\)/);
   assert.match(migration, /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+TABLE\s+public\.%I\s+FROM\s+prodx_app/);
+  assert.match(
+    migration,
+    /AND\s+left\(c\.relname,\s*6\)\s*<>\s*'prodx_'/,
+    'foreign-object cleanup must be scoped to non-PRODX public objects',
+  );
+  assert.match(
+    migration,
+    /REVOKE\s+USAGE\s*,\s*SELECT\s+ON\s+ALL\s+SEQUENCES\s+IN\s+SCHEMA\s+public\s+FROM\s+prodx_app/i,
+    'legacy sequence grants must be removed before PRODX sequence grants are restored',
+  );
+  assert.match(
+    migration,
+    /AND\s+left\(c\.relname,\s*6\)\s*=\s*'prodx_'/,
+    'sequence access must be restored only for PRODX-owned sequences',
+  );
+  assert.match(
+    migration,
+    /ALTER\s+DEFAULT\s+PRIVILEGES\s+IN\s+SCHEMA\s+public\s+REVOKE\s+USAGE,\s*SELECT\s+ON\s+SEQUENCES\s+FROM\s+prodx_app/i,
+    'legacy default sequence grants must be removed for the migration owner',
+  );
 });
