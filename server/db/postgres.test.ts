@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { classifyProductionDatabaseTarget, createProductionPostgresPool, resolveConfiguredDatabaseUrl, resolveProductionDatabaseUrl } from './postgres';
+import { validateApprovedDatabaseUrl, validateBrokerEndpointUrl } from '../../infra/db-broker/target.ts';
 
 const withEnvironment = async (
   values: Record<string, string | undefined>,
@@ -24,6 +25,32 @@ const withEnvironment = async (
   }
 };
 
+
+test('approved database URL validation pins the exact host, restricted role, and project ref', () => {
+  const ref = 'abcdefghijklmnopqrst';
+  const host = 'aws-0-ap-southeast-1.pooler.supabase.com';
+  const poolerUrl = `postgresql://prodx_app.${ref}:pw@${host}:5432/postgres`;
+  assert.equal(validateApprovedDatabaseUrl(poolerUrl, host, ref), poolerUrl);
+  assert.equal(validateApprovedDatabaseUrl(poolerUrl, undefined, ref), null);
+  assert.equal(validateApprovedDatabaseUrl(poolerUrl, host, undefined), null);
+  assert.equal(validateApprovedDatabaseUrl(poolerUrl.replace(ref, 'qrstuvwxyzabcdefghij'), host, ref), null);
+  assert.equal(validateApprovedDatabaseUrl(poolerUrl.replace(host, 'evil.example'), host, ref), null);
+  assert.equal(validateApprovedDatabaseUrl(`postgresql://postgres:pw@${host}:5432/postgres`, host, ref), null);
+
+  const directHost = `db.${ref}.supabase.co`;
+  const directUrl = `postgresql://prodx_app:pw@${directHost}:5432/postgres`;
+  assert.equal(validateApprovedDatabaseUrl(directUrl, directHost, ref), directUrl);
+  assert.equal(validateApprovedDatabaseUrl(`postgresql://postgres:pw@${directHost}:5432/postgres`, directHost, ref), null);
+});
+
+test('broker endpoint validation pins the exact Supabase project before an OIDC token can be sent', () => {
+  const ref = 'abcdefghijklmnopqrst';
+  const endpoint = `https://${ref}.supabase.co/functions/v1/prodx-db-broker`;
+  assert.equal(validateBrokerEndpointUrl(endpoint, ref), endpoint);
+  assert.equal(validateBrokerEndpointUrl('https://evil.example/functions/v1/prodx-db-broker', ref), null);
+  assert.equal(validateBrokerEndpointUrl(`https://${ref}.supabase.co/functions/v1/other-function`, ref), null);
+  assert.equal(validateBrokerEndpointUrl(endpoint, undefined), null);
+});
 test('classifies production database targets without returning or logging hostnames', () => {
   assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres'), 'supabase_session_pooler');
   // Owner Console project is not an approved POS transactional database.
@@ -85,7 +112,7 @@ test('resolveProductionDatabaseUrl uses the Vercel request token instead of DATA
   globalThis.fetch = async (input, init) => {
     requestedUrl = String(input);
     requestedAuthorization = new Headers(init?.headers).get('authorization') ?? '';
-    return new Response(JSON.stringify({ databaseUrl: 'postgresql://supabase.example/prodx' }), {
+    return new Response(JSON.stringify({ databaseUrl: 'postgresql://prodx_app.abcdefghijklmnopqrst:pw@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres' }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -98,12 +125,15 @@ test('resolveProductionDatabaseUrl uses the Vercel request token instead of DATA
         NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://legacy.example/prodx',
         VERCEL_OIDC_TOKEN: undefined,
-        PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+        PRODX_DB_BROKER_URL: 'https://abcdefghijklmnopqrst.supabase.co/functions/v1/prodx-db-broker',
+        PRODX_DB_BROKER_PROJECT_REF: 'abcdefghijklmnopqrst',
+        PRODX_DB_ALLOWED_HOST: 'aws-0-ap-southeast-1.pooler.supabase.com',
+        PRODX_DB_ALLOWED_PROJECT_REF: 'abcdefghijklmnopqrst',
       },
       async () => {
         assert.equal(
           await resolveProductionDatabaseUrl('request-oidc-token'),
-          'postgresql://supabase.example/prodx',
+          'postgresql://prodx_app.abcdefghijklmnopqrst:pw@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres',
         );
         assert.equal(requestedUrl, 'https://broker.example/prodx-db');
         assert.equal(requestedAuthorization, 'Bearer request-oidc-token');
@@ -120,7 +150,7 @@ test('resolveProductionDatabaseUrl falls back to VERCEL_OIDC_TOKEN for local too
 
   globalThis.fetch = async (_input, init) => {
     requestedAuthorization = new Headers(init?.headers).get('authorization') ?? '';
-    return new Response(JSON.stringify({ databaseUrl: 'postgresql://supabase.example/prodx' }), {
+    return new Response(JSON.stringify({ databaseUrl: 'postgresql://prodx_app.abcdefghijklmnopqrst:pw@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres' }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -133,10 +163,13 @@ test('resolveProductionDatabaseUrl falls back to VERCEL_OIDC_TOKEN for local too
         NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://legacy.example/prodx',
         VERCEL_OIDC_TOKEN: 'environment-oidc-token',
-        PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+        PRODX_DB_BROKER_URL: 'https://abcdefghijklmnopqrst.supabase.co/functions/v1/prodx-db-broker',
+        PRODX_DB_BROKER_PROJECT_REF: 'abcdefghijklmnopqrst',
+        PRODX_DB_ALLOWED_HOST: 'aws-0-ap-southeast-1.pooler.supabase.com',
+        PRODX_DB_ALLOWED_PROJECT_REF: 'abcdefghijklmnopqrst',
       },
       async () => {
-        assert.equal(await resolveProductionDatabaseUrl(), 'postgresql://supabase.example/prodx');
+        assert.equal(await resolveProductionDatabaseUrl(), 'postgresql://prodx_app.abcdefghijklmnopqrst:pw@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres');
         assert.equal(requestedAuthorization, 'Bearer environment-oidc-token');
       },
     );
@@ -150,7 +183,7 @@ test('createProductionPostgresPool cannot bypass the production broker with a ca
   let requestedUrl = '';
   globalThis.fetch = async (input) => {
     requestedUrl = String(input);
-    return new Response(JSON.stringify({ databaseUrl: 'postgresql://broker-issued.example/prodx' }), {
+    return new Response(JSON.stringify({ databaseUrl: 'postgresql://prodx_app.abcdefghijklmnopqrst:pw@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres' }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -162,7 +195,10 @@ test('createProductionPostgresPool cannot bypass the production broker with a ca
       NODE_ENV: 'production',
       DATABASE_URL: 'postgresql://legacy.example/prodx',
       VERCEL_OIDC_TOKEN: undefined,
-      PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+      PRODX_DB_BROKER_URL: 'https://abcdefghijklmnopqrst.supabase.co/functions/v1/prodx-db-broker',
+        PRODX_DB_BROKER_PROJECT_REF: 'abcdefghijklmnopqrst',
+        PRODX_DB_ALLOWED_HOST: 'aws-0-ap-southeast-1.pooler.supabase.com',
+        PRODX_DB_ALLOWED_PROJECT_REF: 'abcdefghijklmnopqrst',
     }, async () => {
       const pool = await createProductionPostgresPool({
         connectionString: 'postgresql://caller-controlled.example/prodx',
@@ -171,7 +207,7 @@ test('createProductionPostgresPool cannot bypass the production broker with a ca
         assert.equal(requestedUrl, 'https://broker.example/prodx-db');
         assert.equal(
           (pool as unknown as { options: { connectionString: string } }).options.connectionString,
-          'postgresql://broker-issued.example/prodx',
+          'postgresql://prodx_app.abcdefghijklmnopqrst:pw@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres',
         );
       } finally {
         await pool.end();
@@ -193,7 +229,10 @@ test('resolveProductionDatabaseUrl rejects a broker failure', async () => {
         NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://legacy.example/prodx',
         VERCEL_OIDC_TOKEN: undefined,
-        PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+        PRODX_DB_BROKER_URL: 'https://abcdefghijklmnopqrst.supabase.co/functions/v1/prodx-db-broker',
+        PRODX_DB_BROKER_PROJECT_REF: 'abcdefghijklmnopqrst',
+        PRODX_DB_ALLOWED_HOST: 'aws-0-ap-southeast-1.pooler.supabase.com',
+        PRODX_DB_ALLOWED_PROJECT_REF: 'abcdefghijklmnopqrst',
       },
       async () => {
         await assert.rejects(

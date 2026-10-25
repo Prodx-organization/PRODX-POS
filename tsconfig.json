@@ -28,6 +28,7 @@
     ]
   },
   "exclude": [
-    "supabase/functions"
+    "supabase/functions",
+    "infra/db-broker/index.ts"
   ]
 }

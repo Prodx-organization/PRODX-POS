@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { Pool, type PoolConfig, type QueryResultRow } from 'pg';
 import type { SqlExecutor } from '../auth/postgres-repository.ts';
+import { validateApprovedDatabaseUrl, validateBrokerEndpointUrl } from '../../infra/db-broker/target.ts';
 
 const LOCAL_POSTGRES_SOCKET = '/tmp/pgrun/.s.PGSQL.5432';
 const LOCAL_FALLBACK_DATABASE_URL = 'postgresql://postgres@127.0.0.1:5432/prodx_pos';
@@ -51,7 +52,20 @@ export const resolveProductionDatabaseUrl = async (
   if (!brokerUrl) {
     throw new Error('PRODX_DB_BROKER_URL is required to resolve the production PostgreSQL connection.');
   }
-  const response = await fetch(brokerUrl, {
+  const brokerProjectRef = process.env.PRODX_DB_BROKER_PROJECT_REF?.trim().toLowerCase();
+  const allowedDatabaseHost = process.env.PRODX_DB_ALLOWED_HOST?.trim().toLowerCase();
+  const databaseProjectRef = process.env.PRODX_DB_ALLOWED_PROJECT_REF?.trim().toLowerCase();
+  if (!brokerProjectRef || !allowedDatabaseHost || !databaseProjectRef) {
+    throw new Error('PRODX_DB_BROKER_PROJECT_REF, PRODX_DB_ALLOWED_HOST, and PRODX_DB_ALLOWED_PROJECT_REF are required to verify the production PostgreSQL target.');
+  }
+
+  const approvedBrokerUrl = validateBrokerEndpointUrl(brokerUrl, brokerProjectRef);
+  if (!approvedBrokerUrl) {
+    throw new Error('PRODX_DB_BROKER_URL must target the approved Supabase broker project endpoint.');
+  }
+
+  // Validate the broker URL before sending the OIDC token; never send it to an arbitrary host.
+  const response = await fetch(approvedBrokerUrl, {
     method: 'GET',
     headers: {
       authorization: `Bearer ${oidcToken}`,
@@ -68,7 +82,16 @@ export const resolveProductionDatabaseUrl = async (
     throw new Error('Production database broker returned no database URL.');
   }
 
-  return payload.databaseUrl;
+  const approvedDatabaseUrl = validateApprovedDatabaseUrl(
+    payload.databaseUrl,
+    allowedDatabaseHost,
+    databaseProjectRef,
+  );
+  if (!approvedDatabaseUrl) {
+    throw new Error('Production database broker returned a URL that does not match the approved PostgreSQL target.');
+  }
+
+  return approvedDatabaseUrl;
 };
 
 export const createPostgresPool = (config: PoolConfig = {}): Pool => {
