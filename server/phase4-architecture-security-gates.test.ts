@@ -187,7 +187,8 @@ test('Security Gate 7: shared-schema cleanup avoids changing defaults and remove
     'utf8',
   );
   assert.match(migration, /DROP\s+POLICY\s+IF\s+EXISTS/i);
-  assert.match(migration, /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+TABLE/i);
+  assert.doesNotMatch(migration, /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+TABLE/i);
+  assert.match(migration, /REVOKE\s+USAGE\s*,\s*SELECT\s+ON\s+SEQUENCE/i);
   assert.match(migration, /c\.relname\s+NOT\s+LIKE\s+'prodx\\_%'\s+ESCAPE\s+'\\'/);
   assert.match(migration, /VALUES\s*\('0037_security_cleanup_shared_schema_grants'\)/);
   assert.doesNotMatch(

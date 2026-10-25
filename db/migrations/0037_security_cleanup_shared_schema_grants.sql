@@ -26,8 +26,7 @@ BEGIN
     LOOP
       EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', policy_name, table_name);
     END LOOP;
-
-    EXECUTE format('REVOKE ALL PRIVILEGES ON TABLE public.%I FROM prodx_app', table_name);
+    -- Remove only known PRODX-created policies; preserve independently managed table grants.
   END LOOP;
 
   -- Revoke sequence access only from non-PRODX sequences.
@@ -39,7 +38,7 @@ BEGIN
        AND c.relkind = 'S'
        AND c.relname NOT LIKE 'prodx\_%' ESCAPE '\'
   LOOP
-    EXECUTE format('REVOKE ALL PRIVILEGES ON SEQUENCE public.%I FROM prodx_app', sequence_name);
+    EXECUTE format('REVOKE USAGE, SELECT ON SEQUENCE public.%I FROM prodx_app', sequence_name);
   END LOOP;
 END
 $$;
