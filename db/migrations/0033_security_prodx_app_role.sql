@@ -105,6 +105,10 @@ $$;
 
 -- Do not grant the POS runtime role access to every future object in public.
 -- Future PRODX migrations must explicitly grant only the PRODX tables/sequences they create.
+ALTER DEFAULT PRIVILEGES
+  REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM prodx_app;
+ALTER DEFAULT PRIVILEGES
+  REVOKE USAGE, SELECT ON SEQUENCES FROM prodx_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM prodx_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
