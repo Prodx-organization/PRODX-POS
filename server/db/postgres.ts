@@ -89,17 +89,19 @@ export const resolveProductionDatabaseUrl = async (
     );
   }
 
-  let payload: { databaseUrl?: unknown };
+  let payload: unknown;
   try {
-    payload = await response.json() as { databaseUrl?: unknown };
+    payload = await response.json();
   } catch (cause: unknown) {
     throw productionBrokerError('Production database broker returned an invalid response.', 'broker_response', cause);
   }
-  if (typeof payload.databaseUrl !== 'string' || payload.databaseUrl.length === 0) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) ||
+      typeof (payload as { databaseUrl?: unknown }).databaseUrl !== 'string' ||
+      (payload as { databaseUrl: string }).databaseUrl.length === 0) {
     throw productionBrokerError('Production database broker returned no database URL.', 'broker_response');
   }
 
-  return payload.databaseUrl;
+  return (payload as { databaseUrl: string }).databaseUrl;
 };
 
 export const createPostgresPool = (config: PoolConfig = {}): Pool => {

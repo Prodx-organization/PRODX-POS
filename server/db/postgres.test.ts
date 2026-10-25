@@ -53,7 +53,12 @@ test('resolveProductionDatabaseUrl fails closed when no Vercel runtime token is 
     async () => {
       await assert.rejects(
         resolveProductionDatabaseUrl(),
-        /Vercel OIDC token is required/,
+        (error: unknown) => {
+          assert.ok(error instanceof Error);
+          assert.match(error.message, /Vercel OIDC token is required/);
+          assert.equal((error as Error & { stage?: string }).stage, 'broker_config');
+          return true;
+        },
       );
     },
   );
@@ -71,7 +76,12 @@ test('resolveProductionDatabaseUrl fails closed when the production broker endpo
     async () => {
       await assert.rejects(
         resolveProductionDatabaseUrl('request-oidc-token'),
-        /PRODX_DB_BROKER_URL is required/,
+        (error: unknown) => {
+          assert.ok(error instanceof Error);
+          assert.match(error.message, /PRODX_DB_BROKER_URL is required/);
+          assert.equal((error as Error & { stage?: string }).stage, 'broker_config');
+          return true;
+        },
       );
     },
   );
@@ -250,6 +260,39 @@ test('resolveProductionDatabaseUrl labels broker DNS failures without flattening
             assert.ok(error instanceof Error);
             assert.equal((error as Error & { stage?: string }).stage, 'broker_fetch');
             assert.ok((error as Error & { cause?: unknown }).cause instanceof TypeError);
+            return true;
+          },
+        );
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('resolveProductionDatabaseUrl rejects a null broker payload with a safe response stage', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('null', {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+
+  try {
+    await withEnvironment(
+      {
+        VERCEL: '1',
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://legacy.example/prodx',
+        VERCEL_OIDC_TOKEN: undefined,
+        PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+      },
+      async () => {
+        await assert.rejects(
+          resolveProductionDatabaseUrl('request-oidc-token'),
+          (error: unknown) => {
+            assert.ok(error instanceof Error);
+            assert.match(error.message, /returned no database URL/);
+            assert.equal((error as Error & { stage?: string }).stage, 'broker_response');
             return true;
           },
         );
