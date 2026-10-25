@@ -27,15 +27,29 @@ END
 $$;
 GRANT USAGE ON SCHEMA public TO prodx_app;
 
-GRANT SELECT, INSERT, UPDATE, DELETE
-  ON ALL TABLES IN SCHEMA public TO prodx_app;
+-- Grant privileges only on PRODX-owned tables. Never grant access to every
+-- object in public: this schema may also contain tables owned by other apps.
+DO $$
+DECLARE
+  table_name text;
+BEGIN
+  FOR table_name IN
+    SELECT c.relname
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relkind = 'r'
+      AND c.relname LIKE 'prodx\_%' ESCAPE '\'
+      AND c.relname NOT IN ('prodx_schema_migrations', 'prodx_migration_lock')
+  LOOP
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.%I TO prodx_app', table_name);
+  END LOOP;
+END
+$$;
 
 REVOKE ALL
   ON TABLE public.prodx_schema_migrations, public.prodx_migration_lock
   FROM prodx_app;
-
-GRANT USAGE, SELECT
-  ON ALL SEQUENCES IN SCHEMA public TO prodx_app;
 
 -- The direct backend is the trusted authorization boundary. Explicit RLS
 -- policies keep RLS enabled while allowing this backend role to operate.
@@ -49,6 +63,7 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public'
       AND c.relkind = 'r'
+      AND c.relname LIKE 'prodx\_%' ESCAPE '\'
       AND c.relname NOT IN ('prodx_schema_migrations', 'prodx_migration_lock')
   LOOP
     EXECUTE format(
@@ -65,11 +80,7 @@ BEGIN
 END
 $$;
 
--- Future application tables continue to receive table/sequence privileges.
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO prodx_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT USAGE, SELECT ON SEQUENCES TO prodx_app;
+-- Do not set schema-wide default privileges: future tables may belong to other apps.
 
 INSERT INTO prodx_schema_migrations(version)
 VALUES ('0033_security_prodx_app_role')
