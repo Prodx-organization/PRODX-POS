@@ -93,12 +93,12 @@ export const createSessionIssuer = (
       return null;
     }
     if (compromise.compromised) {
-      await repository.recordFailedAttempt(credential.userId);
+      await repository.recordFailedAttempt(credential.userId, credential.organizationId);
       return null;
     }
     if (!(await verifySecret(password, credential.secretHash))) {
       // The repository owns the atomic threshold decision. Never derive the lockout timestamp from a credential snapshot: concurrent failures may observe the same failedAttempts value.
-      await repository.recordFailedAttempt(credential.userId);
+      await repository.recordFailedAttempt(credential.userId, credential.organizationId);
       return null;
     }
     await repository.resetFailedAttempts(credential.userId, credential.organizationId);
