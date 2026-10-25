@@ -16,4 +16,5 @@ test('Vercel API entrypoint imports runtime helpers from the bundled server arti
     productionEntry,
     /export \{ createRetryableInitialization \} from ['"]\.\/http\/retryable-initialization\.ts['"]/,
   );
+  assert.match(bundleDeclaration, /export declare const createRetryableInitialization:/);
 });
