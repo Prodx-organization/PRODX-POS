@@ -89,6 +89,7 @@ test('Database & Security Gate 4: PostgreSQL append-only audit trigger, RLS, and
   });
 
   try {
+    // 1. Verify append-only trigger on prodx_audit_log
     const triggerRes = await pool.query<{ tgname: string; tgenabled: string }>(
       `SELECT tgname, tgenabled
          FROM pg_trigger
@@ -98,6 +99,7 @@ test('Database & Security Gate 4: PostgreSQL append-only audit trigger, RLS, and
     assert.equal(triggerRes.rows.length, 1, 'prodx_audit_log_immutable_guard trigger must exist');
     assert.equal(triggerRes.rows[0].tgenabled, 'O', 'prodx_audit_log_immutable_guard trigger must be enabled');
 
+    // 2. Verify Row-Level Security (RLS) is enabled on core tenant tables
     const rlsTables = [
       'prodx_orders',
       'prodx_order_items',
@@ -120,6 +122,7 @@ test('Database & Security Gate 4: PostgreSQL append-only audit trigger, RLS, and
       assert.equal(row.relrowsecurity, true, `RLS must be enabled on ${row.relname}`);
     }
 
+    // 3. Verify least-privilege prodx_app role flags
     const roleRes = await pool.query<{
       rolname: string;
       rolsuper: boolean;
@@ -165,6 +168,7 @@ test('Security Gate 6: runtime-role migration never installs unconditional polic
     'utf8',
   );
   assert.match(migration, /c\.relname\s+LIKE\s+'prodx\\_%'\s+ESCAPE\s+'\\'/);
+  assert.match(migration, /ALTER\s+ROLE\s+prodx_app[\s\S]*?NOBYPASSRLS/);
   assert.doesNotMatch(
     migration,
     /ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+TO\s+prodx_app/i,
