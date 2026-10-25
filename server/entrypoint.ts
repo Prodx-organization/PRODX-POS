@@ -26,6 +26,7 @@ import { registerVoidRoute } from './http/void-route.ts';
 import { registerInventoryAdjustmentRoute } from './http/inventory-adjustment-route.ts';
 import { registerInfrastructureRoutes, registerPublicInfrastructureRoutes } from './http/infrastructureRoutes.ts';
 import { installAIHttpRoute } from './ai/http-route.ts';
+export { createRetryableInitialization } from './http/retryable-initialization.ts';
 
 export type ProductionAppOptions = {
   vercelOidcToken?: string;

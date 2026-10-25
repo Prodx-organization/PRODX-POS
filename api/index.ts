@@ -1,6 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createProductionApp } from '../server-bundle.js';
-import { createRetryableInitialization } from '../server/http/retryable-initialization.ts';
+import { createProductionApp, createRetryableInitialization } from '../server-bundle.js';
 
 type VercelRequest = IncomingMessage & {
   headers: IncomingMessage['headers'];
