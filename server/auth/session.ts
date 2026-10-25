@@ -15,14 +15,14 @@ export type SessionRecord = {
 };
 export type DeviceRecord = { id: string; organizationId: string; storeId: string; status: 'active' | 'disabled'; };
 export type AuthenticationRepository = {
-  findCredentialByUsername: (username: string, organizationId?: string) => Promise<CredentialRecord | null>;
-  recordFailedAttempt: (userId: string, lockedUntil?: Date) => Promise<void>;
-  resetFailedAttempts: (userId: string) => Promise<void>;
+  findCredentialByUsername: (username: string, deviceId: string) => Promise<CredentialRecord | null>;
+  recordFailedAttempt: (userId: string, organizationId: string) => Promise<void>;
+  resetFailedAttempts: (userId: string, organizationId: string) => Promise<void>;
   createSession: (input: { id: string; organizationId: string; userId: string; deviceId: string; tokenHash: string; expiresAt: Date }) => Promise<void>;
   findSessionByTokenHash: (tokenHash: string) => Promise<SessionRecord | null>;
   findDevice: (deviceId: string) => Promise<DeviceRecord | null>;
-  revokeSession: (sessionId: string, at: Date) => Promise<void>;
-  touchSession: (sessionId: string, at: Date) => Promise<void>;
+  revokeSession: (sessionId: string, tokenHash: string, at: Date) => Promise<void>;
+  touchSession: (sessionId: string, tokenHash: string, at: Date) => Promise<void>;
 };
 export type AuthenticateCredentialsInput = { username: string; password: string; deviceId: string };
 export type AuthenticateSupabaseTokenInput = { token: string; deviceId: string };
@@ -72,7 +72,7 @@ export const createSessionIssuer = (
     // organization. Usernames are only unique per organization.
     const device = await repository.findDevice(deviceId);
     if (!device || device.status !== 'active') return null;
-    const credential = await repository.findCredentialByUsername(normalizedUsername, device.organizationId);
+    const credential = await repository.findCredentialByUsername(normalizedUsername, device.id);
     if (!credential || credential.status !== 'active' || credential.credentialType !== 'password') return null;
     if (device.organizationId !== credential.organizationId) return null;
     const current = now();
@@ -80,7 +80,7 @@ export const createSessionIssuer = (
     // Never trust a client-controlled marker as proof of WebAuthn verification.
     // WebAuthn must be verified by a server-owned challenge/credential flow before it can issue a session.
     if (password.startsWith('WEBAUTHN_VERIFIED:')) {
-      await repository.recordFailedAttempt(credential.userId);
+      await repository.recordFailedAttempt(credential.userId, credential.organizationId);
       return null;
     }
 
@@ -93,15 +93,15 @@ export const createSessionIssuer = (
       return null;
     }
     if (compromise.compromised) {
-      await repository.recordFailedAttempt(credential.userId);
+      await repository.recordFailedAttempt(credential.userId, credential.organizationId);
       return null;
     }
     if (!(await verifySecret(password, credential.secretHash))) {
       // The repository owns the atomic threshold decision. Never derive the lockout timestamp from a credential snapshot: concurrent failures may observe the same failedAttempts value.
-      await repository.recordFailedAttempt(credential.userId);
+      await repository.recordFailedAttempt(credential.userId, credential.organizationId);
       return null;
     }
-    await repository.resetFailedAttempts(credential.userId);
+    await repository.resetFailedAttempts(credential.userId, credential.organizationId);
     const token = newBearerToken();
     const sessionId = crypto.randomUUID();
     const expiresAt = new Date(current.getTime() + SESSION_TTL_MS);
@@ -113,7 +113,7 @@ export const createSessionIssuer = (
     if (!verified) return null;
     const device = await repository.findDevice(deviceId);
     if (!device || device.status !== 'active') return null;
-    const credential = await repository.findCredentialByUsername(verified.email, device.organizationId);
+    const credential = await repository.findCredentialByUsername(verified.email, device.id);
     if (!credential || credential.status !== 'active') return null;
     const nowValue = now();
     if (verified.expiresAt <= nowValue) return null;
@@ -137,14 +137,14 @@ export const createSessionIssuer = (
     if (!session || session.revokedAt || session.expiresAt <= now() || session.userStatus !== 'active') return null;
     const device = await repository.findDevice(session.deviceId);
     if (!device || device.status !== 'active' || device.organizationId !== session.organizationId) return null;
-    await repository.touchSession(session.id, now());
+    await repository.touchSession(session.id, hashSessionToken(token), now());
     return { sessionId: session.id, userId: session.userId, organizationId: session.organizationId, storeId: device.storeId };
   },
   revokeBearer: async (token) => {
     if (!token) return false;
     const session = await repository.findSessionByTokenHash(hashSessionToken(token));
     if (!session || session.revokedAt) return false;
-    await repository.revokeSession(session.id, now());
+    await repository.revokeSession(session.id, hashSessionToken(token), now());
     return true;
   },
 });

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
-import { classifyProductionDatabaseTarget, resolveConfiguredDatabaseUrl, resolveProductionDatabaseUrl } from './postgres';
+import { classifyProductionDatabaseTarget, createProductionPostgresPool, resolveConfiguredDatabaseUrl, resolveProductionDatabaseUrl } from './postgres';
 
 const withEnvironment = async (
   values: Record<string, string | undefined>,
@@ -140,6 +140,43 @@ test('resolveProductionDatabaseUrl falls back to VERCEL_OIDC_TOKEN for local too
         assert.equal(requestedAuthorization, 'Bearer environment-oidc-token');
       },
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('createProductionPostgresPool cannot bypass the production broker with a caller-supplied connection string', async () => {
+  const originalFetch = globalThis.fetch;
+  let requestedUrl = '';
+  globalThis.fetch = async (input) => {
+    requestedUrl = String(input);
+    return new Response(JSON.stringify({ databaseUrl: 'postgresql://broker-issued.example/prodx' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    await withEnvironment({
+      VERCEL: '1',
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://legacy.example/prodx',
+      VERCEL_OIDC_TOKEN: undefined,
+      PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+    }, async () => {
+      const pool = await createProductionPostgresPool({
+        connectionString: 'postgresql://caller-controlled.example/prodx',
+      }, 'request-oidc-token');
+      try {
+        assert.equal(requestedUrl, 'https://broker.example/prodx-db');
+        assert.equal(
+          (pool as unknown as { options: { connectionString: string } }).options.connectionString,
+          'postgresql://broker-issued.example/prodx',
+        );
+      } finally {
+        await pool.end();
+      }
+    });
   } finally {
     globalThis.fetch = originalFetch;
   }
