@@ -441,8 +441,8 @@ BEGIN
   END LOOP;
 END
 $;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM prodx_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE USAGE, SELECT ON SEQUENCES FROM prodx_app;
+-- Do not alter schema-wide default privileges: public may be shared with other applications.
+-- Future PRODX objects must receive explicit grants in their owning migrations.
 
 REVOKE ALL ON FUNCTION public.prodx_auth_resolve_device(text, text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.prodx_auth_find_device(uuid) FROM PUBLIC;
