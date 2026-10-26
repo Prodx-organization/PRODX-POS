@@ -4,20 +4,41 @@
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'prodx_app') THEN
-    CREATE ROLE prodx_app
-      WITH LOGIN
-      NOSUPERUSER
-      NOCREATEDB
-      NOCREATEROLE
-      NOINHERIT
-      NOREPLICATION
-      NOBYPASSRLS;
+    -- PostgreSQL defaults privilege-escalating role flags to false. Hosted
+    -- Supabase migration connections are not true superusers and cannot set
+    -- SUPERUSER/BYPASSRLS attributes, even when explicitly setting them false.
+    CREATE ROLE prodx_app WITH LOGIN NOINHERIT;
   END IF;
 END
 $$;
 
-ALTER ROLE prodx_app
-  WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+-- Fail closed if an existing role is not least-privileged; never attempt a
+-- superuser-only ALTER ROLE from a hosted Supabase migration connection.
+DO $$
+DECLARE
+  role_flags record;
+BEGIN
+  SELECT rolcanlogin, rolinherit, rolsuper, rolcreatedb, rolcreaterole,
+         rolreplication, rolbypassrls
+    INTO role_flags
+    FROM pg_roles
+   WHERE rolname = 'prodx_app';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'prodx_app role was not created';
+  END IF;
+
+  IF NOT role_flags.rolcanlogin
+     OR role_flags.rolinherit
+     OR role_flags.rolsuper
+     OR role_flags.rolcreatedb
+     OR role_flags.rolcreaterole
+     OR role_flags.rolreplication
+     OR role_flags.rolbypassrls THEN
+    RAISE EXCEPTION 'prodx_app role must be LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS';
+  END IF;
+END
+$$;
 
 COMMENT ON ROLE prodx_app IS
   'PRODX-POS backend runtime role. Tenant/store access is constrained by explicit RLS policies and server-verified request context.';
