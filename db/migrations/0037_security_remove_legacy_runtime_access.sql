@@ -17,7 +17,16 @@ BEGIN
     RAISE EXCEPTION 'prodx_app role is required for legacy privilege cleanup';
   END IF;
 
-  EXECUTE 'ALTER ROLE prodx_app WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS';
+  -- Verify role flags instead of ALTER ROLE: hosted Supabase migrations run
+  -- without true SUPERUSER and cannot change SUPERUSER/BYPASSRLS attributes.
+  IF EXISTS (
+    SELECT 1 FROM pg_roles
+     WHERE rolname = 'prodx_app'
+       AND (NOT rolcanlogin OR rolinherit OR rolsuper OR rolcreatedb
+         OR rolcreaterole OR rolreplication OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'prodx_app role must remain least-privileged';
+  END IF;
 
   FOR policy_row IN
     SELECT n.nspname, c.relname, p.polname
