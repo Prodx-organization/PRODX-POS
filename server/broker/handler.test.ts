@@ -9,12 +9,14 @@ import {
 } from '../../infra/db-broker/handler.ts';
 
 const SUBJECT = 'owner:test-team:project:prodx-pos-org:environment:production';
-const DATABASE_URL = 'postgresql://prodx_app.abcdefghijklmnop:test-only-password@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres';
+const DATABASE_PROJECT_REF = 'wcyqyiewbzpmrekoljfw';
+const DATABASE_URL = `postgresql://prodx_app.${DATABASE_PROJECT_REF}:test-only-password@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require`;
 
 const config: BrokerConfig = {
   issuer: 'https://oidc.vercel.com/test-team',
   audience: 'https://vercel.com/test-team',
   allowedSubjects: [SUBJECT],
+  databaseProjectRef: DATABASE_PROJECT_REF,
   databaseUrl: DATABASE_URL,
 };
 
@@ -145,12 +147,14 @@ test('buildBrokerConfig accepts a complete restricted-role configuration and nor
     issuer: 'https://oidc.vercel.com/test-team/',
     audience: 'https://vercel.com/test-team',
     allowedSubjects: SUBJECT,
+    databaseProjectRef: DATABASE_PROJECT_REF,
     databaseUrl: DATABASE_URL,
   });
   assert.deepEqual(built, {
     issuer: 'https://oidc.vercel.com/test-team',
     audience: 'https://vercel.com/test-team',
     allowedSubjects: [SUBJECT],
+    databaseProjectRef: DATABASE_PROJECT_REF,
     databaseUrl: DATABASE_URL,
   });
 });
@@ -160,6 +164,7 @@ test('buildBrokerConfig returns null for incomplete or unsafe configuration', ()
     issuer: 'https://oidc.vercel.com/test-team',
     audience: 'https://vercel.com/test-team',
     allowedSubjects: SUBJECT,
+    databaseProjectRef: DATABASE_PROJECT_REF,
     databaseUrl: DATABASE_URL,
   };
   assert.notEqual(buildBrokerConfig(valid), null);
@@ -167,7 +172,11 @@ test('buildBrokerConfig returns null for incomplete or unsafe configuration', ()
   assert.equal(buildBrokerConfig({ ...valid, issuer: undefined }), null);
   assert.equal(buildBrokerConfig({ ...valid, audience: '' }), null);
   assert.equal(buildBrokerConfig({ ...valid, allowedSubjects: ' , ' }), null);
+  assert.equal(buildBrokerConfig({ ...valid, databaseProjectRef: undefined }), null);
   assert.equal(buildBrokerConfig({ ...valid, databaseUrl: undefined }), null);
+  assert.equal(buildBrokerConfig({ ...valid, databaseUrl: DATABASE_URL.replace(DATABASE_PROJECT_REF, 'bbxoywnlayduqbrjeixj') }), null);
+  assert.equal(buildBrokerConfig({ ...valid, databaseUrl: DATABASE_URL.replace('ap-southeast-1', 'ap-northeast-1') }), null);
+  assert.equal(buildBrokerConfig({ ...valid, databaseUrl: DATABASE_URL.replace('sslmode=require', 'sslmode=disable') }), null);
   assert.equal(buildBrokerConfig({ ...valid, issuer: 'http://oidc.vercel.com/test-team' }), null);
   assert.equal(buildBrokerConfig({ ...valid, audience: 'http://vercel.com/test-team' }), null);
   assert.equal(buildBrokerConfig({ ...valid, databaseUrl: 'mysql://prodx_app:x@host/db' }), null);
