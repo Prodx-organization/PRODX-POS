@@ -131,3 +131,64 @@ test('PRODX runtime role cannot access foreign public objects or inherit future 
     await pool.end();
   }
 });
+
+test('PRODX public API roles cannot access POS tables or internal RPC functions', { skip: !shouldRun }, async () => {
+  const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+  try {
+    const apiRoles = await pool.query<{ rolname: string }>(
+      `SELECT rolname FROM pg_roles WHERE rolname = ANY($1::text[])`,
+      [['anon', 'authenticated', 'service_role']],
+    );
+    for (const { rolname } of apiRoles.rows) {
+      const tableAccess = await pool.query<{ exposed_tables: number }>(
+        `SELECT count(*)::int AS exposed_tables
+           FROM information_schema.tables t
+          WHERE t.table_schema = 'public'
+            AND t.table_type = 'BASE TABLE'
+            AND left(t.table_name, 6) = 'prodx_'
+            AND (has_table_privilege($1, format('%I.%I', t.table_schema, t.table_name), 'SELECT')
+              OR has_table_privilege($1, format('%I.%I', t.table_schema, t.table_name), 'INSERT')
+              OR has_table_privilege($1, format('%I.%I', t.table_schema, t.table_name), 'UPDATE')
+              OR has_table_privilege($1, format('%I.%I', t.table_schema, t.table_name), 'DELETE'))`,
+        [rolname],
+      );
+      assert.equal(tableAccess.rows[0].exposed_tables, 0, `${rolname} must not have direct PRODX table access`);
+
+      const functionAccess = await pool.query<{ exposed_functions: number }>(
+        `SELECT count(*)::int AS exposed_functions
+           FROM pg_proc p
+           JOIN pg_namespace n ON n.oid = p.pronamespace
+          WHERE n.nspname = 'public'
+            AND left(p.proname, 6) = 'prodx_'
+            AND has_function_privilege($1, p.oid, 'EXECUTE')`,
+        [rolname],
+      );
+      assert.equal(functionAccess.rows[0].exposed_functions, 0, `${rolname} must not execute internal PRODX RPC functions`);
+    }
+
+    const internalPrivileges = await pool.query<{
+      runtime_reads_ledger: boolean;
+      runtime_reads_lock: boolean;
+      runtime_reads_throttle_table: boolean;
+      runtime_executes_prodx_functions: number;
+      rls_disabled_prodx_tables: number;
+    }>(
+      `SELECT
+         has_table_privilege('prodx_app', 'public.prodx_schema_migrations', 'SELECT') AS runtime_reads_ledger,
+         has_table_privilege('prodx_app', 'public.prodx_migration_lock', 'SELECT') AS runtime_reads_lock,
+         has_table_privilege('prodx_app', 'public.prodx_auth_login_throttles', 'SELECT') AS runtime_reads_throttle_table,
+         (SELECT count(*)::int FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+           WHERE n.nspname='public' AND left(p.proname,6)='prodx_'
+             AND has_function_privilege('prodx_app',p.oid,'EXECUTE')) AS runtime_executes_prodx_functions,
+         (SELECT count(*)::int FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+           WHERE n.nspname='public' AND c.relkind IN ('r','p') AND left(c.relname,6)='prodx_' AND NOT c.relrowsecurity) AS rls_disabled_prodx_tables`,
+    );
+    assert.equal(internalPrivileges.rows[0].runtime_reads_ledger, false);
+    assert.equal(internalPrivileges.rows[0].runtime_reads_lock, false);
+    assert.equal(internalPrivileges.rows[0].runtime_reads_throttle_table, false);
+    assert.ok(internalPrivileges.rows[0].runtime_executes_prodx_functions > 0);
+    assert.equal(internalPrivileges.rows[0].rls_disabled_prodx_tables, 0);
+  } finally {
+    await pool.end();
+  }
+});
