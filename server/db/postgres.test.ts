@@ -37,9 +37,9 @@ test('classifies production database targets without returning or logging hostna
 
 test('runtime source targets only the PRODX-ORG session pooler', async () => {
   const runtimeSource = await readFile(new URL('./postgres.ts', import.meta.url), 'utf8');
-  assert.doesNotMatch(runtimeSource, /db\\.bbxoywnlayduqbrjeixj\\.supabase\\.co/);
-  assert.match(runtimeSource, /aws-0-ap-southeast-1\\.pooler\\.supabase\\.com/);
-  assert.match(runtimeSource, /prodx_app\\.wcyqyiewbzpmrekoljfw/);
+  assert.doesNotMatch(runtimeSource, /db\.bbxoywnlayduqbrjeixj\.supabase\.co/);
+  assert.match(runtimeSource, /aws-0-ap-southeast-1\.pooler\.supabase\.com/);
+  assert.match(runtimeSource, /prodx_app\.wcyqyiewbzpmrekoljfw/);
 });
 
 test('resolveProductionDatabaseUrl uses DATABASE_URL outside Vercel production', async () => {
