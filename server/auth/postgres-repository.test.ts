@@ -2,6 +2,23 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createPostgresAuthenticationRepository, type SqlExecutor } from './postgres-repository';
 
+test('Supabase identity lookup uses a dedicated database function and passes subject plus device scope', async () => {
+  const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
+  const db: SqlExecutor = {
+    async query<T extends Record<string, unknown>>(sql: string, parameters = []): Promise<readonly T[]> {
+      calls.push({ sql, parameters });
+      return [{ userId: 'user-1', organizationId: 'org-1', username: 'cashier', status: 'active',
+        credential_type: 'password', secret_hash: 'hash', failed_attempts: 0, locked_until: null } as unknown as T];
+    },
+  };
+  const result = await createPostgresAuthenticationRepository(db).findCredentialBySupabaseUserId(
+    '00000000-0000-4000-8000-000000000099', 'device-1',
+  );
+  assert.equal(result?.userId, 'user-1');
+  assert.deepEqual(calls[0].parameters, ['00000000-0000-4000-8000-000000000099', 'device-1']);
+  assert.match(calls[0].sql, /prodx_auth_find_credential_by_supabase_user_id/);
+});
+
 test('credential lookup maps authoritative user and credential state', async () => {
   const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
   const db: SqlExecutor = {
