@@ -26,8 +26,15 @@ export type ProductionDatabaseTarget = 'supabase_session_pooler' | 'other' | 'in
 export const classifyProductionDatabaseTarget = (databaseUrl?: string): ProductionDatabaseTarget => {
   if (!databaseUrl) return 'invalid';
   try {
-    const hostname = new URL(databaseUrl).hostname;
-    if (hostname === 'aws-0-ap-northeast-1.pooler.supabase.com') return 'supabase_session_pooler';
+    const parsed = new URL(databaseUrl);
+    const username = decodeURIComponent(parsed.username);
+    if (
+      parsed.hostname === 'aws-0-ap-southeast-1.pooler.supabase.com' &&
+      parsed.port === '5432' &&
+      parsed.pathname === '/postgres' &&
+      username === 'prodx_app.wcyqyiewbzpmrekoljfw' &&
+      parsed.searchParams.get('sslmode') !== 'disable'
+    ) return 'supabase_session_pooler';
     return 'other';
   } catch {
     return 'invalid';
@@ -66,6 +73,9 @@ export const resolveProductionDatabaseUrl = async (
   const payload = await response.json() as { databaseUrl?: unknown };
   if (typeof payload.databaseUrl !== 'string' || payload.databaseUrl.length === 0) {
     throw new Error('Production database broker returned no database URL.');
+  }
+  if (classifyProductionDatabaseTarget(payload.databaseUrl) !== 'supabase_session_pooler') {
+    throw new Error('Production database broker returned an unapproved database target.');
   }
 
   return payload.databaseUrl;
