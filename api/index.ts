@@ -1,11 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { getVercelOidcToken } from '@vercel/oidc';
 import { createProductionApp, createRetryableInitialization } from '../server-bundle.js';
 
-// Vercel injects and refreshes this runtime OIDC token. Never trust a caller-controlled
-// request header for service-to-service credentials: external clients can forge headers.
-const initializeProductionApp = createRetryableInitialization(() =>
+// Use Vercel's supported helper so the runtime request-context token is retrieved safely and
+// refreshed according to the platform lifecycle. Never read or cache the raw OIDC token directly.
+const initializeProductionApp = createRetryableInitialization(async () =>
   createProductionApp({
-    vercelOidcToken: process.env.VERCEL_OIDC_TOKEN,
+    vercelOidcToken: await getVercelOidcToken(),
   }),
 );
 

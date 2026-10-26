@@ -19,8 +19,9 @@ test('Vercel API entrypoint imports runtime helpers from the bundled server arti
   assert.match(bundleDeclaration, /export declare const createRetryableInitialization:/);
 });
 
-test('Vercel database broker authentication uses the trusted runtime OIDC token, not request headers', () => {
-  assert.match(apiEntry, /vercelOidcToken:\s*process\.env\.VERCEL_OIDC_TOKEN/);
+test('Vercel API entrypoint retrieves runtime OIDC using the supported helper', () => {
+  assert.match(apiEntry, /import \{ getVercelOidcToken \} from ['"]@vercel\/oidc['"]/);
+  assert.match(apiEntry, /vercelOidcToken:\s*await getVercelOidcToken\(\)/);
   assert.doesNotMatch(apiEntry, /x-vercel-oidc-token/i);
-  assert.doesNotMatch(apiEntry, /getVercelOidcToken/);
+  assert.doesNotMatch(apiEntry, /process\.env\.VERCEL_OIDC_TOKEN/);
 });
