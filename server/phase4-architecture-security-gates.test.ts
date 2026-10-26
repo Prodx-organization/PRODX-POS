@@ -168,7 +168,9 @@ test('Security Gate 6: runtime-role migration never installs unconditional polic
     'utf8',
   );
   assert.match(migration, /c\.relname\s+LIKE\s+'prodx\\_%'\s+ESCAPE\s+'\\'/);
-  assert.match(migration, /ALTER\s+ROLE\s+prodx_app[\s\S]*?NOBYPASSRLS/);
+  assert.match(migration, /CREATE\s+ROLE\s+prodx_app\s+WITH\s+LOGIN\s+NOINHERIT/i);
+  assert.match(migration, /FROM\s+pg_roles[\s\S]*?rolsuper[\s\S]*?rolbypassrls/i);
+  assert.doesNotMatch(migration, /ALTER\s+ROLE\s+prodx_app/i, 'hosted Supabase migrations must not require superuser-only role attribute changes');
   assert.doesNotMatch(
     migration,
     /ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+public\s+TO\s+prodx_app/i,
@@ -251,4 +253,21 @@ test('Security Gate 8: legacy policy cleanup removes only the named prodx_app po
     /ALTER\s+TABLE\s+public\.%I\s+DISABLE\s+ROW\s+LEVEL\s+SECURITY/i,
     'foreign-table RLS must not be disabled without owner-approved prior-state evidence',
   );
+});
+
+test('Security Gate 9: PRODX public tables and RPC functions are backend-only', () => {
+  const migration = fs.readFileSync(
+    path.join(workspaceRoot, 'db/migrations/0038_security_restrict_public_api_roles.sql'),
+    'utf8',
+  );
+  assert.match(migration, /left\(c\.relname,\s*6\)\s*=\s*'prodx_'/);
+  assert.match(migration, /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+TABLE\s+public\.%I\s+FROM\s+PUBLIC/i);
+  assert.match(migration, /REVOKE\s+EXECUTE\s+ON\s+FUNCTION\s+%s\s+FROM\s+PUBLIC/i);
+  assert.match(migration, /GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+%s\s+TO\s+prodx_app/i);
+  assert.match(migration, /ALTER\s+TABLE\s+public\.prodx_schema_migrations\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/i);
+  assert.match(migration, /ALTER\s+TABLE\s+public\.prodx_migration_lock\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY/i);
+
+  const runner = fs.readFileSync(path.join(workspaceRoot, 'scripts/migrate.ts'), 'utf8');
+  assert.match(runner, /REVOKE\s+ALL\s+PRIVILEGES\s+ON\s+TABLE\s+public\.%I\s+FROM\s+PUBLIC/i);
+  assert.match(runner, /REVOKE\s+EXECUTE\s+ON\s+FUNCTION\s+%s\s+FROM\s+PUBLIC/i);
 });
