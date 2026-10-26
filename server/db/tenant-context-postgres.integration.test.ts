@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { Pool } from 'pg';
 import { createTransactionalPostgresExecutor } from './transaction.ts';
@@ -79,54 +80,46 @@ test('transaction-local tenant context is isolated and cleared on pooled connect
 test('runtime role enforces fail-closed tenant/store RLS for SELECT, INSERT, UPDATE, and DELETE', { skip: !shouldRun }, async () => {
   const pool = new Pool({ connectionString: databaseUrl, max: 2 });
   const ids = {
-    organizationA: '00000000-0000-4000-8000-000000000901',
-    organizationB: '00000000-0000-4000-8000-000000000902',
-    storeA: '00000000-0000-4000-8000-000000000911',
-    storeA2: '00000000-0000-4000-8000-000000000912',
-    storeB: '00000000-0000-4000-8000-000000000913',
-    categoryA: '00000000-0000-4000-8000-000000000921',
-    categoryA2: '00000000-0000-4000-8000-000000000922',
-    categoryB: '00000000-0000-4000-8000-000000000923',
-    categoryNew: '00000000-0000-4000-8000-000000000924',
-    userA: '00000000-0000-4000-8000-000000000941',
-    userB: '00000000-0000-4000-8000-000000000942',
-    deviceA: '00000000-0000-4000-8000-000000000951',
-    deviceB: '00000000-0000-4000-8000-000000000952',
-    sessionA: '00000000-0000-4000-8000-000000000961',
-    sessionB: '00000000-0000-4000-8000-000000000962',
+    organizationA: randomUUID(),
+    organizationB: randomUUID(),
+    storeA: randomUUID(),
+    storeA2: randomUUID(),
+    storeB: randomUUID(),
+    categoryA: randomUUID(),
+    categoryA2: randomUUID(),
+    categoryB: randomUUID(),
+    categoryNew: randomUUID(),
+    userA: randomUUID(),
+    userB: randomUUID(),
+    deviceA: randomUUID(),
+    deviceB: randomUUID(),
+    sessionA: randomUUID(),
+    sessionB: randomUUID(),
   };
   const storeIds = [ids.storeA, ids.storeA2, ids.storeB];
   const categoryIds = [ids.categoryA, ids.categoryA2, ids.categoryB, ids.categoryNew];
   const userIds = [ids.userA, ids.userB];
   const deviceIds = [ids.deviceA, ids.deviceB];
   const sessionIds = [ids.sessionA, ids.sessionB];
-  const cleanup = async () => {
-    await pool.query('DELETE FROM public.prodx_sessions WHERE id = ANY($1::uuid[])', [sessionIds]);
-    await pool.query('DELETE FROM public.prodx_categories WHERE id = ANY($1::uuid[])', [categoryIds]);
-    await pool.query('DELETE FROM public.prodx_devices WHERE id = ANY($1::uuid[])', [deviceIds]);
-    await pool.query('DELETE FROM public.prodx_users WHERE id = ANY($1::uuid[])', [userIds]);
-    await pool.query('DELETE FROM public.prodx_stores WHERE id = ANY($1::uuid[])', [storeIds]);
-    await pool.query('DELETE FROM public.prodx_organizations WHERE id = ANY($1::uuid[])', [[ids.organizationA, ids.organizationB]]);
-  };
-
   const client = await pool.connect();
   let roleSet = false;
   let transactionStarted = false;
   try {
-    await cleanup();
-    await pool.query(
+    await client.query('BEGIN');
+    transactionStarted = true;
+    await client.query(
       `INSERT INTO public.prodx_organizations (id, code, name) VALUES
         ($1, 'rls-it-a', 'RLS Integration A'), ($2, 'rls-it-b', 'RLS Integration B')`,
       [ids.organizationA, ids.organizationB],
     );
-    await pool.query(
+    await client.query(
       `INSERT INTO public.prodx_stores (id, organization_id, code, name, business_timezone) VALUES
         ($1, $4, 'rls-store-a', 'RLS Store A', 'Asia/Bangkok'),
         ($2, $4, 'rls-store-a2', 'RLS Store A2', 'Asia/Bangkok'),
         ($3, $5, 'rls-store-b', 'RLS Store B', 'Asia/Bangkok')`,
       [ids.storeA, ids.storeA2, ids.storeB, ids.organizationA, ids.organizationB],
     );
-    await pool.query(
+    await client.query(
       `INSERT INTO public.prodx_categories (id, organization_id, store_id, name, slug) VALUES
         ($1, $4, $5, 'RLS Category A', 'rls-category-a'),
         ($2, $4, $6, 'RLS Category A2', 'rls-category-a2'),
@@ -134,19 +127,19 @@ test('runtime role enforces fail-closed tenant/store RLS for SELECT, INSERT, UPD
       [ids.categoryA, ids.categoryA2, ids.categoryB, ids.organizationA, ids.storeA, ids.storeA2, ids.organizationB, ids.storeB],
     );
 
-    await pool.query(
+    await client.query(
       `INSERT INTO public.prodx_users (id, organization_id, username, display_name, status) VALUES
         ($1, $3, 'rls-user-a', 'RLS User A', 'active'),
         ($2, $3, 'rls-user-b', 'RLS User B', 'active')`,
       [ids.userA, ids.userB, ids.organizationA],
     );
-    await pool.query(
+    await client.query(
       `INSERT INTO public.prodx_devices (id, organization_id, store_id, device_key, name, status) VALUES
         ($1, $3, $4, 'rls-device-a', 'RLS Device A', 'active'),
         ($2, $3, $4, 'rls-device-b', 'RLS Device B', 'active')`,
       [ids.deviceA, ids.deviceB, ids.organizationA, ids.storeA],
     );
-    await pool.query(
+    await client.query(
       `INSERT INTO public.prodx_sessions (id, organization_id, user_id, device_id, token_hash, expires_at) VALUES
         ($1, $3, $4, $6, 'rls-session-token-a', CURRENT_TIMESTAMP + INTERVAL '1 hour'),
         ($2, $3, $5, $7, 'rls-session-token-b', CURRENT_TIMESTAMP + INTERVAL '1 hour')`,
@@ -208,8 +201,6 @@ test('runtime role enforces fail-closed tenant/store RLS for SELECT, INSERT, UPD
 
     await client.query('SET ROLE prodx_app');
     roleSet = true;
-    await client.query('BEGIN');
-    transactionStarted = true;
     await client.query(
       `SELECT set_config('app.organization_id', $1, true),
               set_config('app.store_id', $2, true),
@@ -310,13 +301,13 @@ test('runtime role enforces fail-closed tenant/store RLS for SELECT, INSERT, UPD
     );
     await client.query('ROLLBACK TO SAVEPOINT deny_direct_throttle');
 
-    await client.query('COMMIT');
+    // Roll back setup and audit-trigger effects so immutable audit rows and FK references never leak between test runs.
+    await client.query('ROLLBACK');
     transactionStarted = false;
   } finally {
     if (transactionStarted) await client.query('ROLLBACK').catch(() => undefined);
     if (roleSet) await client.query('RESET ROLE').catch(() => undefined);
     client.release();
-    await cleanup().catch(() => undefined);
     await pool.end();
   }
 });

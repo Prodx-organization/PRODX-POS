@@ -16,6 +16,16 @@ export const createPostgresAuthenticationRepository = (db: SqlExecutor): Authent
     return { userId: row.userId, organizationId: row.organizationId, username: row.username, status: row.status,
       credentialType: row.credential_type, secretHash: row.secret_hash, failedAttempts: row.failed_attempts, lockedUntil: row.locked_until };
   },
+  async findCredentialBySupabaseUserId(supabaseUserId, deviceId) {
+    const rows = await db.query<CredentialRecord & { credential_type: 'password'; secret_hash: string; failed_attempts: number; locked_until: Date | null; }>(
+      `SELECT * FROM public.prodx_auth_find_credential_by_supabase_user_id($1::uuid, $2::uuid)`,
+      [supabaseUserId, deviceId],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return { userId: row.userId, organizationId: row.organizationId, username: row.username, status: row.status,
+      credentialType: row.credential_type, secretHash: row.secret_hash, failedAttempts: row.failed_attempts, lockedUntil: row.locked_until };
+  },
   async recordFailedAttempt(userId, organizationId) {
     await db.query(
       `SELECT public.prodx_auth_record_failed_attempt($1::uuid, $2::uuid, $3::uuid)`,
