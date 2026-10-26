@@ -1,5 +1,6 @@
 -- 0036: enforce tenant/store RLS and move pre-auth database access behind narrow functions.
 -- The application role must not have broad policies on tenant-scoped tables.
+-- Only PRODX-owned public tables are classified; shared tables owned by other applications are untouched.
 -- Authentication bootstrap functions are SECURITY DEFINER with a fixed search_path;
 -- they expose only the columns/operations required before an authenticated principal exists.
 
@@ -367,6 +368,7 @@ BEGIN
       JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
      WHERE n.nspname = 'public'
        AND c.relkind = 'r'
+       AND c.relname LIKE 'prodx\_%' ESCAPE '\'
        AND c.relname NOT IN ('prodx_schema_migrations', 'prodx_migration_lock')
      GROUP BY c.relname
   LOOP
@@ -383,7 +385,9 @@ BEGIN
 
     IF table_row.relname = 'prodx_permissions' THEN
       REVOKE INSERT, UPDATE, DELETE ON public.prodx_permissions FROM prodx_app;
-      EXECUTE 'CREATE POLICY prodx_app_global_permissions_read ON public.prodx_permissions FOR SELECT TO prodx_app USING (true)';
+      -- This is global reference data (permission key + description), not tenant data.
+      -- Keep the policy explicit and aligned with prodx_permissions' nonblank-key CHECK constraint.
+      EXECUTE 'CREATE POLICY prodx_app_global_permissions_read ON public.prodx_permissions FOR SELECT TO prodx_app USING (permission_key IS NOT NULL AND length(btrim(permission_key)) > 0)';
       CONTINUE;
     ELSIF table_row.relname = 'prodx_auth_login_throttles' THEN
       -- The table is internal operational state; only the narrow SECURITY DEFINER
@@ -423,7 +427,24 @@ REVOKE ALL ON TABLE public.prodx_user_credentials, public.prodx_auth_login_throt
 REVOKE INSERT, UPDATE, DELETE ON TABLE public.prodx_sessions, public.prodx_security_audit_events FROM PUBLIC;
 REVOKE INSERT, UPDATE, DELETE ON TABLE public.prodx_sessions, public.prodx_security_audit_events FROM prodx_app;
 GRANT SELECT ON TABLE public.prodx_sessions, public.prodx_security_audit_events, public.prodx_permissions TO prodx_app;
+-- Remove legacy grants from every sequence, then restore access only to PRODX-owned sequences.
 REVOKE USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public FROM prodx_app;
+DO $seq$
+DECLARE
+  sequence_name text;
+BEGIN
+  FOR sequence_name IN
+    SELECT c.relname
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relkind = 'S'
+      AND c.relname LIKE 'prodx\_%' ESCAPE '\'
+  LOOP
+    EXECUTE format('GRANT USAGE, SELECT ON SEQUENCE public.%I TO prodx_app', sequence_name);
+  END LOOP;
+END
+$seq$;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM prodx_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE USAGE, SELECT ON SEQUENCES FROM prodx_app;
 

@@ -182,12 +182,23 @@ test('runtime role enforces fail-closed tenant/store RLS for SELECT, INSERT, UPD
     );
     assert.deepEqual(globalPermissionDml.rows[0], { can_insert: false, can_update: false, can_delete: false });
 
+    const permissionPolicy = await pool.query<{ cmd: string; qual: string | null }>(
+      `SELECT cmd, qual FROM pg_policies
+        WHERE schemaname = 'public'
+          AND tablename = 'prodx_permissions'
+          AND policyname = 'prodx_app_global_permissions_read'
+          AND 'prodx_app'::name = ANY(roles)`,
+    );
+    assert.equal(permissionPolicy.rows.length, 1, 'global permission catalog must have one runtime read policy');
+    assert.equal(permissionPolicy.rows[0].cmd, 'SELECT');
+    assert.match(permissionPolicy.rows[0].qual ?? '', /permission_key IS NOT NULL/i);
+    assert.match(permissionPolicy.rows[0].qual ?? '', /length\(btrim\(permission_key\)\) > 0/i);
+
     const unboundedPolicies = await pool.query<{ tablename: string; policyname: string; qual: string | null; with_check: string | null }>(
       `SELECT tablename, policyname, qual, with_check
          FROM pg_policies
         WHERE schemaname = 'public'
           AND ('prodx_app'::name = ANY(roles) OR 'public'::name = ANY(roles))
-          AND tablename <> 'prodx_permissions'
           AND (
             lower(regexp_replace(coalesce(qual, ''), '[[:space:]()]', '', 'g')) = 'true'
             OR lower(regexp_replace(coalesce(with_check, ''), '[[:space:]()]', '', 'g')) = 'true'
@@ -205,6 +216,11 @@ test('runtime role enforces fail-closed tenant/store RLS for SELECT, INSERT, UPD
               set_config('app.user_id', $3, true)`,
       [ids.organizationA, ids.storeA, ids.userA],
     );
+
+    const visiblePermissions = await client.query<{ permission_key: string }>(
+      `SELECT permission_key FROM public.prodx_permissions WHERE permission_key = 'dashboard.read'`,
+    );
+    assert.deepEqual(visiblePermissions.rows.map((row) => row.permission_key), ['dashboard.read']);
 
     const visible = await client.query<{ id: string }>('SELECT id FROM public.prodx_categories ORDER BY id');
     assert.deepEqual(visible.rows.map((row) => row.id), [ids.categoryA]);

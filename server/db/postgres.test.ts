@@ -3,6 +3,8 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { classifyProductionDatabaseTarget, createProductionPostgresPool, resolveConfiguredDatabaseUrl, resolveProductionDatabaseUrl } from './postgres';
 
+const APPROVED_DATABASE_URL = 'postgresql://prodx_app.wcyqyiewbzpmrekoljfw:test-only-password@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require';
+
 const withEnvironment = async (
   values: Record<string, string | undefined>,
   run: () => Promise<void>,
@@ -25,17 +27,19 @@ const withEnvironment = async (
 };
 
 test('classifies production database targets without returning or logging hostnames', () => {
-  assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres'), 'supabase_session_pooler');
-  // Owner Console project is not an approved POS transactional database.
+  assert.equal(classifyProductionDatabaseTarget(APPROVED_DATABASE_URL), 'supabase_session_pooler');
+  assert.equal(classifyProductionDatabaseTarget('postgresql://prodx_app.bbxoywnlayduqbrjeixj:secret@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require'), 'other');
+  assert.equal(classifyProductionDatabaseTarget('postgresql://prodx_app.wcyqyiewbzpmrekoljfw:secret@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require'), 'other');
   assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.bbxoywnlayduqbrjeixj.supabase.co:5432/postgres'), 'other');
   assert.equal(classifyProductionDatabaseTarget('postgresql://user:secret@db.example.internal:5432/postgres'), 'other');
   assert.equal(classifyProductionDatabaseTarget('not a database URL'), 'invalid');
 });
 
-test('tracked production bundle does not approve the Owner Console Supabase host', async () => {
-  const bundle = await readFile(new URL('../entrypoint.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(bundle, /db\.bbxoywnlayduqbrjeixj\.supabase\.co/);
-  assert.match(bundle, /aws-0-ap-northeast-1\.pooler\.supabase\.com/);
+test('runtime source targets only the PRODX-ORG session pooler', async () => {
+  const runtimeSource = await readFile(new URL('./postgres.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(runtimeSource, /db\.bbxoywnlayduqbrjeixj\.supabase\.co/);
+  assert.match(runtimeSource, /aws-0-ap-southeast-1\.pooler\.supabase\.com/);
+  assert.match(runtimeSource, /prodx_app\.wcyqyiewbzpmrekoljfw/);
 });
 
 test('resolveProductionDatabaseUrl uses DATABASE_URL outside Vercel production', async () => {
@@ -85,7 +89,7 @@ test('resolveProductionDatabaseUrl uses the Vercel request token instead of DATA
   globalThis.fetch = async (input, init) => {
     requestedUrl = String(input);
     requestedAuthorization = new Headers(init?.headers).get('authorization') ?? '';
-    return new Response(JSON.stringify({ databaseUrl: 'postgresql://supabase.example/prodx' }), {
+    return new Response(JSON.stringify({ databaseUrl: APPROVED_DATABASE_URL }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -103,7 +107,7 @@ test('resolveProductionDatabaseUrl uses the Vercel request token instead of DATA
       async () => {
         assert.equal(
           await resolveProductionDatabaseUrl('request-oidc-token'),
-          'postgresql://supabase.example/prodx',
+          APPROVED_DATABASE_URL,
         );
         assert.equal(requestedUrl, 'https://broker.example/prodx-db');
         assert.equal(requestedAuthorization, 'Bearer request-oidc-token');
@@ -120,7 +124,7 @@ test('resolveProductionDatabaseUrl falls back to VERCEL_OIDC_TOKEN for local too
 
   globalThis.fetch = async (_input, init) => {
     requestedAuthorization = new Headers(init?.headers).get('authorization') ?? '';
-    return new Response(JSON.stringify({ databaseUrl: 'postgresql://supabase.example/prodx' }), {
+    return new Response(JSON.stringify({ databaseUrl: APPROVED_DATABASE_URL }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -136,7 +140,7 @@ test('resolveProductionDatabaseUrl falls back to VERCEL_OIDC_TOKEN for local too
         PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
       },
       async () => {
-        assert.equal(await resolveProductionDatabaseUrl(), 'postgresql://supabase.example/prodx');
+        assert.equal(await resolveProductionDatabaseUrl(), APPROVED_DATABASE_URL);
         assert.equal(requestedAuthorization, 'Bearer environment-oidc-token');
       },
     );
@@ -150,7 +154,7 @@ test('createProductionPostgresPool cannot bypass the production broker with a ca
   let requestedUrl = '';
   globalThis.fetch = async (input) => {
     requestedUrl = String(input);
-    return new Response(JSON.stringify({ databaseUrl: 'postgresql://broker-issued.example/prodx' }), {
+    return new Response(JSON.stringify({ databaseUrl: APPROVED_DATABASE_URL }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -171,11 +175,33 @@ test('createProductionPostgresPool cannot bypass the production broker with a ca
         assert.equal(requestedUrl, 'https://broker.example/prodx-db');
         assert.equal(
           (pool as unknown as { options: { connectionString: string } }).options.connectionString,
-          'postgresql://broker-issued.example/prodx',
+          APPROVED_DATABASE_URL,
         );
       } finally {
         await pool.end();
       }
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('resolveProductionDatabaseUrl rejects a broker URL for another project or an unapproved host', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ databaseUrl: 'postgresql://prodx_app.bbxoywnlayduqbrjeixj:secret@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require' }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+
+  try {
+    await withEnvironment({
+      VERCEL: '1',
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://legacy.example/prodx',
+      VERCEL_OIDC_TOKEN: undefined,
+      PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+    }, async () => {
+      await assert.rejects(resolveProductionDatabaseUrl('request-oidc-token'), /unapproved database target/);
     });
   } finally {
     globalThis.fetch = originalFetch;
