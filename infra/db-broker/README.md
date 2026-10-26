@@ -22,14 +22,14 @@ are manual, owner-approved steps.
 - Tokens, connection URLs and raw verification errors are never logged or returned.
 - Configuration is rejected (broker returns 503) if the database URL does not use the `prodx_app` role, so an administrative or service-role connection string cannot be served by mistake.
 
-## Secrets (set in the POS Transaction Supabase project, never in git)
+## Secrets (set in the target Supabase project `PRODX-ORG` (`wcyqyiewbzpmrekoljfw`), never in git)
 
 | Name | Value |
 | --- | --- |
-| `PRODX_OIDC_ISSUER` | `https://oidc.vercel.com/<team-slug>` |
-| `PRODX_OIDC_AUDIENCE` | `https://vercel.com/<team-slug>` |
-| `PRODX_OIDC_ALLOWED_SUBJECTS` | Comma-separated exact `sub` values, e.g. `owner:<team-slug>:project:<project-name>:environment:production`. Do not allow `preview` or `development`. |
-| `PRODX_RUNTIME_DATABASE_URL` | Pooler connection URL for the `prodx_app` role (`postgresql://prodx_app.<project-ref>:<password>@<pooler-host>:5432/postgres`). |
+| `PRODX_OIDC_ISSUER` | Expected team issuer: `https://oidc.vercel.com/prodx-team` (verify the real token `iss` claim before setting) |
+| `PRODX_OIDC_AUDIENCE` | Expected team audience: `https://vercel.com/prodx-team` (verify the real token `aud` claim before setting) |
+| `PRODX_OIDC_ALLOWED_SUBJECTS` | Expected production subject for Vercel project `prodx-pos-org`: `owner:prodx-team:project:prodx-pos-org:environment:production`. Verify against a real token before setting. Never allow `preview` or `development`. |
+| `PRODX_RUNTIME_DATABASE_URL` | Restricted-role session-pooler URL for `PRODX-ORG`: `postgresql://prodx_app.wcyqyiewbzpmrekoljfw:<password>@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require`. |
 
 Verify the exact `iss`, `aud` and `sub` values from a real Vercel production OIDC token before enabling.
 
@@ -42,9 +42,8 @@ Then set `PRODX_DB_BROKER_URL` on the Vercel production environment to the funct
 
 ## Database prerequisites
 
-Run `npm run db:migrate` against the dedicated POS Transaction project with an administrative connection first (it creates the
-`prodx_app` role without a password), then set the role's password and use it in `PRODX_RUNTIME_DATABASE_URL`.
-Migrations 0033, 0034 and 0036 only touch `public.prodx_*` tables and sequences, so Owner Console Auth objects are not granted to the POS runtime role.
+Run `npm run db:migrate` against `PRODX-ORG` after the complete migration set passes isolated PostgreSQL tests. The role is created without a password; set a unique password and keep the resulting URL only in Supabase Edge Function secrets.
+Migrations 0033, 0034, 0036, 0037 and 0038 scope runtime grants, RLS and API-role cleanup to PRODX-owned objects; Owner Console Auth objects are not granted to the POS runtime role.
 Do not add broad default privileges for `public`; future POS migrations must explicitly grant the runtime role
 access only to the PRODX tables and sequences they create. The schema-ownership integration test checks existing
 foreign objects, sequence privileges, default ACLs, and objects created by another application.
