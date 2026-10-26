@@ -5,15 +5,22 @@ import type { SqlExecutor } from '../auth/postgres-repository.ts';
 const LOCAL_POSTGRES_SOCKET = '/tmp/pgrun/.s.PGSQL.5432';
 const LOCAL_FALLBACK_DATABASE_URL = 'postgresql://postgres@127.0.0.1:5432/prodx_pos';
 
+const isProductionRuntime = (): boolean =>
+  process.env.NODE_ENV === 'production' ||
+  (process.env.VERCEL === '1' && process.env.VERCEL_ENV === 'production');
+
 const shouldResolveProductionDatabaseUrl = (): boolean =>
-  process.env.VERCEL === '1' && process.env.NODE_ENV === 'production';
+  process.env.VERCEL === '1' && (
+    process.env.VERCEL_ENV === 'production' ||
+    (process.env.VERCEL_ENV === undefined && process.env.NODE_ENV === 'production')
+  );
 
 export const resolveConfiguredDatabaseUrl = (
   rawUrl: string | undefined = process.env.DATABASE_URL,
 ): string | undefined => {
   const trimmed = rawUrl?.trim();
   if (!trimmed || trimmed === 'postgresql://...' || trimmed === 'postgres://...') {
-    if (!shouldResolveProductionDatabaseUrl() && process.env.NODE_ENV !== 'production') {
+    if (process.env.VERCEL !== '1' && process.env.NODE_ENV !== 'production') {
       return LOCAL_FALLBACK_DATABASE_URL;
     }
     return undefined;
@@ -98,7 +105,7 @@ export const createPostgresPool = (config: PoolConfig = {}): Pool => {
     ...config,
     connectionString,
     max: config.max ?? (process.env.VERCEL ? 1 : 10),
-    ssl: config.ssl ?? (process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : undefined),
+    ssl: config.ssl ?? (isProductionRuntime() ? { rejectUnauthorized: true } : undefined),
   });
 };
 
