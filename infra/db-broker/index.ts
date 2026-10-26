@@ -8,6 +8,7 @@ const config = buildBrokerConfig({
   issuer: Deno.env.get('PRODX_OIDC_ISSUER'),
   audience: Deno.env.get('PRODX_OIDC_AUDIENCE'),
   allowedSubjects: Deno.env.get('PRODX_OIDC_ALLOWED_SUBJECTS'),
+  databaseProjectRef: 'wcyqyiewbzpmrekoljfw',
   databaseUrl: Deno.env.get('PRODX_RUNTIME_DATABASE_URL'),
 });
 
