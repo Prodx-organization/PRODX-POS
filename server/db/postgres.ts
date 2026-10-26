@@ -94,7 +94,7 @@ export const createPostgresPool = (config: PoolConfig = {}): Pool => {
       query: () => Promise.reject(new Error('PostgreSQL is not configured (DATABASE_URL is missing).')),
       on: () => {},
       end: () => Promise.resolve(),
-      connect: () => Promise.reject(new Error('PostgreSQL is not configured.'),
+      connect: () => Promise.reject(new Error('PostgreSQL is not configured.')),
     } as unknown as Pool;
   }
 
