@@ -252,30 +252,16 @@ export default defineConfig(() => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('node_modules')) {
-              // Group React core framework separately
-              if (id.includes('react') || id.includes('scheduler') || id.includes('react-dom')) {
-                return 'vendor-react';
-              }
-              // Group Lucide icons separately for icon tree-shaking and lazy loading
-              if (id.includes('lucide-react')) {
-                return 'vendor-icons';
-              }
-              // Group Firebase & Database
-              if (id.includes('firebase') || id.includes('@supabase')) {
-                return 'vendor-firebase';
-              }
-              // Group animation & charts into secondary lazy bundles
-              if (id.includes('framer-motion') || id.includes('motion') || id.includes('recharts') || id.includes('d3')) {
-                return 'vendor-ui-extra';
-              }
-              // Group PDF, DnD, i18n utilities
-              if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('@dnd-kit') || id.includes('i18next') || id.includes('react-i18next')) {
-                return 'vendor-utils';
-              }
-              // Other libraries
-              return 'vendor-libs';
-            }
+            // Match package path segments, not arbitrary substrings such as "react-router"
+            // or transitive packages that can create circular manual chunk dependencies.
+            if (!id.includes('node_modules')) return;
+            if (/(?:^|[\\/])node_modules[\\/](?:react|react-dom|scheduler)[\\/]/.test(id)) return 'vendor-react';
+            if (/(?:^|[\\/])node_modules[\\/]lucide-react[\\/]/.test(id)) return 'vendor-icons';
+            if (/(?:^|[\\/])node_modules[\\/](?:firebase|@firebase[\\/][^\\/]+|@supabase[\\/][^\\/]+)(?:[\\/]|$)/.test(id)) return 'vendor-firebase';
+            if (/(?:^|[\\/])node_modules[\\/](?:framer-motion|motion|recharts|d3-[^\\/]+)[\\/]/.test(id)) return 'vendor-ui-extra';
+            if (/(?:^|[\\/])node_modules[\\/](?:jspdf|html2canvas|@dnd-kit[\\/][^\\/]+|i18next|react-i18next)[\\/]/.test(id)) return 'vendor-utils';
+            // Let Rollup place all remaining dependencies automatically to avoid a catch-all chunk cycle.
+            return;
           },
         },
       },

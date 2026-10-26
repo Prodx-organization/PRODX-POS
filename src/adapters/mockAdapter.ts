@@ -723,13 +723,15 @@ export class MockAuthApi implements IAuthApi {
 
     const { organization, currentStore: store, registerId } = resolveSessionOrganizationAndStore(req);
 
+    // Never log credentials or direct identifiers (email, PIN, password) - metadata only.
     console.info(`${LOG_PREFIX} [AUTH_DEBUG] Login attempt details:`, {
       input: {
         orgSlug: req.organizationSlug,
         storeCode: req.storeCode,
         registerId: req.registerId,
-        emailOrPin: term,
-        passwordOrPin: passOrPin, 
+        identityPresent: term.length > 0,
+        identityType: term.includes('@') ? 'email' : 'staff-identifier',
+        secretPresent: passOrPin.length > 0,
       },
       resolved: {
         org: organization.slug,
@@ -947,7 +949,13 @@ export class MockAuthApi implements IAuthApi {
 
   async forgotPin(organizationSlug: string, storeCode: string, emailOrPin: string, registerId: string): Promise<void> {
     await delay(500);
-    console.info(`${LOG_PREFIX} Forgot PIN requested for:`, { organizationSlug, storeCode, emailOrPin, registerId });
+    // Do not log the submitted identifier (email or PIN); record scope and presence only.
+    console.info(`${LOG_PREFIX} Forgot PIN requested for:`, {
+      organizationSlug,
+      storeCode,
+      registerId,
+      identityPresent: Boolean(emailOrPin),
+    });
     // In mock, just log it.
   }
 }

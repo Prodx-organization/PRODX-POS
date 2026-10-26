@@ -1,24 +1,17 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createProductionApp, createRetryableInitialization } from '../server-bundle.js';
 
-type VercelRequest = IncomingMessage & {
-  headers: IncomingMessage['headers'];
-};
-
-const getVercelOidcToken = (request: VercelRequest): string | undefined => {
-  const value = request.headers['x-vercel-oidc-token'];
-  return Array.isArray(value) ? value[0] : value;
-};
-
-const initializeProductionApp = createRetryableInitialization((request: VercelRequest) =>
+// Vercel injects and refreshes this runtime OIDC token. Never trust a caller-controlled
+// request header for service-to-service credentials: external clients can forge headers.
+const initializeProductionApp = createRetryableInitialization(() =>
   createProductionApp({
-    vercelOidcToken: getVercelOidcToken(request),
+    vercelOidcToken: process.env.VERCEL_OIDC_TOKEN,
   }),
 );
 
-export default async function handler(request: VercelRequest, response: ServerResponse): Promise<void> {
+export default async function handler(request: IncomingMessage, response: ServerResponse): Promise<void> {
   try {
-    const { app } = await initializeProductionApp(request);
+    const { app } = await initializeProductionApp();
     app(request as never, response as never);
   } catch {
     response.statusCode = 503;
