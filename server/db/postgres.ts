@@ -10,7 +10,10 @@ const isProductionRuntime = (): boolean =>
   (process.env.VERCEL === '1' && process.env.VERCEL_ENV === 'production');
 
 const shouldResolveProductionDatabaseUrl = (): boolean =>
-  process.env.VERCEL === '1' && isProductionRuntime();
+  process.env.VERCEL === '1' && (
+    process.env.VERCEL_ENV === 'production' ||
+    (process.env.VERCEL_ENV === undefined && process.env.NODE_ENV === 'production')
+  );
 
 export const resolveConfiguredDatabaseUrl = (
   rawUrl: string | undefined = process.env.DATABASE_URL,
