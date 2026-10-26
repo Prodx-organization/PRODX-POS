@@ -1,31 +1,18 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { getVercelOidcToken } from '@vercel/oidc';
 import { createProductionApp, createRetryableInitialization } from '../server-bundle.js';
 
-// Vercel Functions inject the current workload OIDC token into this request header and replace
-// client-supplied values. Prefer the request-scoped token over a build-time snapshot so broker
-// authentication uses the token for this invocation. In Vercel production, fail closed if absent.
-const getRuntimeOidcToken = (request: IncomingMessage): string | undefined => {
-  const tokenHeader = request.headers['x-vercel-oidc-token'];
-  if (typeof tokenHeader === 'string' && tokenHeader.trim().length > 0) {
-    return tokenHeader.trim();
-  }
-
-  if (process.env.VERCEL === '1' && process.env.NODE_ENV === 'production') {
-    return undefined;
-  }
-
-  return process.env.VERCEL_OIDC_TOKEN;
-};
-
-const initializeProductionApp = createRetryableInitialization((request: IncomingMessage) =>
+// Use Vercel's supported helper so the runtime request-context token is retrieved safely and
+// refreshed according to the platform lifecycle. Never read or cache the raw OIDC token directly.
+const initializeProductionApp = createRetryableInitialization(async () =>
   createProductionApp({
-    vercelOidcToken: getRuntimeOidcToken(request),
+    vercelOidcToken: await getVercelOidcToken(),
   }),
 );
 
 export default async function handler(request: IncomingMessage, response: ServerResponse): Promise<void> {
   try {
-    const { app } = await initializeProductionApp(request);
+    const { app } = await initializeProductionApp();
     app(request as never, response as never);
   } catch {
     response.statusCode = 503;
