@@ -39,6 +39,19 @@ test('Vercel production uses the broker when NODE_ENV is unset', async () => {
   });
 });
 
+test('Vercel preview does not use the production broker when NODE_ENV is production', async () => {
+  await withEnvironment({
+    VERCEL: '1',
+    VERCEL_ENV: 'preview',
+    NODE_ENV: 'production',
+    DATABASE_URL: 'postgresql://preview.example/prodx',
+    VERCEL_OIDC_TOKEN: undefined,
+    PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+  }, async () => {
+    assert.equal(await resolveProductionDatabaseUrl(), 'postgresql://preview.example/prodx');
+  });
+});
+
 test('Vercel runtime never falls back to localhost when DATABASE_URL is missing', async () => {
   await withEnvironment({
     VERCEL: '1',
