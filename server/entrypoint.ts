@@ -27,6 +27,7 @@ import { registerInventoryAdjustmentRoute } from './http/inventory-adjustment-ro
 import { registerInfrastructureRoutes, registerPublicInfrastructureRoutes } from './http/infrastructureRoutes.ts';
 import { installAIHttpRoute } from './ai/http-route.ts';
 export { createRetryableInitialization } from './http/retryable-initialization.ts';
+export { safeDependencyDiagnostic } from './http/safe-dependency-diagnostic.ts';
 
 export type ProductionAppOptions = {
   vercelOidcToken?: string;

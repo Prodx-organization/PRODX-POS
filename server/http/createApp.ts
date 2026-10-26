@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { runWithRequestContext } from './request-context-storage.ts';
+import { safeDependencyDiagnostic } from './safe-dependency-diagnostic.ts';
 import type {
   ApiErrorBody,
   AuthenticateRequest,
@@ -38,35 +39,6 @@ const sendError = (
     error: { code, message, requestId, ...(details === undefined ? {} : { details }) },
   };
   response.status(status).json(body);
-};
-
-const safeReadinessDiagnostic = (error: unknown): Record<string, string | number> => {
-  const candidate = error && typeof error === 'object'
-    ? error as { name?: unknown; code?: unknown; syscall?: unknown; port?: unknown; stage?: unknown }
-    : {};
-  const diagnostic: Record<string, string | number> = {
-    name: typeof candidate.name === 'string' && /^[A-Za-z][A-Za-z0-9]*$/.test(candidate.name)
-      ? candidate.name
-      : 'unknown',
-  };
-
-  if (typeof candidate.code === 'string' && /^[A-Z0-9_]{1,40}$/.test(candidate.code)) {
-    diagnostic.code = candidate.code;
-  }
-  if (candidate.syscall === 'getaddrinfo' || candidate.syscall === 'connect' ||
-      candidate.syscall === 'read' || candidate.syscall === 'write') {
-    diagnostic.syscall = candidate.syscall;
-  }
-  if (typeof candidate.port === 'number' && Number.isInteger(candidate.port) &&
-      candidate.port >= 1 && candidate.port <= 65535) {
-    diagnostic.port = candidate.port;
-  }
-  if (candidate.stage === 'database_query' || candidate.stage === 'broker_fetch' ||
-      candidate.stage === 'broker_http' || candidate.stage === 'broker_response') {
-    diagnostic.stage = candidate.stage;
-  }
-
-  return diagnostic;
 };
 
 const requestId = (request: Request): string => {
@@ -165,7 +137,7 @@ export const createApp = (options: BackendBoundaryOptions) => {
       console.error('PRODX readiness check failed', {
         requestId: request.id,
         status: 503,
-        ...safeReadinessDiagnostic(error),
+        ...safeDependencyDiagnostic(error),
       });
       sendError(response, 503, 'NOT_READY', 'The service is not ready.', request.id);
     }
@@ -188,7 +160,7 @@ export const createApp = (options: BackendBoundaryOptions) => {
       method: request.method,
       path: request.path,
       status: 500,
-      ...safeReadinessDiagnostic(error),
+      ...safeDependencyDiagnostic(error),
     });
     const details = process.env.NODE_ENV === 'production'
       ? undefined
