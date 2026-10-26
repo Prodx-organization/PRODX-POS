@@ -188,6 +188,7 @@ test('buildBrokerConfig refuses administrative database roles', () => {
     issuer: 'https://oidc.vercel.com/test-team',
     audience: 'https://vercel.com/test-team',
     allowedSubjects: SUBJECT,
+    databaseProjectRef: DATABASE_PROJECT_REF,
   };
   for (const username of ['postgres', 'postgres.abcdefghijklmnop', 'supabase_admin', 'service_role', 'authenticator']) {
     assert.equal(
@@ -199,9 +200,6 @@ test('buildBrokerConfig refuses administrative database roles', () => {
       username,
     );
   }
-  // Direct (non-pooler) and pooler usernames for the restricted role are both accepted.
-  assert.notEqual(
-    buildBrokerConfig({ ...base, databaseUrl: 'postgresql://prodx_app:pw@db.example.supabase.co:5432/postgres' }),
-    null,
-  );
+  // Only the exact restricted-role URL for the approved project and pooler is accepted.
+  assert.notEqual(buildBrokerConfig({ ...base, databaseUrl: DATABASE_URL }), null);
 });
