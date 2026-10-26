@@ -20,6 +20,8 @@ export interface BrokerConfig {
   readonly audience: string;
   /** Exact `sub` values allowed to receive the database URL. */
   readonly allowedSubjects: readonly string[];
+  /** Supabase project ref this broker is allowed to serve. */
+  readonly databaseProjectRef: string;
   /** Connection URL for the restricted prodx_app runtime role. */
   readonly databaseUrl: string;
 }
@@ -64,25 +66,32 @@ export const buildBrokerConfig = (env: {
   readonly issuer?: string;
   readonly audience?: string;
   readonly allowedSubjects?: string;
+  readonly databaseProjectRef?: string;
   readonly databaseUrl?: string;
 }): BrokerConfig | null => {
   const issuer = env.issuer?.trim().replace(/\/+$/, '');
   const audience = env.audience?.trim();
+  const databaseProjectRef = env.databaseProjectRef?.trim();
   const databaseUrl = env.databaseUrl?.trim();
   const allowedSubjects = parseAllowedSubjects(env.allowedSubjects);
 
-  if (!issuer || !audience || !databaseUrl || allowedSubjects.length === 0) return null;
+  if (!issuer || !audience || !databaseProjectRef || !databaseUrl || allowedSubjects.length === 0) return null;
   if (!issuer.startsWith('https://') || !audience.startsWith('https://')) return null;
+  if (!/^[a-z0-9]{20}$/.test(databaseProjectRef)) return null;
   if (!/^postgres(ql)?:\/\//.test(databaseUrl)) return null;
-  // The runtime URL must be for the restricted application role, never an administrative one.
+  // A restricted role in the wrong Supabase project is still the wrong production target.
   try {
-    const username = decodeURIComponent(new URL(databaseUrl).username).split('.')[0];
-    if (username !== 'prodx_app') return null;
+    const parsed = new URL(databaseUrl);
+    const username = decodeURIComponent(parsed.username);
+    if (username !== `prodx_app.${databaseProjectRef}`) return null;
+    if (parsed.hostname !== 'aws-0-ap-southeast-1.pooler.supabase.com') return null;
+    if (parsed.port !== '5432' || parsed.pathname !== '/postgres') return null;
+    if (parsed.searchParams.get('sslmode') === 'disable') return null;
   } catch {
     return null;
   }
 
-  return { issuer, audience, allowedSubjects, databaseUrl };
+  return { issuer, audience, allowedSubjects, databaseProjectRef, databaseUrl };
 };
 
 export const createBrokerHandler = (deps: BrokerDependencies) => async (request: Request): Promise<Response> => {
