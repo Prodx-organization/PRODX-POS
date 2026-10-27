@@ -11,7 +11,19 @@ test('Migration 0040 restricts Supabase identity lookup to the backend runtime r
 
   assert.match(
     migration,
-    /REVOKE ALL PRIVILEGES\s+ON FUNCTION public\.prodx_auth_find_credential_by_supabase_user_id\(uuid, uuid\)\s+FROM PUBLIC, anon, authenticated, service_role;/i,
+    /REVOKE ALL PRIVILEGES\s+ON FUNCTION public\.prodx_auth_find_credential_by_supabase_user_id\(uuid, uuid\)\s+FROM PUBLIC;/i,
+  );
+  assert.match(
+    migration,
+    /FOREACH role_name IN ARRAY ARRAY\['anon', 'authenticated', 'service_role'\]/i,
+  );
+  assert.match(
+    migration,
+    /IF EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = role_name\)/i,
+  );
+  assert.match(
+    migration,
+    /REVOKE ALL PRIVILEGES ON FUNCTION public\.prodx_auth_find_credential_by_supabase_user_id\(uuid, uuid\) FROM %I/i,
   );
   assert.match(
     migration,
