@@ -26,7 +26,10 @@ const makeDb = (passwordHash: string, calls: string[]): SqlExecutor => ({
 test('application composition builds authentication against the injected PostgreSQL boundary', async () => {
   const calls: string[] = [];
   const passwordHash = await hashPassword('correct-password');
-  const authentication = createPostgresAuthentication(makeDb(passwordHash, calls));
+  const authentication = createPostgresAuthentication(
+    makeDb(passwordHash, calls),
+    async () => ({ compromised: false, count: 0 }),
+  );
 
   const result = await authentication.authenticateCredentials({
     username: 'cashier',

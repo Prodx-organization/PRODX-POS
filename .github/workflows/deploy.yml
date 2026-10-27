@@ -68,7 +68,8 @@ jobs:
       - name: Verify build artifacts
         run: |
           test -s dist/index.html
-          test -s dist/index.js
+          test -s server-bundle.js
+          test ! -e dist/index.js
           test -s dist/metafile.json
           test -s dist/stats.html
 

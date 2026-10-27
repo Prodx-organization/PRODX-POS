@@ -29,6 +29,9 @@
   },
   "exclude": [
     "supabase/functions",
-    "infra/db-broker/index.ts"
+    "infra/db-broker/index.ts",
+    "dist",
+    "build",
+    "server-bundle.js"
   ]
 }

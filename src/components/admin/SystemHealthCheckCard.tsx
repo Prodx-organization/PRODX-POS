@@ -2,11 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Activity,
   CheckCircle2,
-  AlertTriangle,
   XCircle,
   RefreshCw,
   Database,
-  Cloud,
   Copy,
   Check,
   Download,
@@ -40,9 +38,9 @@ export function SystemHealthCheckCard() {
       const res = await systemHealthCheck.executePing();
       setResult(res);
       addToast({
-        type: res.statusCode === 200 ? 'success' : res.statusCode === 207 ? 'warning' : 'error',
+        type: res.statusCode === 200 ? 'success' : 'error',
         title: `Health Check ${res.statusCode} ${res.status}`,
-        message: `Cloud SQL: ${res.services.cloudSql.status} (${res.services.cloudSql.latencyMs}ms) | Firestore: ${res.services.firestore.status} (${res.services.firestore.latencyMs}ms)`,
+        message: `PostgreSQL: ${res.services.postgres.status} (${res.services.postgres.latencyMs}ms)`,
         durationMs: 3500,
       });
     } catch (err: unknown) {
@@ -87,7 +85,7 @@ export function SystemHealthCheckCard() {
       addToast({
         type: 'info',
         title: `Auto-Ping ทำงานทุก ${seconds} วินาที`,
-        message: 'ระบบจะส่ง ping ตรวจสอบ Cloud SQL และ Firestore อย่างต่อเนื่อง',
+        message: 'ระบบจะส่ง ping ตรวจสอบ PostgreSQL อย่างต่อเนื่อง',
         durationMs: 2500,
       });
     }
@@ -128,15 +126,6 @@ export function SystemHealthCheckCard() {
         titleColor: 'text-emerald-500',
       };
     }
-    if (code === 207) {
-      return {
-        badgeClass: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',
-        dotClass: 'bg-amber-500 shadow-amber-500/50',
-        icon: AlertTriangle,
-        label: '207 Multi-Status — ทำงานได้บางส่วน (Degraded)',
-        titleColor: 'text-amber-500',
-      };
-    }
     return {
       badgeClass: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30',
       dotClass: 'bg-rose-500 shadow-rose-500/50',
@@ -159,10 +148,10 @@ export function SystemHealthCheckCard() {
           </div>
           <h2 className="text-xl font-bold text-text flex items-center gap-2.5">
             <Activity className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-            การตรวจสอบความพร้อมของบริการแบ็กเอนด์ (Cloud SQL & Firestore)
+            การตรวจสอบความพร้อมของ PostgreSQL
           </h2>
           <p className="text-xs text-text/60 mt-0.5">
-            ส่งสัญญาณ Ping แบบ End-to-End ไปยัง Google Cloud SQL และ Google Cloud Firestore พร้อมรับผลลัพธ์เป็น Status-Coded JSON Object
+            ส่งสัญญาณ Ping ไปยัง PostgreSQL ผ่าน backend พร้อมรับผลลัพธ์เป็น Status-Coded JSON Object
           </p>
         </div>
 
@@ -217,16 +206,14 @@ export function SystemHealthCheckCard() {
             <span className="text-base font-bold text-text">{result.totalDurationMs} ms</span>
           </div>
           <div>
-            <span className="text-text/50 block text-[11px] uppercase tracking-wider">Cloud SQL Latency</span>
+            <span className="text-text/50 block text-[11px] uppercase tracking-wider">PostgreSQL Query Latency</span>
             <span className="text-base font-bold text-text">
-              {result.services.cloudSql.latencyMs} ms
+              {result.services.postgres.latencyMs} ms
             </span>
           </div>
           <div>
-            <span className="text-text/50 block text-[11px] uppercase tracking-wider">Firestore Latency</span>
-            <span className="text-base font-bold text-text">
-              {result.services.firestore.latencyMs} ms
-            </span>
+            <span className="text-text/50 block text-[11px] uppercase tracking-wider">Database Target</span>
+            <span className="text-base font-bold text-text">{result.environment.databaseTarget}</span>
           </div>
           <div>
             <span className="text-text/50 block text-[11px] uppercase tracking-wider">Last Ping Timestamp</span>
@@ -238,7 +225,7 @@ export function SystemHealthCheckCard() {
       )}
 
       {/* Services Dual Cards Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {/* Service 1: Cloud SQL */}
         <div className="bg-background/80 rounded-2xl p-5 border border-border border-crisp shadow-xs space-y-4">
           <div className="flex items-start justify-between gap-3">
@@ -248,13 +235,13 @@ export function SystemHealthCheckCard() {
               </div>
               <div>
                 <h3 className="font-bold text-sm text-text flex items-center gap-2">
-                  Google Cloud SQL
+                  PostgreSQL
                   <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 font-mono font-medium">
-                    PostgreSQL 16
+                    PostgreSQL
                   </span>
                 </h3>
                 <span className="text-xs text-text/60">
-                  Relational Transactional Ledger & Authority Engine
+                  Server-authoritative transactional database
                 </span>
               </div>
             </div>
@@ -263,12 +250,12 @@ export function SystemHealthCheckCard() {
             {result && (
               <span
                 className={`text-xs px-2.5 py-1 rounded-xl font-bold border font-mono ${
-                  result.services.cloudSql.statusCode === 200
+                  result.services.postgres.statusCode === 200
                     ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
                     : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
                 }`}
               >
-                HTTP {result.services.cloudSql.statusCode} {result.services.cloudSql.status.toUpperCase()}
+                HTTP {result.services.postgres.statusCode} {result.services.postgres.status.toUpperCase()}
               </span>
             )}
           </div>
@@ -277,131 +264,51 @@ export function SystemHealthCheckCard() {
           {result && (
             <div className="space-y-2 text-xs divide-y divide-border/60">
               <div className="flex justify-between py-1.5">
-                <span className="text-text/60">Project ID:</span>
-                <span className="font-mono text-text font-semibold">{result.services.cloudSql.projectId}</span>
+                <span className="text-text/60">Database:</span>
+                <span className="font-mono text-text font-semibold">{result.services.postgres.database}</span>
               </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-text/60">Region:</span>
-                <span className="font-mono text-text font-semibold">{result.services.cloudSql.region}</span>
-              </div>
+              {result.services.postgres.serverTime && (
+                <div className="flex justify-between py-1.5">
+                  <span className="text-text/60">Database Time (UTC):</span>
+                  <span className="font-mono text-text font-semibold">{result.services.postgres.serverTime}</span>
+                </div>
+              )}
               <div className="flex justify-between py-1.5">
                 <span className="text-text/60">Engine Target:</span>
-                <span className="text-text font-medium">{result.services.cloudSql.engine}</span>
+                <span className="text-text font-medium">{result.services.postgres.engine}</span>
               </div>
               <div className="flex justify-between py-1.5">
                 <span className="text-text/60">Execution Latency:</span>
                 <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                  {result.services.cloudSql.latencyMs} ms
+                  {result.services.postgres.latencyMs} ms
                 </span>
               </div>
-              {result.services.cloudSql.poolStats && (
+              {result.services.postgres.poolStats && (
                 <div className="flex justify-between py-1.5">
                   <span className="text-text/60">Connection Pool:</span>
                   <span className="text-text font-mono">
-                    Total: {result.services.cloudSql.poolStats.totalConnections} | Idle: {result.services.cloudSql.poolStats.idleConnections} | Queue: {result.services.cloudSql.poolStats.waitingRequests}
+                    Total: {result.services.postgres.poolStats.totalConnections} | Idle: {result.services.postgres.poolStats.idleConnections} | Queue: {result.services.postgres.poolStats.waitingRequests}
                   </span>
                 </div>
               )}
-              {result.services.cloudSql.queryProbe && (
+              {result.services.postgres.queryProbe && (
                 <div className="flex justify-between py-1.5">
                   <span className="text-text/60">Query Probe:</span>
                   <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
-                    {result.services.cloudSql.queryProbe}
+                    {result.services.postgres.queryProbe}
                   </span>
                 </div>
               )}
-              {result.services.cloudSql.error && (
+              {result.services.postgres.error && (
                 <div className="pt-2 text-rose-600 dark:text-rose-400 bg-rose-500/5 p-2 rounded-xl border border-rose-500/20 text-[11px]">
-                  <strong>Diagnostics:</strong> {result.services.cloudSql.error}
+                  <strong>Diagnostics:</strong> {result.services.postgres.error}
                 </div>
               )}
             </div>
           )}
         </div>
 
-        {/* Service 2: Google Cloud Firestore */}
-        <div className="bg-background/80 rounded-2xl p-5 border border-border border-crisp shadow-xs space-y-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
-                <Cloud className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-sm text-text flex items-center gap-2">
-                  Google Cloud Firestore
-                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 font-mono font-medium">
-                    Native NoSQL
-                  </span>
-                </h3>
-                <span className="text-xs text-text/60">
-                  Real-time Document Store & Offline Distributed Sync
-                </span>
-              </div>
-            </div>
 
-            {/* Status Pill */}
-            {result && (
-              <span
-                className={`text-xs px-2.5 py-1 rounded-xl font-bold border font-mono ${
-                  result.services.firestore.statusCode === 200
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
-                }`}
-              >
-                HTTP {result.services.firestore.statusCode} {result.services.firestore.status.toUpperCase()}
-              </span>
-            )}
-          </div>
-
-          {/* Firestore Details Table */}
-          {result && (
-            <div className="space-y-2 text-xs divide-y divide-border/60">
-              <div className="flex justify-between py-1.5">
-                <span className="text-text/60">Database ID:</span>
-                <span className="font-mono text-text font-semibold truncate max-w-[220px]" title={result.services.firestore.databaseId}>
-                  {result.services.firestore.databaseId}
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-text/60">GCP Project:</span>
-                <span className="font-mono text-text font-semibold">{result.services.firestore.projectId}</span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-text/60">Region / Mode:</span>
-                <span className="text-text font-mono">
-                  {result.services.firestore.region} ({result.services.firestore.verificationMode})
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5">
-                <span className="text-text/60">Backend Ping Latency:</span>
-                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                  {result.services.firestore.latencyMs} ms
-                </span>
-              </div>
-              {result.services.firestore.clientDirectPingMs !== undefined && (
-                <div className="flex justify-between py-1.5">
-                  <span className="text-text/60">Client SDK Direct Ping:</span>
-                  <span className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">
-                    {result.services.firestore.clientDirectPingMs} ms ({result.services.firestore.clientDirectStatus})
-                  </span>
-                </div>
-              )}
-              <div className="pt-2">
-                <span className="text-text/60 block mb-1.5 font-medium">Verified Collections ({result.services.firestore.verifiedCollections.length}):</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {result.services.firestore.verifiedCollections.map((c) => (
-                    <span
-                      key={c}
-                      className="px-2 py-0.5 rounded-md bg-card border border-border text-[11px] font-mono text-text/80"
-                    >
-                      {c}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Summary notice */}
