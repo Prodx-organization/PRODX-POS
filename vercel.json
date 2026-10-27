@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "bun run lint && bun run server:check && bun run build",
-  "installCommand": "bun install --frozen-lockfile",
+  "installCommand": "npm ci",
   "outputDirectory": "dist",
   "rewrites": [
     {
