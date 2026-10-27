@@ -4,7 +4,6 @@ import { infrastructureAiService } from '../services/infrastructureAiService';
 import { firmwareRegistryService } from '../services/firmwareRegistryService';
 import { performEndToEndHealthCheck } from '../services/systemHealthCheckService';
 import { requirePermission } from './createApp';
-import { GoogleGenAI } from '@google/genai';
 
 export function registerPublicInfrastructureRoutes(app: Express, pool?: Pool) {
   // End-to-end ping of backend services (Cloud SQL and Firestore) with status-coded response
@@ -474,34 +473,12 @@ export function registerInfrastructureRoutes(app: Express, pool?: Pool) {
     }
   });
 
-  // Gemini Frontend AI Assistant Endpoint
-  app.post('/api/v1/ai/frontend-assistant', async (req: Request, res: Response) => {
-    try {
-      const { prompt, history } = req.body;
-      if (!prompt) {
-        return res.status(400).json({ success: false, error: 'prompt is required' });
-      }
-
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        // Fallback intelligent POS assistant response if API key is not set
-        return res.json({
-          success: true,
-          response: `ยินดีต้อนรับครับ! ในฐานะ Gemini AI Assistant ประจำ PRODX-POS ผมพร้อมช่วยเหลือคุณในการใช้งานระบบ POS, การจัดการสต็อก, การชำระเงิน หรือการตรวจสอบอุปกรณ์ครับ (หมายเหตุ: กรุณาตั้งค่า GEMINI_API_KEY เพื่อเปิดใช้งานความสามารถเต็มรูปแบบ)`,
-        });
-      }
-
-      const ai = new GoogleGenAI({ apiKey });
-      const interaction = await ai.interactions.create({
-        model: 'gemini-3.8-flash',
-        system_instruction: 'You are the intelligent frontend AI assistant for PRODX-POS, a professional Point of Sale system. Assist cashiers and store managers in polite, professional Thai language regarding POS operations, sales, refunds, inventory, and hardware.',
-        input: prompt,
-      });
-
-      const responseText = interaction.output_text || 'ขออภัยครับ ไม่สามารถประมวลผลคำตอบได้ในขณะนี้';
-      res.json({ success: true, response: responseText });
-    } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message || 'AI Assistant request failed' });
-    }
+  // Retired legacy endpoint: all AI chat must use the authenticated, audited AI gateway.
+  // Keep an explicit response so stale clients fail closed instead of bypassing ai:use.
+  app.post('/api/v1/ai/frontend-assistant', (_req: Request, res: Response) => {
+    res.status(410).json({
+      success: false,
+      error: 'This AI endpoint has been retired. Use /api/v1/ai/chat.',
+    });
   });
 }

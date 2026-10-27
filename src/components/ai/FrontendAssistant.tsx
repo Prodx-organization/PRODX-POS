@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Bot, X, Send, Sparkles, MessageSquare } from 'lucide-react';
+import { Bot, X, Send, Sparkles } from 'lucide-react';
+import { aiService } from '../../services/aiService';
 
 export function FrontendAssistant() {
   const [isOpen, setIsOpen] = useState(false);
@@ -22,17 +23,11 @@ export function FrontendAssistant() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/v1/ai/frontend-assistant', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userMsg }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.response }]);
-      } else {
-        setMessages((prev) => [...prev, { role: 'assistant', content: 'ขออภัยครับ เกิดข้อผิดพลาดในการเชื่อมต่อกับ AI Assistant' }]);
-      }
+      const response = await aiService.chatCompletion([
+        ...messages,
+        { role: 'user', content: userMsg },
+      ]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: response }]);
     } catch {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'ไม่สามารถติดต่อเซิร์ฟเวอร์ AI ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง' }]);
     } finally {
