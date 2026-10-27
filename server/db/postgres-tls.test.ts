@@ -33,9 +33,12 @@ const withEnvironment = async (run: () => Promise<void>) => {
 };
 
 test('approved production pooler URL removes SSL query options before explicit CA TLS is applied', () => {
-  const normalized = new URL(normalizeApprovedPoolerConnectionString(APPROVED_DATABASE_URL));
-  assert.equal(normalized.searchParams.has('sslmode'), false);
-  assert.equal(normalized.searchParams.has('sslrootcert'), false);
+  const normalized = new URL(normalizeApprovedPoolerConnectionString(
+    'postgresql://prodx_app.wcyqyiewbzpmrekoljfw:test-only-password@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require&ssl=false&sslrootcert=%2Ftmp%2Fwrong-ca.pem&sslcert=%2Ftmp%2Fclient.crt&sslkey=%2Ftmp%2Fclient.key',
+  ));
+  for (const key of ['ssl', 'sslmode', 'sslrootcert', 'sslcert', 'sslkey']) {
+    assert.equal(normalized.searchParams.has(key), false, `expected ${key} to be removed`);
+  }
   assert.equal(normalized.hostname, 'aws-0-ap-southeast-1.pooler.supabase.com');
   assert.equal(normalized.username, 'prodx_app.wcyqyiewbzpmrekoljfw');
 });

@@ -55,7 +55,7 @@ export const classifyProductionDatabaseTarget = (databaseUrl?: string): Producti
  */
 export const normalizeApprovedPoolerConnectionString = (databaseUrl: string): string => {
   const parsed = new URL(databaseUrl);
-  for (const key of ['sslmode', 'sslrootcert', 'sslcert', 'sslkey']) {
+  for (const key of ['ssl', 'sslmode', 'sslrootcert', 'sslcert', 'sslkey']) {
     parsed.searchParams.delete(key);
   }
   return parsed.toString();
