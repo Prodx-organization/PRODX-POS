@@ -86,4 +86,4 @@ Return the exact JSON schema supplied by the CI workflow. If the CI workflow doe
 
 **Strict Formatting Constraints:**
 - Ensure 100% mathematical consistency between the `counts` object, the items in `findings[]`, and the derived `verdict`.
-- Output raw, valid JSON only. Do not wrap the JSON in markdown code blocks ( ```json ) or include any prose before or after the JSON payload.
+- Output raw, valid JSON only. Do not wrap the JSON in markdown code blocks (```json```) or include any prose before or after the JSON payload.
