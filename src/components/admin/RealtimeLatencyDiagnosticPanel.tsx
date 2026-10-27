@@ -20,8 +20,6 @@ import {
   Cpu,
   Layers,
 } from 'lucide-react';
-import { db } from '../../lib/firebase';
-import { doc, getDocFromServer } from 'firebase/firestore';
 import { useToast } from '../../context/ToastContext';
 
 export interface LatencySample {
@@ -76,27 +74,7 @@ export function RealtimeLatencyDiagnosticPanel() {
     let networkTransitMs = 0;
 
     try {
-      // 1. Direct Firestore RTT probe with performance.now()
-      const fsStart = performance.now();
-      try {
-        const probeDoc = doc(db, 'organizations', 'connection-check');
-        await Promise.race([
-          getDocFromServer(probeDoc),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore probe timeout')), 3000)),
-        ]);
-        firestoreRttMs = Number((performance.now() - fsStart).toFixed(2));
-      } catch (err: unknown) {
-        firestoreRttMs = Number((performance.now() - fsStart).toFixed(2));
-        const msg = err instanceof Error ? err.message : String(err);
-        // If server reached and rejected or not found, RTT is still valid network round-trip!
-        if (msg.includes('permission-denied') || msg.includes('not-found') || msg.includes('Missing or insufficient permissions')) {
-          firestoreStatus = 'ok';
-        } else {
-          firestoreStatus = 'error';
-        }
-      }
-
-      // 2. Cloud SQL RTT probe via backend with performance.now()
+      // PostgreSQL is probed only through the backend; browser clients never connect directly to the database.
       const sqlStart = performance.now();
       try {
         const resp = await fetch(`/api/v1/infrastructure/latency-ping?clientTime=${sqlStart}`);
@@ -105,8 +83,8 @@ export function RealtimeLatencyDiagnosticPanel() {
 
         if (resp.ok) {
           const body = await resp.json().catch(() => null);
-          cloudSqlQueryDurationMs = body?.cloudSql?.queryDurationMs ?? 0;
-          cloudSqlStatus = body?.cloudSql?.success ? 'ok' : 'error';
+          cloudSqlQueryDurationMs = body?.postgres?.queryDurationMs ?? 0;
+          cloudSqlStatus = body?.postgres?.success ? 'ok' : 'error';
           networkTransitMs = Number(Math.max(0, cloudSqlRttMs - (body?.serverProcessTimeMs ?? 0)).toFixed(2));
         } else {
           cloudSqlStatus = 'error';
@@ -116,6 +94,8 @@ export function RealtimeLatencyDiagnosticPanel() {
         cloudSqlStatus = 'error';
       }
 
+      firestoreRttMs = cloudSqlQueryDurationMs;
+      firestoreStatus = cloudSqlStatus;
       sampleCounterRef.current += 1;
       const newIndex = sampleCounterRef.current;
       setSampleCounter(newIndex);
@@ -486,7 +466,7 @@ export function RealtimeLatencyDiagnosticPanel() {
           </div>
         </div>
 
-        {/* Service 2: Google Cloud Firestore Latency */}
+        {/* PostgreSQL query latency from backend probe */}
         <div className="bg-background/80 rounded-2xl p-5 border border-border border-crisp shadow-xs space-y-4 relative overflow-hidden">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
@@ -495,11 +475,11 @@ export function RealtimeLatencyDiagnosticPanel() {
               </div>
               <div>
                 <h3 className="font-bold text-sm text-text flex items-center gap-2">
-                  Google Cloud Firestore
+                  PostgreSQL Query Duration
                   <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
                 </h3>
                 <span className="text-xs text-text/60">
-                  Direct SDK Probe • Browser to Native Firestore
+                  Server-side SQL probe • Browser to API
                 </span>
               </div>
             </div>
@@ -514,9 +494,9 @@ export function RealtimeLatencyDiagnosticPanel() {
             <span className="text-3xl font-extrabold font-mono text-text">
               {stats.firestore.current}
             </span>
-            <span className="text-xs text-text/60 font-medium">ms (RTT)</span>
+            <span className="text-xs text-text/60 font-medium">ms (query)</span>
             <span className="text-xs text-amber-600 dark:text-amber-400 font-mono font-medium">
-              [Database: ai-studio-prodxpos-...]
+              [Database: configured PostgreSQL target]
             </span>
           </div>
 
@@ -564,11 +544,11 @@ export function RealtimeLatencyDiagnosticPanel() {
           <div className="flex items-center gap-4 text-xs font-mono">
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-1.5 rounded-full bg-blue-400 inline-block" />
-              <span className="text-slate-300">Cloud SQL (RTT)</span>
+              <span className="text-slate-300">Backend API RTT</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-1.5 rounded-full bg-amber-400 inline-block" />
-              <span className="text-slate-300">Firestore (RTT)</span>
+              <span className="text-slate-300">PostgreSQL Query (ms)</span>
             </div>
             <span className="text-slate-500 text-[11px]">Scale: 0 - {maxChartVal} ms</span>
           </div>
@@ -661,9 +641,9 @@ export function RealtimeLatencyDiagnosticPanel() {
                 <th className="py-2 px-3">#</th>
                 <th className="py-2 px-3">Timestamp</th>
                 <th className="py-2 px-3">performance.now() Start</th>
-                <th className="py-2 px-3 text-blue-600 dark:text-blue-400">Cloud SQL RTT</th>
+                <th className="py-2 px-3 text-blue-600 dark:text-blue-400">Backend API RTT</th>
                 <th className="py-2 px-3 text-blue-600 dark:text-blue-400">Query Time</th>
-                <th className="py-2 px-3 text-amber-600 dark:text-amber-400">Firestore RTT</th>
+                <th className="py-2 px-3 text-amber-600 dark:text-amber-400">PostgreSQL Query</th>
                 <th className="py-2 px-3">Transit Overhead</th>
                 <th className="py-2 px-3">Status</th>
               </tr>

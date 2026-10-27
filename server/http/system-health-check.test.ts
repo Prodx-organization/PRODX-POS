@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import express from 'express';
 import { registerInfrastructureRoutes } from './infrastructureRoutes';
-import { pingCloudSql, pingFirestore, performEndToEndHealthCheck } from '../services/systemHealthCheckService';
+import { pingPostgres, performEndToEndHealthCheck } from '../services/systemHealthCheckService';
 
 const start = async (app: express.Express) => {
   const server = await new Promise<import('node:http').Server>((resolve) => {
@@ -16,123 +16,96 @@ const start = async (app: express.Express) => {
   };
 };
 
-test('pingCloudSql returns 503 when pool is unavailable and reports safe diagnostics', async () => {
-  const result = await pingCloudSql(undefined);
-  assert.equal(result.service, 'Google Cloud SQL (PostgreSQL)');
+const healthyPool = () => ({
+  totalCount: 3,
+  idleCount: 2,
+  waitingCount: 0,
+  query: async () => ({
+    rows: [{
+      ping: 1,
+      server_time: new Date().toISOString(),
+      version: 'PostgreSQL 16.2 on x86_64',
+      database_name: 'prodx_test',
+    }],
+  }),
+});
+
+test('pingPostgres fails closed when the PostgreSQL pool is unavailable', async () => {
+  const result = await pingPostgres(undefined);
+  assert.equal(result.service, 'PostgreSQL');
   assert.equal(result.statusCode, 503);
   assert.equal(result.status, 'unreachable');
-  assert.equal(result.projectId, 'gen-lang-client-0282713343');
-  assert.equal(result.region, 'asia-southeast1');
   assert.equal(result.code, 'DATABASE_URL_MISSING');
 });
 
-test('pingCloudSql executes query when pool is supplied and returns 200', async () => {
-  const mockPool = {
-    totalCount: 5,
-    idleCount: 4,
-    waitingCount: 0,
-    query: async () => ({
-      rows: [{ ping: 1, server_time: new Date().toISOString(), version: 'PostgreSQL 16.2 on x86_64' }],
-    }),
-  };
-
-  const result = await pingCloudSql(mockPool as any);
+test('pingPostgres runs a real query through the supplied pool and reports safe database metadata', async () => {
+  const result = await pingPostgres(healthyPool() as any);
   assert.equal(result.statusCode, 200);
   assert.equal(result.status, 'connected');
-  assert.equal(result.engine, 'PostgreSQL 16.2 (Cloud SQL)');
+  assert.equal(result.engine, 'PostgreSQL 16.2');
+  assert.equal(result.database, 'prodx_test');
   assert.equal(result.queryProbe, 'SELECT 1 -> OK');
-  assert.equal(result.poolStats?.totalConnections, 5);
+  assert.equal(result.poolStats?.totalConnections, 3);
 });
 
-test('pingFirestore reports Google Cloud Firestore configuration and collections', async () => {
-  const result = await pingFirestore();
-  assert.equal(result.service, 'Google Cloud Firestore');
-  assert.equal(result.projectId, 'modified-bit-mct7q');
-  assert.equal(result.databaseId, 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990');
-  assert.equal(result.region, 'asia-southeast1');
-  assert.ok(result.verifiedCollections.includes('audit_logs'));
-  assert.ok(result.verifiedCollections.includes('AppErrorLog'));
+test('pingPostgres reports a query failure instead of treating an HTTP response as database health', async () => {
+  const result = await pingPostgres({
+    query: async () => { throw Object.assign(new Error('connection refused'), { code: 'ECONNREFUSED' }); },
+  } as any);
+  assert.equal(result.statusCode, 503);
+  assert.equal(result.status, 'unreachable');
+  assert.equal(result.code, 'ECONNREFUSED');
 });
 
-test('performEndToEndHealthCheck computes 200 when all services pass and 207 on partial failure', async () => {
-  const mockPool = {
-    totalCount: 2,
-    idleCount: 2,
-    waitingCount: 0,
-    query: async () => ({
-      rows: [{ ping: 1, server_time: new Date().toISOString(), version: 'PostgreSQL 16.0' }],
-    }),
-  };
-
-  const result = await performEndToEndHealthCheck(mockPool as any, 'test-req-001');
-  assert.ok(result.statusCode === 200 || result.statusCode === 207);
-  assert.equal(result.requestId, 'test-req-001');
-  assert.equal(result.environment.region, 'asia-southeast1');
-  assert.equal(result.services.cloudSql.statusCode, 200);
+test('performEndToEndHealthCheck reports HEALTHY only when PostgreSQL query succeeds', async () => {
+  const configuredDatabaseUrl = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  try {
+    const result = await performEndToEndHealthCheck(healthyPool() as any, 'test-req-001');
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.status, 'HEALTHY');
+    assert.equal(result.requestId, 'test-req-001');
+    assert.equal(result.services.postgres.database, 'prodx_test');
+    assert.equal(result.environment.databaseTarget, 'invalid');
+  } finally {
+    if (configuredDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = configuredDatabaseUrl;
+  }
 });
 
-test('HTTP GET /api/v1/infrastructure/system-health-check returns status-coded JSON object', async () => {
+test('system health HTTP route returns PostgreSQL query status and request ID', async () => {
   const app = express();
   app.use(express.json());
-
-  const mockPool = {
-    totalCount: 3,
-    idleCount: 3,
-    waitingCount: 0,
-    query: async () => ({
-      rows: [{ ping: 1, server_time: new Date().toISOString(), version: 'PostgreSQL 16.1' }],
-    }),
-  };
-
-  registerInfrastructureRoutes(app, mockPool as any);
+  registerInfrastructureRoutes(app, healthyPool() as any);
   const server = await start(app);
-
   try {
     const response = await fetch(`${server.baseUrl}/api/v1/infrastructure/system-health-check`, {
       headers: { 'x-request-id': 'req-health-check-e2e' },
     });
-
-    assert.ok(response.status === 200 || response.status === 207);
+    assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.requestId, 'req-health-check-e2e');
-    assert.ok(body.services.cloudSql);
-    assert.ok(body.services.firestore);
-    assert.equal(body.services.cloudSql.projectId, 'gen-lang-client-0282713343');
-    assert.equal(body.services.firestore.databaseId, 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990');
+    assert.equal(body.success, true);
+    assert.equal(body.services.postgres.database, 'prodx_test');
+    assert.equal('firestore' in body.services, false);
   } finally {
     await server.close();
   }
 });
 
-test('HTTP GET /api/v1/infrastructure/latency-ping returns high-precision performance.now() latency metrics', async () => {
+test('latency endpoint does not claim success when PostgreSQL is unavailable', async () => {
   const app = express();
   app.use(express.json());
-
-  const mockPool = {
-    query: async () => ({
-      rows: [{ ping: 1 }],
-    }),
-  };
-
-  registerInfrastructureRoutes(app, mockPool as any);
+  registerInfrastructureRoutes(app);
   const server = await start(app);
-
   try {
-    const clientSendTime = performance.now();
-    const response = await fetch(`${server.baseUrl}/api/v1/infrastructure/latency-ping?clientTime=${clientSendTime}`);
-    assert.equal(response.status, 200);
-
+    const response = await fetch(`${server.baseUrl}/api/v1/infrastructure/latency-ping`);
+    assert.equal(response.status, 503);
     const body = await response.json();
-    assert.equal(body.success, true);
-    assert.ok(typeof body.serverReceiveTimestamp === 'number');
-    assert.ok(typeof body.serverProcessTimeMs === 'number');
-    assert.equal(body.clientSentTimestamp, clientSendTime);
-    assert.equal(body.cloudSql.success, true);
-    assert.ok(typeof body.cloudSql.queryDurationMs === 'number');
-    assert.equal(body.cloudSql.projectId, 'gen-lang-client-0282713343');
-    assert.equal(body.firestoreBackend.databaseId, 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990');
+    assert.equal(body.success, false);
+    assert.equal(body.postgres.success, false);
+    assert.equal('firestoreBackend' in body, false);
   } finally {
     await server.close();
   }
 });
-

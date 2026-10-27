@@ -1,0 +1,81 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createGmailService } from './gmailService';
+
+test('Gmail OAuth uses a configured Google client and only read/send scopes', async () => {
+  let tokenCallback: ((response: { access_token?: string; error?: string }) => void) | undefined;
+  let clientConfig: { client_id: string; scope: string } | undefined;
+  const service = createGmailService({
+    getClientId: () => 'google-client-id.apps.googleusercontent.com',
+    loadGoogleIdentity: async () => ({
+      accounts: { oauth2: {
+        initTokenClient: (options) => {
+          clientConfig = options;
+          tokenCallback = options.callback;
+          return { requestAccessToken: () => tokenCallback?.({ access_token: 'google-access-token' }) };
+        },
+        revoke: (_token, callback) => callback?.(),
+      } },
+    }),
+    fetcher: async () => new Response(JSON.stringify({ id: 'google-user-1', email: 'staff@example.test', name: 'Staff User' }), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    }),
+  });
+
+  const signedIn = await service.signInWithGmail();
+  assert.equal(clientConfig?.client_id, 'google-client-id.apps.googleusercontent.com');
+  assert.deepEqual(clientConfig?.scope.split(' ').sort(), [
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.send',
+  ]);
+  assert.equal(signedIn.accessToken, 'google-access-token');
+  assert.equal(signedIn.user.uid, 'google-user-1');
+  assert.equal(signedIn.user.email, 'staff@example.test');
+});
+
+test('Gmail OAuth fails closed when no approved Google client ID is configured', async () => {
+  const service = createGmailService({ getClientId: () => undefined });
+  await assert.rejects(service.signInWithGmail(), /VITE_GOOGLE_OAUTH_CLIENT_ID/);
+});
+
+test('Gmail message listing caps user-provided page size and sends bearer token', async () => {
+  let requestUrl = '';
+  let authorization = '';
+  const service = createGmailService({
+    getClientId: () => 'client-id',
+    loadGoogleIdentity: async () => ({ accounts: { oauth2: {
+      initTokenClient: () => ({ requestAccessToken: () => undefined }),
+      revoke: (_token, callback) => callback?.(),
+    } } }),
+    fetcher: async (input, init) => {
+      requestUrl = String(input);
+      authorization = new Headers(init?.headers).get('authorization') || '';
+      return new Response(JSON.stringify({ messages: [{ id: 'message-1' }] }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    },
+  });
+
+  const result = await service.listGmailMessages('token', 500);
+  assert.equal(requestUrl, 'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=50');
+  assert.equal(authorization, 'Bearer token');
+  assert.equal(result.messages?.length, 1);
+});
+
+test('Gmail API 401 invalidates the cached OAuth session', async () => {
+  let revoked = false;
+  const service = createGmailService({
+    getClientId: () => 'client-id',
+    loadGoogleIdentity: async () => ({ accounts: { oauth2: {
+      initTokenClient: (options) => ({ requestAccessToken: () => options.callback({ access_token: 'token' }) }),
+      revoke: (_token, callback) => { revoked = true; callback?.(); },
+    } } }),
+    fetcher: async (input) => String(input).includes('userinfo')
+      ? new Response(JSON.stringify({ id: 'user-1' }), { status: 200, headers: { 'content-type': 'application/json' } })
+      : new Response('{}', { status: 401, headers: { 'content-type': 'application/json' } }),
+  });
+  await service.signInWithGmail();
+  await assert.rejects(service.listGmailMessages('token'), /401/);
+  assert.equal(service.getGmailAccessToken(), null);
+  assert.equal(revoked, true);
+});

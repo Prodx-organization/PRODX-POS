@@ -7,7 +7,7 @@ import { Mail, Send, CheckCircle2, AlertCircle, LogOut, Loader2, Sparkles } from
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { initGmailAuth, signInWithGmail, signOutGmail, getGmailAccessToken, sendGmailMessage, listGmailMessages } from '../../services/workspace/gmailService';
-import { User } from 'firebase/auth';
+import type { GmailUser } from '../../services/workspace/gmailService';
 
 interface GmailIntegrationModalProps {
   isOpen: boolean;
@@ -24,7 +24,7 @@ export const GmailIntegrationModal: React.FC<GmailIntegrationModalProps> = ({
   defaultSubject = 'PRODX POS Receipt / Report',
   defaultBody = 'Thank you for your business with PRODX POS!',
 }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<GmailUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
