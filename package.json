@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --outfile=dist/index.js --packages=external && mkdir -p build && cp -r dist/* build/",
+    "build": "vite build && bun run build:server",
+    "build:server": "bun build ./server/entrypoint.ts --outfile ./server-bundle.js --target node --format esm --packages external",
     "start": "node --import tsx server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist build",

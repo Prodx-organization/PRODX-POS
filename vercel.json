@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "bun run build && bun build ./server/entrypoint.ts --outfile ./server-bundle.js --target node --format esm --packages external",
-  "installCommand": "npm ci",
+  "buildCommand": "bun run lint && bun run server:check && bun run build",
+  "installCommand": "bun install --frozen-lockfile",
   "outputDirectory": "dist",
   "rewrites": [
     {
