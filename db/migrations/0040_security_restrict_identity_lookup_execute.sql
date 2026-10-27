@@ -3,7 +3,23 @@
 -- keep the credential lookup callable only by the trusted backend runtime role.
 REVOKE ALL PRIVILEGES
   ON FUNCTION public.prodx_auth_find_credential_by_supabase_user_id(uuid, uuid)
-  FROM PUBLIC, anon, authenticated, service_role;
+  FROM PUBLIC;
+
+-- Local PostgreSQL CI does not provision Supabase API roles; revoke them when present.
+DO $security$
+DECLARE
+  role_name text;
+BEGIN
+  FOREACH role_name IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
+      EXECUTE format(
+        'REVOKE ALL PRIVILEGES ON FUNCTION public.prodx_auth_find_credential_by_supabase_user_id(uuid, uuid) FROM %I',
+        role_name
+      );
+    END IF;
+  END LOOP;
+END
+$security$;
 
 GRANT EXECUTE
   ON FUNCTION public.prodx_auth_find_credential_by_supabase_user_id(uuid, uuid)
