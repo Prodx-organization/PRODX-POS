@@ -57,6 +57,9 @@ jobs:
       - name: Browser telemetry Node regression test
         run: bun run telemetry:test
 
+      - name: Workspace Gmail OAuth regression test
+        run: bun run workspace:test
+
       - name: Prepare PostgreSQL schema for backend integration tests
         shell: bash
         run: |
