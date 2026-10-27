@@ -124,19 +124,23 @@ export const createGmailService = ({
       throw new Error(response.error_description || response.error || 'Google OAuth did not return an access token.');
     }
 
-    const profileResponse = await fetcher('https://www.googleapis.com/oauth2/v2/userinfo', {
+    // Gmail users.getProfile is authorized by gmail.readonly; OAuth userinfo would
+    // require identity scopes that this least-privilege flow intentionally does not request.
+    const profileResponse = await fetcher('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
       headers: { Authorization: `Bearer ${response.access_token}` },
     });
     if (!profileResponse.ok) throw new Error(`Failed to load Google account profile (${profileResponse.status}).`);
-    const profile = await profileResponse.json() as { id?: string; email?: string; name?: string; picture?: string };
-    if (!profile.id) throw new Error('Google profile response did not contain a stable user ID.');
+    const profile = await profileResponse.json() as { emailAddress?: string };
+    const emailAddress = profile.emailAddress?.trim();
+    if (!emailAddress) throw new Error('Gmail profile response did not contain an email address.');
 
     cachedAccessToken = response.access_token;
     cachedUser = {
-      uid: profile.id,
-      email: profile.email ?? null,
-      displayName: profile.name ?? null,
-      photoURL: profile.picture ?? null,
+      // Gmail's profile endpoint exposes the account email, not Google's OIDC subject.
+      uid: emailAddress,
+      email: emailAddress,
+      displayName: null,
+      photoURL: null,
     };
     notify();
     return { user: cachedUser, accessToken: cachedAccessToken };
