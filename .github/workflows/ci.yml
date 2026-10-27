@@ -62,6 +62,7 @@ jobs:
     - name: Verify build artifacts
       run: |
         ls -la dist/
-        test -f dist/index.html
-        test -f dist/index.js
-        echo "Build artifacts verified successfully!"
+        test -s dist/index.html
+        test -s server-bundle.js
+        test ! -e dist/index.js
+        echo "Frontend and production server artifacts verified successfully!"
