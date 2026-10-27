@@ -136,3 +136,23 @@ test('HTTP GET /api/v1/infrastructure/latency-ping returns high-precision perfor
   }
 });
 
+test('retired legacy frontend AI endpoint fails closed instead of bypassing the AI gateway', async () => {
+  const app = express();
+  app.use(express.json());
+  registerInfrastructureRoutes(app);
+  const server = await start(app);
+
+  try {
+    const response = await fetch(`${server.baseUrl}/api/v1/ai/frontend-assistant`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ prompt: 'hello' }),
+    });
+    assert.equal(response.status, 410);
+    const body = await response.json();
+    assert.equal(body.success, false);
+    assert.match(body.error, /retired/i);
+  } finally {
+    await server.close();
+  }
+});
