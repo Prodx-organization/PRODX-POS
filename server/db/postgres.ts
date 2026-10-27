@@ -48,6 +48,19 @@ export const classifyProductionDatabaseTarget = (databaseUrl?: string): Producti
   }
 };
 
+/**
+ * Node-postgres lets connection-string SSL options override the explicit SSL object.
+ * Remove those query parameters only after the broker URL has passed the approved-target
+ * check, then configure TLS with the separately supplied trusted root CA.
+ */
+export const normalizeApprovedPoolerConnectionString = (databaseUrl: string): string => {
+  const parsed = new URL(databaseUrl);
+  for (const key of ['ssl', 'sslmode', 'sslrootcert', 'sslcert', 'sslkey']) {
+    parsed.searchParams.delete(key);
+  }
+  return parsed.toString();
+};
+
 export const resolveProductionDatabaseUrl = async (
   vercelOidcToken?: string,
 ): Promise<string | undefined> => {
@@ -115,15 +128,35 @@ export const createProductionPostgresPool = async (
 ): Promise<Pool> => {
   // Production must always resolve the approved database through the authenticated broker.
   // Caller-supplied PoolConfig.connectionString must never bypass this trust boundary.
-  const connectionString = shouldResolveProductionDatabaseUrl()
+  const isVercelProduction = shouldResolveProductionDatabaseUrl();
+  const resolvedUrl = isVercelProduction
     ? await resolveProductionDatabaseUrl(vercelOidcToken)
     : config.connectionString ?? await resolveProductionDatabaseUrl(vercelOidcToken);
-  if (shouldResolveProductionDatabaseUrl()) {
+
+  let connectionString = resolvedUrl;
+  let ssl = config.ssl;
+
+  if (isVercelProduction) {
+    if (classifyProductionDatabaseTarget(resolvedUrl) !== 'supabase_session_pooler') {
+      throw new Error('Production database broker returned an unapproved database target.');
+    }
+
+    const ca = process.env.SUPABASE_DB_CA_CERT?.trim();
+    if (!ca || !ca.includes('-----BEGIN CERTIFICATE-----') || !ca.includes('-----END CERTIFICATE-----')) {
+      throw new Error('SUPABASE_DB_CA_CERT must contain the trusted Supabase PostgreSQL root CA certificate.');
+    }
+
+    // Explicit CA + strict hostname/chain validation. Never fall back to rejectUnauthorized:false.
+    // Strip URL SSL parameters because pg-connection-string otherwise overrides this SSL object.
+    connectionString = normalizeApprovedPoolerConnectionString(resolvedUrl!);
+    ssl = { ca, rejectUnauthorized: true };
     console.info('PRODX production database target selected', {
-      target: classifyProductionDatabaseTarget(connectionString),
+      target: 'supabase_session_pooler',
+      tls: 'verified_root_ca',
     });
   }
-  return createPostgresPool({ ...config, connectionString });
+
+  return createPostgresPool({ ...config, connectionString, ssl });
 };
 
 export const asSqlExecutor = (pool: Pick<Pool, 'query'>): SqlExecutor => ({

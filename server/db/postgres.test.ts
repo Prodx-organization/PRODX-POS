@@ -167,16 +167,19 @@ test('createProductionPostgresPool cannot bypass the production broker with a ca
       DATABASE_URL: 'postgresql://legacy.example/prodx',
       VERCEL_OIDC_TOKEN: undefined,
       PRODX_DB_BROKER_URL: 'https://broker.example/prodx-db',
+      SUPABASE_DB_CA_CERT: '-----BEGIN CERTIFICATE-----\\ntest-only-root-ca\\n-----END CERTIFICATE-----',
     }, async () => {
       const pool = await createProductionPostgresPool({
         connectionString: 'postgresql://caller-controlled.example/prodx',
       }, 'request-oidc-token');
       try {
         assert.equal(requestedUrl, 'https://broker.example/prodx-db');
-        assert.equal(
-          (pool as unknown as { options: { connectionString: string } }).options.connectionString,
-          APPROVED_DATABASE_URL,
-        );
+        const options = pool as unknown as {
+          options: { connectionString: string; ssl: { ca: string; rejectUnauthorized: boolean } };
+        };
+        assert.equal(new URL(options.options.connectionString).searchParams.has('sslmode'), false);
+        assert.equal(options.options.ssl.ca, '-----BEGIN CERTIFICATE-----\\ntest-only-root-ca\\n-----END CERTIFICATE-----');
+        assert.equal(options.options.ssl.rejectUnauthorized, true);
       } finally {
         await pool.end();
       }
