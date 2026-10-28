@@ -18,12 +18,12 @@ const start = async (app: express.Express) => {
 
 test('pingCloudSql returns 503 when pool is unavailable and reports safe diagnostics', async () => {
   const result = await pingCloudSql(undefined);
-  assert.equal(result.service, 'Google Cloud SQL (PostgreSQL)');
+  assert.equal(result.service, 'PostgreSQL (Supabase session pooler)');
   assert.equal(result.statusCode, 503);
   assert.equal(result.status, 'unreachable');
-  assert.equal(result.projectId, 'gen-lang-client-0282713343');
-  assert.equal(result.region, 'asia-southeast1');
-  assert.equal(result.code, 'DATABASE_URL_MISSING');
+  assert.equal(result.projectId, 'wcyqyiewbzpmrekoljfw');
+  assert.equal(result.region, 'ap-southeast-1');
+  assert.equal(result.code, 'POSTGRES_POOL_UNAVAILABLE');
 });
 
 test('pingCloudSql executes query when pool is supplied and returns 200', async () => {
@@ -39,7 +39,7 @@ test('pingCloudSql executes query when pool is supplied and returns 200', async 
   const result = await pingCloudSql(mockPool as any);
   assert.equal(result.statusCode, 200);
   assert.equal(result.status, 'connected');
-  assert.equal(result.engine, 'PostgreSQL 16.2 (Cloud SQL)');
+  assert.equal(result.engine, 'PostgreSQL 16.2 (Supabase session pooler)');
   assert.equal(result.queryProbe, 'SELECT 1 -> OK');
   assert.equal(result.poolStats?.totalConnections, 5);
 });
@@ -67,7 +67,7 @@ test('performEndToEndHealthCheck computes 200 when all services pass and 207 on 
   const result = await performEndToEndHealthCheck(mockPool as any, 'test-req-001');
   assert.ok(result.statusCode === 200 || result.statusCode === 207);
   assert.equal(result.requestId, 'test-req-001');
-  assert.equal(result.environment.region, 'asia-southeast1');
+  assert.equal(result.environment.region, 'ap-southeast-1');
   assert.equal(result.services.cloudSql.statusCode, 200);
 });
 
@@ -97,7 +97,7 @@ test('HTTP GET /api/v1/infrastructure/system-health-check returns status-coded J
     assert.equal(body.requestId, 'req-health-check-e2e');
     assert.ok(body.services.cloudSql);
     assert.ok(body.services.firestore);
-    assert.equal(body.services.cloudSql.projectId, 'gen-lang-client-0282713343');
+    assert.equal(body.services.cloudSql.projectId, 'wcyqyiewbzpmrekoljfw');
     assert.equal(body.services.firestore.databaseId, 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990');
   } finally {
     await server.close();
