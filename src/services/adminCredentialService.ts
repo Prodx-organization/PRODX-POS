@@ -14,7 +14,6 @@ import {
   User,
   SYSTEM_OWNER_ADMIN_ID,
   SYSTEM_OWNER_ADMIN_EMAIL,
-  DEFAULT_SYSTEM_OWNER_PASSWORD,
   isVerifiedSystemOwner,
   computeAdminPasswordDigest,
   getStoredStaffPasswords,
@@ -69,7 +68,7 @@ export interface AdminCredentialDatabaseStatus {
   updatedAt: number;
   updatedBy: string;
   reauthMethod: 'password' | 'webauthn_biometric';
-  source: 'firestore' | 'local_override' | 'default_hardcoded';
+  source: 'firestore' | 'local_override' | 'unconfigured';
 }
 
 /**
@@ -172,19 +171,17 @@ export async function fetchSystemOwnerCredentialStatusFromDatabase(): Promise<Ad
     };
   }
 
-  const defaultSalt = 'prodx-system-owner-v1';
-  const defaultHash = await computeAdminPasswordDigest(DEFAULT_SYSTEM_OWNER_PASSWORD, defaultSalt);
   return {
     id: SYSTEM_OWNER_ADMIN_ID,
     email: SYSTEM_OWNER_ADMIN_EMAIL,
-    passwordHash: defaultHash,
-    passwordSalt: defaultSalt,
-    hashAlgorithm: 'PBKDF2-HMAC-SHA256 + SHA-256',
-    version: 1,
-    updatedAt: Date.now(),
-    updatedBy: SYSTEM_OWNER_ADMIN_EMAIL,
+    passwordHash: '',
+    passwordSalt: '',
+    hashAlgorithm: 'unconfigured',
+    version: 0,
+    updatedAt: 0,
+    updatedBy: '',
     reauthMethod: 'password',
-    source: 'default_hardcoded',
+    source: 'unconfigured',
   };
 }
 
@@ -252,7 +249,7 @@ export async function verifySystemOwnerReauthentication(
   const activePassword =
     persistedOverride?.password ||
     storedPasswords[SYSTEM_OWNER_ADMIN_ID] ||
-    DEFAULT_SYSTEM_OWNER_PASSWORD;
+    '';
   const activePin = storedPins[SYSTEM_OWNER_ADMIN_ID];
 
   if (secret === activePassword || (activePin && secret === activePin)) {
