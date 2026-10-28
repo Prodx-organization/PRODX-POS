@@ -211,7 +211,8 @@ let volatileStaffPasswords: Record<string, string> = {};
 export interface PersistedAdminCredentialRecord {
   id: string;
   email: string;
-  password: string;
+  /** Legacy field is accepted only so old callers can be migrated; never persisted or returned. */
+  password?: string;
   passwordHash?: string;
   passwordSalt?: string;
   version: number;
@@ -263,15 +264,18 @@ export function getPersistedAdminCredentialOverride(): PersistedAdminCredentialR
     const raw = window.localStorage.getItem(ADMIN_CREDENTIAL_OVERRIDE_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PersistedAdminCredentialRecord;
-    if (
-      parsed &&
-      typeof parsed.password === 'string' &&
-      parsed.password.length > 0 &&
-      parsed.email?.toLowerCase() === SYSTEM_OWNER_ADMIN_EMAIL
-    ) {
-      return parsed;
+    if (!parsed || parsed.email?.toLowerCase() !== SYSTEM_OWNER_ADMIN_EMAIL) return null;
+
+    // Remove legacy plaintext credential records instead of ever returning them to callers.
+    if (typeof parsed.password === 'string') {
+      window.localStorage.removeItem(ADMIN_CREDENTIAL_OVERRIDE_STORAGE_KEY);
+      if (typeof parsed.passwordHash !== 'string' || typeof parsed.passwordSalt !== 'string') return null;
+      const { password: _legacyPlaintext, ...sanitized } = parsed;
+      return sanitized;
     }
-    return null;
+
+    if (typeof parsed.passwordHash !== 'string' || typeof parsed.passwordSalt !== 'string') return null;
+    return parsed;
   } catch {
     return null;
   }
@@ -282,7 +286,9 @@ export function savePersistedAdminCredentialOverride(
 ): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(ADMIN_CREDENTIAL_OVERRIDE_STORAGE_KEY, JSON.stringify(record));
+    // Never persist plaintext credentials, even if a legacy caller supplies the field.
+    const { password: _legacyPlaintext, ...sanitized } = record;
+    window.localStorage.setItem(ADMIN_CREDENTIAL_OVERRIDE_STORAGE_KEY, JSON.stringify(sanitized));
   } catch (e) {
     console.error('Failed to persist admin credential override', e);
   }
@@ -315,12 +321,9 @@ export function saveStoredStaffPins(pins: Record<string, string>): void {
 }
 
 export function getStoredStaffPasswords(): Record<string, string> {
-  const override = getPersistedAdminCredentialOverride();
-  const base = { ...volatileStaffPasswords };
-  if (override?.password) {
-    base[SYSTEM_OWNER_ADMIN_ID] = override.password;
-  }
-  return base;
+  // Persisted overrides contain verifiers only. Runtime-only mock credentials are never
+  // restored from browser storage.
+  return { ...volatileStaffPasswords };
 }
 
 export function saveStoredStaffPasswords(passwords: Record<string, string>): void {
@@ -334,7 +337,6 @@ export function updateStaffPassword(userId: string, newPassword: string): void {
     savePersistedAdminCredentialOverride({
       id: SYSTEM_OWNER_ADMIN_ID,
       email: SYSTEM_OWNER_ADMIN_EMAIL,
-      password: newPassword,
       passwordHash: existing?.passwordHash,
       passwordSalt: existing?.passwordSalt,
       version: (existing?.version || 1) + 1,

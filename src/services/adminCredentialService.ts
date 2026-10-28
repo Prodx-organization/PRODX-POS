@@ -202,10 +202,12 @@ export async function verifySystemOwnerReauthentication(
     };
   }
 
-  if (req.biometricVerified) {
+  // A client-supplied boolean is not proof of a WebAuthn assertion. Until a
+  // server-owned challenge/credential flow is wired, biometric-only reauth fails closed.
+  if (req.biometricVerified && !req.currentPassword) {
     return {
-      verified: true,
-      reauthMethod: 'webauthn_biometric',
+      verified: false,
+      error: 'Biometric re-authentication is unavailable until server-side WebAuthn verification is configured.',
     };
   }
 
@@ -249,10 +251,7 @@ export async function verifySystemOwnerReauthentication(
     }
   }
 
-  const activePassword =
-    persistedOverride?.password ||
-    storedPasswords[SYSTEM_OWNER_ADMIN_ID] ||
-    DEFAULT_SYSTEM_OWNER_PASSWORD;
+  const activePassword = storedPasswords[SYSTEM_OWNER_ADMIN_ID] || '';
   const activePin = storedPins[SYSTEM_OWNER_ADMIN_ID];
 
   if (secret === activePassword || (activePin && secret === activePin)) {
@@ -358,7 +357,6 @@ export async function resetSystemOwnerAdminPasswordInDatabase(
   savePersistedAdminCredentialOverride({
     id: SYSTEM_OWNER_ADMIN_ID,
     email: SYSTEM_OWNER_ADMIN_EMAIL,
-    password: trimmedNewPassword,
     passwordHash,
     passwordSalt,
     version: nextVersion,
