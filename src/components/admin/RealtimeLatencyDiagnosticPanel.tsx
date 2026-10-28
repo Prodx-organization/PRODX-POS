@@ -20,8 +20,6 @@ import {
   Cpu,
   Layers,
 } from 'lucide-react';
-import { db } from '../../lib/firebase';
-import { doc, getDocFromServer } from 'firebase/firestore';
 import { useToast } from '../../context/ToastContext';
 
 export interface LatencySample {
@@ -30,7 +28,7 @@ export interface LatencySample {
   clientSentPerfNow: number;
   timestamp: string;
   timeStr: string;
-  firestoreRttMs: number;
+  readinessRttMs: number;
   firestoreStatus: 'ok' | 'error';
   cloudSqlRttMs: number;
   cloudSqlQueryDurationMs: number;
@@ -76,24 +74,15 @@ export function RealtimeLatencyDiagnosticPanel() {
     let networkTransitMs = 0;
 
     try {
-      // 1. Direct Firestore RTT probe with performance.now()
-      const fsStart = performance.now();
+      // 1. Probe the production readiness endpoint; this exercises the server-authoritative PostgreSQL check.
+      const readinessStart = performance.now();
       try {
-        const probeDoc = doc(db, 'organizations', 'connection-check');
-        await Promise.race([
-          getDocFromServer(probeDoc),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore probe timeout')), 3000)),
-        ]);
-        firestoreRttMs = Number((performance.now() - fsStart).toFixed(2));
-      } catch (err: unknown) {
-        firestoreRttMs = Number((performance.now() - fsStart).toFixed(2));
-        const msg = err instanceof Error ? err.message : String(err);
-        // If server reached and rejected or not found, RTT is still valid network round-trip!
-        if (msg.includes('permission-denied') || msg.includes('not-found') || msg.includes('Missing or insufficient permissions')) {
-          firestoreStatus = 'ok';
-        } else {
-          firestoreStatus = 'error';
-        }
+        const response = await fetch('/api/v1/readyz', { headers: { Accept: 'application/json' } });
+        readinessRttMs = Number((performance.now() - readinessStart).toFixed(2));
+        readinessStatus = response.ok ? 'ok' : 'error';
+      } catch {
+        readinessRttMs = Number((performance.now() - readinessStart).toFixed(2));
+        readinessStatus = 'error';
       }
 
       // 2. Cloud SQL RTT probe via backend with performance.now()
