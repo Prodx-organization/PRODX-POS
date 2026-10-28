@@ -2,9 +2,8 @@
  * PRODX POS — Background Buffered Diagnostic & Audit Log Service
  *
  * Buffers high-frequency hardware, peripheral, and system diagnostic log events locally
- * (in-memory + durable localStorage fallback) before batch-uploading them to Google Cloud
- * Firestore using atomic `writeBatch` commits. This minimizes Firestore API overhead and
- * network contention during peak checkout and hardware telemetry bursts.
+ * (in-memory + durable localStorage fallback) before batch-uploading them through the
+ * authenticated PostgreSQL audit API. Idempotency keys make retried batches safe.
  */
 
 import { readPersistedSession } from '../context/authSessionStorage';
@@ -70,8 +69,8 @@ export interface AuditBufferConfig {
   flushIntervalMs: number;
   /** Debounce window for expedited flush when ERROR / CRITICAL events arrive (default: 1200ms) */
   criticalFlushDebounceMs: number;
-  /** Maximum operations per single Firestore writeBatch (default: 450, Firestore hard limit is 500) */
-  maxFirestoreBatchSize: number;
+  /** Maximum events per PostgreSQL audit API batch (hard limit: 100). */
+  maxBatchSize: number;
   /** Maximum local buffer capacity before low-priority TRACE/DEBUG eviction (default: 1000) */
   maxLocalBufferSize: number;
   /** Whether background periodic timer is active */
@@ -84,7 +83,7 @@ export interface AuditBufferStats {
   totalQueuedCount: number;
   totalUploadedCount: number;
   batchesCommittedCount: number;
-  /** Number of individual Firestore write API requests saved by batching */
+  /** Number of individual API requests saved by batching */
   apiCallsSavedCount: number;
   failedFlushCount: number;
   lastFlushTimestamp: string | null;
@@ -101,7 +100,6 @@ export type AuditStatsListener = (stats: AuditBufferStats) => void;
 export type BatchUploadHandler = (documents: DiagnosticLogDocument[], batchId: string) => Promise<void>;
 
 const LOCAL_STORAGE_BUFFER_KEY = 'prodx_diagnostic_log_buffer_v1';
-const DIAGNOSTIC_LOGS_COLLECTION = 'diagnostic_logs';
 
 function sanitizeId(raw: string): string {
   return raw.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 120) || `log-${Date.now()}`;
@@ -120,7 +118,7 @@ function sanitizeString(value: string | undefined, maxLen: number, fallback = ''
 }
 
 /**
- * Recursively removes 'undefined' values from an object to prevent Firestore errors.
+ * Recursively removes 'undefined' values from an object to prevent API payload errors.
  * Replaces 'undefined' with 'null'.
  */
 function sanitizeDiagnosticMetadata(data: any): any {
@@ -137,10 +135,8 @@ function sanitizeDiagnosticMetadata(data: any): any {
   return result;
 }
 
-/**
- * Default Firestore batch uploader using atomic `writeBatch(db)`
- */
-async function defaultFirestoreBatchUploader(documents: DiagnosticLogDocument[]): Promise<void> {
+/** Uploads a bounded diagnostic batch through the authenticated PostgreSQL API. */
+async function defaultPostgresBatchUploader(documents: DiagnosticLogDocument[]): Promise<void> {
   if (documents.length === 0 || typeof window === 'undefined') return;
   const session = readPersistedSession(window.localStorage);
   if (!session?.token) throw new Error('A valid POS session is required to upload diagnostic logs.');
@@ -203,7 +199,7 @@ export class BufferedAuditDiagnosticService {
     batchSizeThreshold: 20,
     flushIntervalMs: 8000,
     criticalFlushDebounceMs: 1200,
-    maxFirestoreBatchSize: 450,
+    maxBatchSize: 100,
     maxLocalBufferSize: 1000,
     autoFlushEnabled: true,
   };
@@ -410,8 +406,8 @@ export class BufferedAuditDiagnosticService {
   }
 
   /**
-   * Flushes buffered diagnostic log events to Firestore in atomic chunks (up to 450 per writeBatch).
-   * If a batch fails due to network/Firestore error, events remain safely in the local buffer for retry.
+   * Flushes buffered diagnostic log events to the PostgreSQL audit API in bounded chunks (up to 100 events).
+   * If a batch fails due to network/API error, events remain safely in the local buffer for retry.
    */
   public async flush(): Promise<{
     uploadedCount: number;
@@ -454,7 +450,7 @@ export class BufferedAuditDiagnosticService {
 
     try {
       while (this.buffer.length > 0) {
-        const chunkSize = Math.min(this.buffer.length, this.config.maxFirestoreBatchSize);
+        const chunkSize = Math.min(this.buffer.length, this.config.maxBatchSize);
         const chunk = this.buffer.slice(0, chunkSize);
         const flushedAt = Date.now();
         const batchId = generateLogId('batch');
@@ -482,7 +478,7 @@ export class BufferedAuditDiagnosticService {
         if (this.customBatchUploader) {
           await this.customBatchUploader(documents, batchId);
         } else {
-          await defaultFirestoreBatchUploader(documents);
+          await defaultPostgresBatchUploader(documents);
         }
 
         // Remove committed chunk from head of buffer
@@ -521,10 +517,7 @@ export class BufferedAuditDiagnosticService {
       }));
       this.persistBufferToStorage();
 
-      console.error(
-        `[AuditService] Firestore batch upload failed (${OperationType.WRITE} on /${DIAGNOSTIC_LOGS_COLLECTION}):`,
-        errorMsg,
-      );
+      console.error('[AuditService] PostgreSQL audit API batch upload failed:', errorMsg);
 
       this.isFlushing = false;
       this.emitStats();
@@ -541,7 +534,7 @@ export class BufferedAuditDiagnosticService {
   /**
    * Simulates a high-traffic burst of hardware diagnostic logs (e.g. peak checkout barcode scans,
    * thermal printer ESC/POS telemetry, and network keep-alives) to demonstrate local buffering
-   * and single-batch Firestore upload efficiency.
+   * and single-batch diagnostic API upload efficiency.
    */
   public simulateHighTrafficBurst(
     eventCount = 25,
@@ -711,7 +704,7 @@ export const auditService = new BufferedAuditDiagnosticService();
 /**
  * Compatibility export: diagnostic logs are read from the authenticated PostgreSQL audit API.
  */
-export function subscribeToFirestoreDiagnosticLogs(
+export function subscribeToDiagnosticLogs(
   maxResults = 40,
   onData: (logs: DiagnosticLogDocument[]) => void,
   onError?: (error: Error) => void,
@@ -719,7 +712,7 @@ export function subscribeToFirestoreDiagnosticLogs(
   let stopped = false;
   const refresh = async () => {
     try {
-      const logs = await fetchFirestoreDiagnosticLogs(maxResults);
+      const logs = await fetchDiagnosticLogs(maxResults);
       if (!stopped) onData(logs);
     } catch (cause) {
       if (!stopped) onError?.(cause instanceof Error ? cause : new Error('Could not load diagnostic logs.'));
@@ -736,7 +729,7 @@ export function subscribeToFirestoreDiagnosticLogs(
 /**
  * Fetches diagnostic audit events from the server-authoritative PostgreSQL API.
  */
-export async function fetchFirestoreDiagnosticLogs(maxResults = 40): Promise<DiagnosticLogDocument[]> {
+export async function fetchDiagnosticLogs(maxResults = 40): Promise<DiagnosticLogDocument[]> {
   try {
     if (typeof window === 'undefined') return auditService.getStats().recentUploadedLogs.slice(0, maxResults);
     const session = readPersistedSession(window.localStorage);
