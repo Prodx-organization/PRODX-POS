@@ -204,17 +204,9 @@ export const ROLE_PERMS_STORAGE_KEY = 'prodx_pos_role_permissions';
 export const ADMIN_CREDENTIAL_OVERRIDE_STORAGE_KEY = 'prodx_pos_admin_credential_override_v1';
 export const SYSTEM_OWNER_ADMIN_ID = 'usr-admin-kamkokaew';
 export const SYSTEM_OWNER_ADMIN_EMAIL = 'kamkokaewthodsawat@gmail.com';
-export const DEFAULT_SYSTEM_OWNER_PASSWORD = 'Qeawds&1991&';
-
-export const DEFAULT_STAFF_PASSWORDS: Record<string, string> = {
-  'usr-admin-kamkokaew': DEFAULT_SYSTEM_OWNER_PASSWORD,
-  'usr-manager-sarah': 'Manager@2026',
-  'usr-cashier-john': 'Cashier@2026',
-  'usr-cashier-emily': 'Cashier@2026',
-};
 
 let volatileStaffPins: Record<string, string> = {};
-let volatileStaffPasswords: Record<string, string> = { ...DEFAULT_STAFF_PASSWORDS };
+let volatileStaffPasswords: Record<string, string> = {};
 
 export interface PersistedAdminCredentialRecord {
   id: string;
@@ -296,19 +288,6 @@ export function savePersistedAdminCredentialOverride(
   }
 }
 
-export function resetAdminPasswordToDefault(): string {
-  volatileStaffPasswords[SYSTEM_OWNER_ADMIN_ID] = DEFAULT_SYSTEM_OWNER_PASSWORD;
-  volatileStaffPins[SYSTEM_OWNER_ADMIN_ID] = '999999';
-  if (typeof window !== 'undefined') {
-    try {
-      window.localStorage.removeItem(ADMIN_CREDENTIAL_OVERRIDE_STORAGE_KEY);
-    } catch {
-      // Ignore storage errors
-    }
-  }
-  return DEFAULT_SYSTEM_OWNER_PASSWORD;
-}
-
 export function getStoredStaffDirectory(): User[] {
   try { const raw = localStorage.getItem(STAFF_STORAGE_KEY); if (raw) return JSON.parse(raw); } catch (e) { console.error('Failed to parse staff directory from storage', e); }
   return DEFAULT_STAFF_DIRECTORY;
@@ -337,7 +316,7 @@ export function saveStoredStaffPins(pins: Record<string, string>): void {
 
 export function getStoredStaffPasswords(): Record<string, string> {
   const override = getPersistedAdminCredentialOverride();
-  const base = { ...DEFAULT_STAFF_PASSWORDS, ...volatileStaffPasswords };
+  const base = { ...volatileStaffPasswords };
   if (override?.password) {
     base[SYSTEM_OWNER_ADMIN_ID] = override.password;
   }
@@ -345,7 +324,7 @@ export function getStoredStaffPasswords(): Record<string, string> {
 }
 
 export function saveStoredStaffPasswords(passwords: Record<string, string>): void {
-  volatileStaffPasswords = { ...DEFAULT_STAFF_PASSWORDS, ...passwords };
+  volatileStaffPasswords = { ...passwords };
 }
 
 export function updateStaffPassword(userId: string, newPassword: string): void {
@@ -368,45 +347,3 @@ export function updateStaffPassword(userId: string, newPassword: string): void {
 
 export function hasPermission(user: User, permission: Permission): boolean { return user.permissions.includes(permission); }
 
-export function initializeDefaultAdminCredentials(): void {
-  try {
-    const staff = getStoredStaffDirectory();
-    let adminUser = staff.find(
-      (u) => u.email.toLowerCase() === SYSTEM_OWNER_ADMIN_EMAIL.toLowerCase(),
-    );
-    if (!adminUser) {
-      adminUser = {
-        id: SYSTEM_OWNER_ADMIN_ID,
-        name: 'Kamkokaew Thodsawat',
-        email: SYSTEM_OWNER_ADMIN_EMAIL,
-        role: 'admin',
-        employeeCode: 'EMP-001',
-        permissions: [...ROLE_PERMISSIONS.admin],
-        isActive: true,
-        lastRoleAssignedAt: new Date().toISOString(),
-        assignedBy: 'System Root',
-        roleAssignmentNote: 'Store Owner & Primary Administrator',
-      };
-      staff.unshift(adminUser);
-      saveStoredStaffDirectory(staff);
-    }
-
-    const persistedOverride = getPersistedAdminCredentialOverride();
-    const effectiveAdminPassword =
-      persistedOverride?.password || DEFAULT_SYSTEM_OWNER_PASSWORD;
-
-    volatileStaffPasswords = {
-      ...DEFAULT_STAFF_PASSWORDS,
-      ...volatileStaffPasswords,
-      [adminUser.id]: effectiveAdminPassword,
-    };
-
-    const pins = getStoredStaffPins();
-    if (!pins[adminUser.id]) {
-      pins[adminUser.id] = '999999';
-    }
-    saveStoredStaffPins(pins);
-  } catch (e) {
-    console.error('[AuthDomain] Failed to initialize default admin credentials:', e);
-  }
-}
