@@ -70,6 +70,16 @@ jobs:
             exit 1
           fi
 
+      - name: Reject hardcoded default admin credential paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -R -n -E --include='*.ts' --include='*.tsx' \
+            'DEFAULT_SYSTEM_OWNER_PASSWORD|DEFAULT_STAFF_PASSWORDS|initializeDefaultAdminCredentials|resetAdminPasswordToDefault|default_hardcoded' src; then
+            echo "Hardcoded default administrator credential path detected."
+            exit 1
+          fi
+
       - name: Reject universal demo unlock credentials
         shell: bash
         run: |
