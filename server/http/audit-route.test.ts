@@ -84,6 +84,8 @@ test('POST /api/v1/audit/logs appends an authenticated store-scoped audit event 
   } finally {
     await server.close();
   }
+});
+
 test('diagnostic batch API validates events and writes stable per-user idempotency keys', async () => {
   const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
   const db = {
@@ -123,6 +125,4 @@ test('diagnostic batch API validates events and writes stable per-user idempoten
     assert.equal(calls[0].parameters[8], `${principal.userId}:diag-123`);
     assert.equal(calls[1].parameters[8], calls[0].parameters[8]);
   } finally { await server.close(); }
-});
-
 });
