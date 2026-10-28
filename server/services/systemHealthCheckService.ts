@@ -93,7 +93,7 @@ export async function pingCloudSql(pool?: Pool): Promise<CloudSqlHealthCheckResu
       region: POSTGRES_REGION,
       projectId: POSTGRES_PROJECT_ID,
       database: 'postgres',
-      error: 'PostgreSQL pool not available (DATABASE_URL not configured).',
+      error: 'PostgreSQL pool is unavailable.',
       code: 'POSTGRES_POOL_UNAVAILABLE',
       details: {
         configured: Boolean(process.env.DATABASE_URL),
@@ -169,8 +169,8 @@ export async function pingFirestore(): Promise<FirestoreHealthCheckResult> {
 
     const latencyMs = Number((performance.now() - started).toFixed(1));
 
-    // Receiving any HTTP response (200, 401, 403, 404) from the Google Cloud Firestore API endpoint
-    // confirms DNS resolution, network path routing, TLS handshake, and active service state.
+    // A successful response is required; 401/403/404 only prove that an endpoint answered,
+    // not that the configured Firestore database is healthy or accessible.
     const isResponding = response.status === 200;
 
     return {
