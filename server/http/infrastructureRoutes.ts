@@ -7,7 +7,7 @@ import { requirePermission } from './createApp';
 import { GoogleGenAI } from '@google/genai';
 
 export function registerPublicInfrastructureRoutes(app: Express, pool?: Pool) {
-  // End-to-end ping of backend services (Cloud SQL and Firestore) with status-coded response
+  // End-to-end ping of the production PostgreSQL database and the optional legacy Firestore dependency.
   app.get('/api/v1/infrastructure/system-health-check', async (req: Request, res: Response) => {
     try {
       const requestId = (req.headers['x-request-id'] as string) || req.id || `req-${Date.now()}`;
@@ -49,7 +49,7 @@ export function registerPublicInfrastructureRoutes(app: Express, pool?: Pool) {
     const serverReceiveTime = performance.now();
     const clientSentTimestamp = req.query.clientTime ? Number(req.query.clientTime) : undefined;
 
-    // Cloud SQL query ping with server-side performance.now()
+    // PostgreSQL query ping with server-side performance.now()
     let sqlQueryDurationMs = 0;
     let sqlSuccess = false;
     let sqlError: string | undefined;
@@ -62,13 +62,13 @@ export function registerPublicInfrastructureRoutes(app: Express, pool?: Pool) {
         sqlSuccess = true;
       } catch (err: any) {
         sqlQueryDurationMs = Number((performance.now() - sqlQueryStart).toFixed(2));
-        sqlError = err?.message || 'Cloud SQL query failed';
+        sqlError = err?.message || 'PostgreSQL query failed';
       }
     } else {
       sqlError = 'PostgreSQL pool not available';
     }
 
-    // Firestore backend probe ping with server-side performance.now()
+    // Firestore backend probe ping with server-side performance.now(). A non-200 response is not healthy.
     const firestoreStart = performance.now();
     let firestoreDurationMs = 0;
     let firestoreSuccess = false;
@@ -80,7 +80,7 @@ export function registerPublicInfrastructureRoutes(app: Express, pool?: Pool) {
         { signal: controller.signal }
       ).finally(() => clearTimeout(timer));
       firestoreDurationMs = Number((performance.now() - firestoreStart).toFixed(2));
-      firestoreSuccess = fsResp.status === 200 || fsResp.status === 401 || fsResp.status === 403 || fsResp.status === 404;
+      firestoreSuccess = fsResp.status === 200;
     } catch {
       firestoreDurationMs = Number((performance.now() - firestoreStart).toFixed(2));
     }
@@ -88,7 +88,7 @@ export function registerPublicInfrastructureRoutes(app: Express, pool?: Pool) {
     const serverProcessTimeMs = Number((performance.now() - serverReceiveTime).toFixed(2));
 
     res.json({
-      success: true,
+      success: sqlSuccess,
       serverReceiveTimestamp: serverReceiveTime,
       serverTimestampIso: new Date().toISOString(),
       clientSentTimestamp,
@@ -97,9 +97,9 @@ export function registerPublicInfrastructureRoutes(app: Express, pool?: Pool) {
         success: sqlSuccess,
         queryDurationMs: sqlQueryDurationMs,
         error: sqlError,
-        engine: 'PostgreSQL 16 (Cloud SQL)',
-        region: 'asia-southeast1',
-        projectId: 'gen-lang-client-0282713343',
+        engine: 'PostgreSQL (Supabase session pooler)',
+        region: 'ap-southeast-1',
+        projectId: 'wcyqyiewbzpmrekoljfw',
       },
       firestoreBackend: {
         success: firestoreSuccess,
