@@ -49,5 +49,5 @@ END $$;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.prodx_tasks TO prodx_app;
 
 INSERT INTO public.prodx_schema_migrations(version)
-VALUES ('0040_m7_personal_tasks')
+VALUES ('0041_m7_personal_tasks')
 ON CONFLICT (version) DO NOTHING;

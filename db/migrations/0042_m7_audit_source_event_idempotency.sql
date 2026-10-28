@@ -7,5 +7,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS prodx_audit_log_source_event_unique
   WHERE source_event_key IS NOT NULL;
 
 INSERT INTO public.prodx_schema_migrations(version)
-VALUES ('0041_m7_audit_source_event_idempotency')
+VALUES ('0042_m7_audit_source_event_idempotency')
 ON CONFLICT (version) DO NOTHING;
