@@ -14,6 +14,7 @@ import { registerAuthRoutes } from './http/auth-route.ts';
 import { createApp } from './http/createApp.ts';
 import { registerRefundRoute } from './http/refund-route.ts';
 import { registerAuditRoute } from './http/audit-route.ts';
+import { registerTasksRoute } from './http/tasks-route.ts';
 import { registerShiftRoute } from './http/shift-route.ts';
 import { registerTimeclockRoute } from './http/timeclock-route.ts';
 import { registerCatalogRoute } from './http/catalog-route.ts';
@@ -68,6 +69,7 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
     authorizeRequest: authorize,
     configureRoutes: (configuredApp) => {
       registerAuditRoute(configuredApp, transactions);
+      registerTasksRoute(configuredApp, transactions);
       registerShiftRoute(configuredApp, transactions);
       registerTimeclockRoute(configuredApp, transactions);
       registerCheckoutRoute(configuredApp, transactions);
