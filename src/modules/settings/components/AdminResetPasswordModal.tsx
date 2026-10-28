@@ -433,7 +433,7 @@ export const AdminResetPasswordModal: React.FC<AdminResetPasswordModalProps> = (
               </span>
 
               <div className="flex items-center gap-1.5">
-                                <button
+                <button
                   type="button"
                   onClick={handleGenerateStrongPassword}
                   className="min-h-[32px] px-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap"
