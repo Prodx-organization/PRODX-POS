@@ -84,4 +84,45 @@ test('POST /api/v1/audit/logs appends an authenticated store-scoped audit event 
   } finally {
     await server.close();
   }
+test('diagnostic batch API validates events and writes stable per-user idempotency keys', async () => {
+  const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
+  const db = {
+    query: async <T extends Record<string, unknown>>(sql: string, parameters: readonly unknown[] = []) => {
+      calls.push({ sql, parameters });
+      return { rows: [] as unknown as T[] };
+    },
+  };
+  const app = createApp({
+    authenticateRequest: () => principal,
+    authorizeRequest: () => true,
+    configureRoutes: (configuredApp) => registerAuditRoute(configuredApp, db),
+  });
+  const server = await start(app);
+  try {
+    const invalid = await fetch(`${server.baseUrl}/api/v1/audit/diagnostics`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ events: [{ id: '', category: 'system', level: 'ERROR', event: 'crash', message: 'failed' }] }),
+    });
+    assert.equal(invalid.status, 400);
+    assert.equal(calls.length, 0);
+
+    const body = {
+      batchId: 'batch-001',
+      events: [{ id: 'diag-123', category: 'system', level: 'ERROR', event: 'runtime_crash', message: 'runtime crashed', timestamp: 1793174400000 }],
+    };
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await fetch(`${server.baseUrl}/api/v1/audit/diagnostics`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      assert.equal(response.status, 202);
+      assert.equal((await response.json()).accepted, 1);
+    }
+    assert.equal(calls.length, 2);
+    assert.match(calls[0].sql, /source_event_key/);
+    assert.match(calls[0].sql, /ON CONFLICT DO NOTHING/);
+    assert.equal(calls[0].parameters[8], `${principal.userId}:diag-123`);
+    assert.equal(calls[1].parameters[8], calls[0].parameters[8]);
+  } finally { await server.close(); }
+});
+
 });
