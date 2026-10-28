@@ -471,7 +471,7 @@ export const GlobalErrorRecoveryProvider: React.FC<{ children: ReactNode }> = ({
             },
             body: JSON.stringify({
               action: `SYSTEM_ERROR:${input.type}`,
-              severity: 'error',
+              severity: 'critical',
               details: {
                 id,
                 title: input.title,
