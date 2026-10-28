@@ -2,7 +2,7 @@ import type { Pool } from 'pg';
 import { classifyProductionDatabaseTarget } from '../db/postgres';
 
 export interface CloudSqlHealthCheckResult {
-  service: 'Google Cloud SQL (PostgreSQL)';
+  service: 'PostgreSQL (Supabase session pooler)';
   statusCode: number; // 200, 503
   status: 'connected' | 'degraded' | 'unreachable';
   latencyMs: number;
@@ -62,8 +62,8 @@ export interface SystemHealthCheckResponse {
   summary: string;
 }
 
-const CLOUD_SQL_PROJECT_ID = 'gen-lang-client-0282713343';
-const CLOUD_SQL_REGION = 'asia-southeast1';
+const POSTGRES_PROJECT_ID = 'wcyqyiewbzpmrekoljfw';
+const POSTGRES_REGION = 'ap-southeast-1';
 const FIRESTORE_PROJECT_ID = 'modified-bit-mct7q';
 const FIRESTORE_DATABASE_ID = 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990';
 const FIRESTORE_REGION = 'asia-southeast1';
@@ -85,16 +85,16 @@ export async function pingCloudSql(pool?: Pool): Promise<CloudSqlHealthCheckResu
   if (!pool) {
     const latencyMs = Number((performance.now() - started).toFixed(1));
     return {
-      service: 'Google Cloud SQL (PostgreSQL)',
+      service: 'PostgreSQL (Supabase session pooler)',
       statusCode: 503,
       status: 'unreachable',
       latencyMs,
-      engine: 'PostgreSQL 16 (Google Cloud SQL)',
-      region: CLOUD_SQL_REGION,
-      projectId: CLOUD_SQL_PROJECT_ID,
-      database: 'prodx_pos',
+      engine: 'PostgreSQL (Supabase session pooler)',
+      region: POSTGRES_REGION,
+      projectId: POSTGRES_PROJECT_ID,
+      database: 'postgres',
       error: 'PostgreSQL pool not available (DATABASE_URL not configured).',
-      code: 'DATABASE_URL_MISSING',
+      code: 'POSTGRES_POOL_UNAVAILABLE',
       details: {
         configured: Boolean(process.env.DATABASE_URL),
         target: classifyProductionDatabaseTarget(process.env.DATABASE_URL),
@@ -110,17 +110,17 @@ export async function pingCloudSql(pool?: Pool): Promise<CloudSqlHealthCheckResu
 
     const rawVersion = result.rows[0]?.version || 'PostgreSQL 16';
     const versionMatch = rawVersion.match(/PostgreSQL\s+([\d.]+)/i);
-    const engine = versionMatch ? `PostgreSQL ${versionMatch[1]} (Cloud SQL)` : 'PostgreSQL 16 (Cloud SQL)';
+    const engine = versionMatch ? `PostgreSQL ${versionMatch[1]} (Supabase session pooler)` : 'PostgreSQL (Supabase session pooler)';
 
     return {
-      service: 'Google Cloud SQL (PostgreSQL)',
+      service: 'PostgreSQL (Supabase session pooler)',
       statusCode: 200,
       status: 'connected',
       latencyMs,
       engine,
-      region: CLOUD_SQL_REGION,
-      projectId: CLOUD_SQL_PROJECT_ID,
-      database: 'prodx_pos',
+      region: POSTGRES_REGION,
+      projectId: POSTGRES_PROJECT_ID,
+      database: 'postgres',
       serverTime: result.rows[0]?.server_time || new Date().toISOString(),
       poolStats: {
         totalConnections: (pool as unknown as { totalCount?: number }).totalCount ?? 1,
@@ -133,14 +133,14 @@ export async function pingCloudSql(pool?: Pool): Promise<CloudSqlHealthCheckResu
     const latencyMs = Number((performance.now() - started).toFixed(1));
     const candidate = error && typeof error === 'object' ? error as { message?: string; code?: string } : {};
     return {
-      service: 'Google Cloud SQL (PostgreSQL)',
+      service: 'PostgreSQL (Supabase session pooler)',
       statusCode: 503,
       status: 'unreachable',
       latencyMs,
-      engine: 'PostgreSQL 16 (Google Cloud SQL)',
-      region: CLOUD_SQL_REGION,
-      projectId: CLOUD_SQL_PROJECT_ID,
-      database: 'prodx_pos',
+      engine: 'PostgreSQL (Supabase session pooler)',
+      region: POSTGRES_REGION,
+      projectId: POSTGRES_PROJECT_ID,
+      database: 'postgres',
       error: candidate.message || 'Database ping query failed.',
       code: candidate.code || 'QUERY_FAILED',
       details: {
@@ -171,7 +171,7 @@ export async function pingFirestore(): Promise<FirestoreHealthCheckResult> {
 
     // Receiving any HTTP response (200, 401, 403, 404) from the Google Cloud Firestore API endpoint
     // confirms DNS resolution, network path routing, TLS handshake, and active service state.
-    const isResponding = response.status === 200 || response.status === 401 || response.status === 403 || response.status === 404;
+    const isResponding = response.status === 200;
 
     return {
       service: 'Google Cloud Firestore',
@@ -228,12 +228,12 @@ export async function performEndToEndHealthCheck(
   if (isSqlOk && isFirestoreOk) {
     statusCode = 200;
     status = 'HEALTHY';
-    summary = 'All backend services operational (Cloud SQL & Firestore ping succeeded).';
+    summary = 'PostgreSQL and Firestore health probes succeeded.';
   } else if (isSqlOk || isFirestoreOk) {
     statusCode = 207; // Multi-Status: partial service availability
     status = 'DEGRADED';
-    const upService = isSqlOk ? 'Cloud SQL' : 'Firestore';
-    const downService = isSqlOk ? 'Firestore' : 'Cloud SQL';
+    const upService = isSqlOk ? 'PostgreSQL' : 'Firestore';
+    const downService = isSqlOk ? 'Firestore' : 'PostgreSQL';
     summary = `Degraded state: ${upService} is operational, but ${downService} returned an error.`;
   } else {
     statusCode = 503;
@@ -251,10 +251,10 @@ export async function performEndToEndHealthCheck(
     requestId,
     totalDurationMs,
     environment: {
-      nodeEnv: process.env.NODE_ENV || 'development',
+      nodeEnv: process.env.VERCEL_ENV || process.env.NODE_ENV || 'unknown',
       appletId: APPLET_ID,
-      region: CLOUD_SQL_REGION,
-      cloudSqlProject: CLOUD_SQL_PROJECT_ID,
+      region: POSTGRES_REGION,
+      cloudSqlProject: POSTGRES_PROJECT_ID,
       firestoreDatabaseId: FIRESTORE_DATABASE_ID,
     },
     services: {
