@@ -76,7 +76,7 @@ export async function pingCloudSql(pool?: Pool): Promise<CloudSqlHealthCheckResu
       'SELECT 1 AS ping, NOW() AS server_time, version() AS version;'
     );
     const latencyMs = Number((performance.now() - started).toFixed(1));
-    const versionMatch = (result.rows[0]?.version || '').match(/PostgreSQL\\s+([\\d.]+)/i);
+    const versionMatch = (result.rows[0]?.version || '').match(/PostgreSQL\s+([\d.]+)/i);
     return {
       ...base,
       engine: versionMatch ? `PostgreSQL ${versionMatch[1]} (Supabase session pooler)` : base.engine,
