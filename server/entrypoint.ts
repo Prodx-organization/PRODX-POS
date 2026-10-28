@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import type { QueryResultRow } from 'pg';
 import { createPostgresAuthentication } from './auth/composition.ts';
+import type { PasswordCompromiseCheck } from './auth/password-compromise.ts';
 import { createPostgresAuthorization } from './auth/production-authorization.ts';
 import { asSqlExecutor, createProductionPostgresPool } from './db/postgres.ts';
 import { assertPostgresReady } from './db/postgres-readiness.ts';
@@ -30,6 +31,7 @@ export { createRetryableInitialization } from './http/retryable-initialization.t
 
 export type ProductionAppOptions = {
   vercelOidcToken?: string;
+  checkCompromisedPassword?: (password: string) => Promise<PasswordCompromiseCheck>;
 };
 
 export const createProductionApp = async (options: ProductionAppOptions = {}) => {
@@ -44,7 +46,7 @@ export const createProductionApp = async (options: ProductionAppOptions = {}) =>
       return result.rows;
     },
   };
-  const sessions = createPostgresAuthentication(sql);
+  const sessions = createPostgresAuthentication(sql, options.checkCompromisedPassword);
   const authorize = createPostgresAuthorization(requestScopedSql);
   const aiGateway = createAIGatewayService(requestScopedSql, authorize);
 
