@@ -22,7 +22,9 @@ const ids = {
 };
 
 const pool = databaseUrl ? createPostgresPool({ connectionString: databaseUrl, max: 2 }) : null;
-const authentication = pool ? createPostgresAuthentication(asSqlExecutor(pool)) : null;
+const authentication = pool
+  ? createPostgresAuthentication(asSqlExecutor(pool), async () => ({ compromised: false, count: 0 }))
+  : null;
 
 const seed = async (): Promise<void> => {
   if (!pool) throw new Error('DATABASE_URL is required for PostgreSQL integration tests.');
