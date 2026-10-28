@@ -19,7 +19,6 @@ import {
   Sparkles,
   CheckCircle2,
   Database,
-  RotateCcw,
 } from 'lucide-react';
 import {
   SYSTEM_OWNER_ADMIN_EMAIL,
