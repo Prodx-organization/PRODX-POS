@@ -44,14 +44,20 @@ test('pingCloudSql executes query when pool is supplied and returns 200', async 
   assert.equal(result.poolStats?.totalConnections, 5);
 });
 
-test('pingFirestore reports Google Cloud Firestore configuration and collections', async () => {
-  const result = await pingFirestore();
-  assert.equal(result.service, 'Google Cloud Firestore');
-  assert.equal(result.projectId, 'modified-bit-mct7q');
-  assert.equal(result.databaseId, 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990');
-  assert.equal(result.region, 'asia-southeast1');
-  assert.ok(result.verifiedCollections.includes('audit_logs'));
-  assert.ok(result.verifiedCollections.includes('AppErrorLog'));
+test('pingFirestore is explicitly disabled and does not probe the retired provider', async () => {
+  const originalFetch = globalThis.fetch;
+  let fetchCalls = 0;
+  globalThis.fetch = (async () => { fetchCalls += 1; throw new Error('unexpected network call'); }) as typeof fetch;
+  try {
+    const result = await pingFirestore();
+    assert.equal(result.service, 'Firestore (retired)');
+    assert.equal(result.status, 'disabled');
+    assert.equal(result.databaseId, 'retired');
+    assert.deepEqual(result.verifiedCollections, []);
+    assert.equal(fetchCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test('performEndToEndHealthCheck computes 200 when all services pass and 207 on partial failure', async () => {
@@ -98,7 +104,7 @@ test('HTTP GET /api/v1/infrastructure/system-health-check returns status-coded J
     assert.ok(body.services.cloudSql);
     assert.ok(body.services.firestore);
     assert.equal(body.services.cloudSql.projectId, 'wcyqyiewbzpmrekoljfw');
-    assert.equal(body.services.firestore.databaseId, 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990');
+    assert.equal(body.services.firestore.databaseId, 'retired');
   } finally {
     await server.close();
   }
@@ -130,7 +136,9 @@ test('HTTP GET /api/v1/infrastructure/latency-ping returns high-precision perfor
     assert.equal(body.cloudSql.success, true);
     assert.ok(typeof body.cloudSql.queryDurationMs === 'number');
     assert.equal(body.cloudSql.projectId, 'wcyqyiewbzpmrekoljfw');
-    assert.equal(body.firestoreBackend.databaseId, 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990');
+    assert.equal(body.firestoreBackend.databaseId, 'retired');
+    assert.equal(body.firestoreBackend.disabled, true);
+    assert.equal(body.firestoreBackend.success, false);
   } finally {
     await server.close();
   }
