@@ -60,11 +60,13 @@ test('SystemHealthCheckUtility formats status-coded JSON object properly on exec
   };
 
   try {
-    const result = await utility.executePing({ skipClientFirestoreProbe: true });
+    const result = await utility.executePing();
     assert.equal(result.statusCode, 200);
     assert.equal(result.status, 'HEALTHY');
-    assert.equal(result.services.cloudSql.projectId, 'gen-lang-client-0282713343');
-    assert.equal(result.services.firestore.databaseId, 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990');
+    assert.equal(result.services.cloudSql.projectId, 'wcyqyiewbzpmrekoljfw');
+    assert.equal(result.services.firestore.databaseId, 'retired');
+    assert.equal(result.services.firestore.status, 'disabled');
+    assert.deepEqual(result.services.firestore.verifiedCollections, []);
     assert.ok(result.rawJson.includes('"statusCode": 200'));
     assert.ok(result.rawJson.includes('"status": "HEALTHY"'));
 
@@ -80,7 +82,7 @@ test('SystemHealthCheckUtility formats status-coded JSON object properly on exec
   }
 });
 
-test('SystemHealthCheckUtility produces 207 Multi-Status when Cloud SQL is down but Firestore is up', async () => {
+test('SystemHealthCheckUtility reports DOWN when Supabase PostgreSQL is down and Firestore is retired', async () => {
   const utility = SystemHealthCheckUtility.getInstance();
   const originalFetch = globalThis.fetch;
 
@@ -133,10 +135,11 @@ test('SystemHealthCheckUtility produces 207 Multi-Status when Cloud SQL is down 
 
   try {
     const result = await utility.executePing({ skipClientFirestoreProbe: true });
-    assert.equal(result.statusCode, 207);
-    assert.equal(result.status, 'DEGRADED');
+    assert.equal(result.statusCode, 503);
+    assert.equal(result.status, 'DOWN');
     assert.equal(result.services.cloudSql.statusCode, 503);
-    assert.equal(result.services.firestore.statusCode, 200);
+    assert.equal(result.services.firestore.statusCode, 503);
+    assert.equal(result.services.firestore.status, 'disabled');
   } finally {
     globalThis.fetch = originalFetch;
   }
