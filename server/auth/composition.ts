@@ -15,5 +15,5 @@ export const createPostgresAuthentication = (
   checkCompromisedPassword = checkPasswordCompromise,
 ): SessionIssuer => {
   const repository = createPostgresAuthenticationRepository(db);
-  return createSessionIssuer(repository, verifyPassword, () => new Date(), checkPasswordCompromise);
+  return createSessionIssuer(repository, verifyPassword, () => new Date(), checkCompromisedPassword);
 };
