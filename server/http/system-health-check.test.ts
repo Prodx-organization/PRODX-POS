@@ -129,7 +129,7 @@ test('HTTP GET /api/v1/infrastructure/latency-ping returns high-precision perfor
     assert.equal(body.clientSentTimestamp, clientSendTime);
     assert.equal(body.cloudSql.success, true);
     assert.ok(typeof body.cloudSql.queryDurationMs === 'number');
-    assert.equal(body.cloudSql.projectId, 'gen-lang-client-0282713343');
+    assert.equal(body.cloudSql.projectId, 'wcyqyiewbzpmrekoljfw');
     assert.equal(body.firestoreBackend.databaseId, 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990');
   } finally {
     await server.close();
