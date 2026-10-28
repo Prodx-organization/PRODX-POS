@@ -648,7 +648,7 @@ export const AdminSecuritySettingsTab: React.FC<AdminSecuritySettingsTabProps> =
                 <span>{isThai ? 'สุ่มรหัสผ่านปลอดภัยสูง' : 'Generate Strong Password'}</span>
               </button>
 
-                          </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
