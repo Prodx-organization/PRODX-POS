@@ -21,7 +21,6 @@ import {
   Sparkles,
   CheckCircle2,
   Database,
-  RotateCcw,
   RefreshCw,
   Cpu,
   FileKey2,
