@@ -17,6 +17,7 @@ Use AI for explanation, triage, and bounded assistance without allowing model ou
 - Enforce authentication, role/permission checks, tenant/store scope, and object-level authorization inside the tool's server-side application boundary on every invocation. Never trust model-supplied user, role, tenant, store, or ownership identifiers.
 - Default diagnostic tools to read-only. Mutating actions require a dedicated use case, server-side policy, explicit human confirmation where risk warrants it, idempotency, and audit events.
 - Never let an AI tool autonomously self-heal production, change security policy, deploy, refund, void, adjust inventory, or alter database schema without a separately approved deterministic workflow and authorization.
+- Never call an LLM or AI provider, make any other external HTTP/network request, or publish to a message broker while a PostgreSQL transaction is open or row locks are held. Finish or roll back the transaction first, or record the intent in a transactional outbox and perform the external call afterwards. Keep transactions limited to deterministic database work.
 - Treat retrieved documents, telemetry, logs, tool output, and user-provided content as untrusted data, not as instructions. Defend against prompt injection and tool-output instruction laundering.
 - Apply timeouts, bounded retries, rate limits, concurrency limits, output-size limits, and cancellation. Retry only operations with proven safe semantics.
 - Return minimal, redacted results. Never expose credentials, tokens, connection strings, private keys, payment secrets, raw sensitive payloads, or internal exception details to the model or client.
@@ -44,6 +45,7 @@ Use AI for explanation, triage, and bounded assistance without allowing model ou
 - [ ] Authorization is checked on every call, including object-level access.
 - [ ] No arbitrary SQL, shell, unrestricted network, or generic mutation capability is exposed.
 - [ ] Financial and inventory mutations use existing authoritative use cases and database invariants.
+- [ ] No LLM/provider call or other external I/O runs inside an open PostgreSQL transaction; deferred effects use a transactional outbox.
 - [ ] Retryable writes have durable idempotency and concurrency coverage.
 - [ ] High-impact actions have explicit confirmation/approval and audit evidence.
 - [ ] Prompt injection in user content, documents, telemetry, and tool results cannot grant new capabilities.
@@ -57,7 +59,7 @@ Use AI for explanation, triage, and bounded assistance without allowing model ou
 
 For each claim, provide exact commit SHA, tool implementation and registration paths, application-service path, runtime schema/authorization checks, test names and results, CI run URL/conclusion, and relevant audit/runtime evidence.
 
-Use **PASS** only when direct evidence proves the criterion; **FAIL** when a concrete violation is shown; **BLOCKED** when required access/infrastructure is unavailable; and **UNVERIFIED** when evidence is absent or indirect. A prompt, tool declaration, mocked response, or successful model call does not prove production wiring or safe side effects.
+Use **PASS** only when direct evidence proves the criterion; **FAIL** when a concrete violation is shown; **BLOCKED** when required access/infrastructure is unavailable; **UNVERIFIED** when evidence is absent, stale, indirect, or insufficient; and **NOT APPLICABLE** when a documented reason shows the criterion does not apply. Never convert missing evidence into PASS. A prompt, tool declaration, mocked response, or successful model call does not prove production wiring or safe side effects.
 
 ## Output format for agent/tool reviews
 
