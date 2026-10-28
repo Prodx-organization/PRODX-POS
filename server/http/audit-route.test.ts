@@ -44,7 +44,11 @@ test('POST /api/v1/audit/logs appends an authenticated store-scoped audit event 
   const db = {
     query: async <T extends Record<string, unknown>>(sql: string, parameters: readonly unknown[] = []) => {
       calls.push({ sql, parameters });
-      return { rows: [] as unknown as T[] };
+      return {
+        rows: sql.startsWith('INSERT INTO prodx_audit_log')
+          ? [{ id: 'audit-created', created_at: '2026-10-28T08:00:00.000Z' }] as unknown as T[]
+          : [] as unknown as T[],
+      };
     },
   };
   const app = createApp({
@@ -88,9 +92,18 @@ test('POST /api/v1/audit/logs appends an authenticated store-scoped audit event 
 
 test('diagnostic batch API validates events and writes stable per-user idempotency keys', async () => {
   const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
+  let persistedEvent: { id: string; created_at: string } | null = null;
   const db = {
     query: async <T extends Record<string, unknown>>(sql: string, parameters: readonly unknown[] = []) => {
       calls.push({ sql, parameters });
+      if (sql.startsWith('INSERT INTO prodx_audit_log')) {
+        if (persistedEvent) return { rows: [] as unknown as T[] };
+        persistedEvent = { id: 'audit-diagnostic-1', created_at: '2026-10-28T08:00:00.000Z' };
+        return { rows: [persistedEvent] as unknown as T[] };
+      }
+      if (sql.includes('source_event_key = $3')) {
+        return { rows: persistedEvent ? [persistedEvent] as unknown as T[] : [] as unknown as T[] };
+      }
       return { rows: [] as unknown as T[] };
     },
   };
@@ -119,10 +132,13 @@ test('diagnostic batch API validates events and writes stable per-user idempoten
       assert.equal(response.status, 202);
       assert.equal((await response.json()).accepted, 1);
     }
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 3);
     assert.match(calls[0].sql, /source_event_key/);
     assert.match(calls[0].sql, /ON CONFLICT DO NOTHING/);
+    assert.match(calls[0].sql, /RETURNING id, created_at/);
     assert.equal(calls[0].parameters[8], `${principal.userId}:diag-123`);
     assert.equal(calls[1].parameters[8], calls[0].parameters[8]);
+    assert.match(calls[2].sql, /SELECT id, created_at[\s\S]*source_event_key = \$3/);
+    assert.deepEqual(calls[2].parameters, [principal.organizationId, principal.storeId, `${principal.userId}:diag-123`]);
   } finally { await server.close(); }
 });
