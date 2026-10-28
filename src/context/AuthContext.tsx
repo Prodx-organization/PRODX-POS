@@ -20,7 +20,6 @@ import {
   getStoredOperationalScope,
   saveStoredOperationalScope,
   ROLE_PERMISSIONS,
-  initializeDefaultAdminCredentials,
 } from '../domain/auth';
 import {
   CustomPermissionSet,
@@ -172,9 +171,6 @@ function applyOperationalScopeToSession(
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  useEffect(() => {
-    initializeDefaultAdminCredentials();
-  }, []);
 
   const [session, setSession] = useState<SessionContext | null>(null);
   const [operationalScope, setOperationalScopeState] = useState<OperationalScope | null>(() =>
