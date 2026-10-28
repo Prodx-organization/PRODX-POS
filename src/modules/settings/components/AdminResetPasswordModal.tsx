@@ -383,7 +383,7 @@ export const AdminResetPasswordModal: React.FC<AdminResetPasswordModalProps> = (
                   }}
                   placeholder={
                     isThai
-                      ? 'รหัสผ่านผู้ดูแลระบบปัจจุบัน (เช่น Qeawds&1991&)'
+                      ? 'รหัสผ่านผู้ดูแลระบบปัจจุบัน'
                       : 'Enter current admin password'
                   }
                   className="w-full min-h-[44px] pl-3 pr-9 rounded-xl border border-border bg-card text-xs font-mono text-text outline-none focus:border-primary"
