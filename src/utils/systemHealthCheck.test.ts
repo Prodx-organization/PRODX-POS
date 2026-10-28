@@ -134,7 +134,7 @@ test('SystemHealthCheckUtility reports DOWN when Supabase PostgreSQL is down and
   };
 
   try {
-    const result = await utility.executePing({ skipClientFirestoreProbe: true });
+    const result = await utility.executePing();
     assert.equal(result.statusCode, 503);
     assert.equal(result.status, 'DOWN');
     assert.equal(result.services.cloudSql.statusCode, 503);
