@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import {
   SYSTEM_OWNER_ADMIN_EMAIL,
-  DEFAULT_SYSTEM_OWNER_PASSWORD,
   isVerifiedSystemOwner,
   getPersistedAdminCredentialOverride,
 } from '../../../domain/auth';
@@ -210,13 +209,6 @@ export const AdminResetPasswordModal: React.FC<AdminResetPasswordModalProps> = (
     navigator.clipboard?.writeText(shuffled).catch(() => {});
   };
 
-  const handleRestoreDefaultOwnerPassword = () => {
-    setNewPassword(DEFAULT_SYSTEM_OWNER_PASSWORD);
-    setConfirmPassword(DEFAULT_SYSTEM_OWNER_PASSWORD);
-    setShowNewPassword(true);
-    setShowConfirmPassword(true);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -392,7 +384,7 @@ export const AdminResetPasswordModal: React.FC<AdminResetPasswordModalProps> = (
                   }}
                   placeholder={
                     isThai
-                      ? 'รหัสผ่านผู้ดูแลระบบปัจจุบัน (เช่น Qeawds&1991&)'
+                      ? 'รหัสผ่านผู้ดูแลระบบปัจจุบัน'
                       : 'Enter current admin password'
                   }
                   className="w-full min-h-[44px] pl-3 pr-9 rounded-xl border border-border bg-card text-xs font-mono text-text outline-none focus:border-primary"
@@ -442,15 +434,7 @@ export const AdminResetPasswordModal: React.FC<AdminResetPasswordModalProps> = (
               </span>
 
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleRestoreDefaultOwnerPassword}
-                  className="min-h-[32px] px-2.5 rounded-lg border border-border bg-card hover:border-primary text-[11px] font-bold text-text/80 flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap"
-                >
-                  <RotateCcw className="w-3 h-3 text-primary shrink-0" />
-                  <span>{isThai ? 'ค่าเริ่มต้น (Default)' : 'Restore Default'}</span>
-                </button>
-                <button
+                                <button
                   type="button"
                   onClick={handleGenerateStrongPassword}
                   className="min-h-[32px] px-2.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap"
