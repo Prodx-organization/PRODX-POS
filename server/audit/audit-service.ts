@@ -47,6 +47,7 @@ export const createAuditReadService = (db: SqlQueryExecutor) => ({
     action: string;
     severity?: string;
     details?: unknown;
+    sourceEventKey?: string;
   }) {
     const storeId = String(input.storeId ?? '').trim();
     const action = String(input.action ?? '').trim();
@@ -54,6 +55,8 @@ export const createAuditReadService = (db: SqlQueryExecutor) => ({
     if (!storeId) throw new AuditValidationError('Store is required.');
     if (!action || action.length > 120) throw new AuditValidationError('Audit action is required.');
     if (!VALID_SEVERITIES.has(severity)) throw new AuditValidationError('Audit severity must be info, warn, or critical.');
+    const sourceEventKey = input.sourceEventKey?.trim() || null;
+    if (sourceEventKey && sourceEventKey.length > 180) throw new AuditValidationError('Source event key cannot exceed 180 characters.');
 
     const payload =
       typeof input.details === 'string'
@@ -82,8 +85,9 @@ export const createAuditReadService = (db: SqlQueryExecutor) => ({
 
     const id = crypto.randomUUID();
     await db.query(
-      `INSERT INTO prodx_audit_log(id, organization_id, store_id, register_id, user_id, action, severity, details)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+      `INSERT INTO prodx_audit_log(id, organization_id, store_id, register_id, user_id, action, severity, details, source_event_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+       ON CONFLICT DO NOTHING`,
       [
         id,
         input.organizationId,
@@ -93,6 +97,7 @@ export const createAuditReadService = (db: SqlQueryExecutor) => ({
         action,
         severity,
         JSON.stringify(payload),
+        sourceEventKey,
       ],
     );
 
