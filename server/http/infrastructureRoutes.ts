@@ -68,22 +68,9 @@ export function registerPublicInfrastructureRoutes(app: Express, pool?: Pool) {
       sqlError = 'PostgreSQL pool not available';
     }
 
-    // Firestore backend probe ping with server-side performance.now(). A non-200 response is not healthy.
-    const firestoreStart = performance.now();
-    let firestoreDurationMs = 0;
-    let firestoreSuccess = false;
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 2000);
-      const fsResp = await fetch(
-        'https://firestore.googleapis.com/v1/projects/modified-bit-mct7q/databases/ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990/documents',
-        { signal: controller.signal }
-      ).finally(() => clearTimeout(timer));
-      firestoreDurationMs = Number((performance.now() - firestoreStart).toFixed(2));
-      firestoreSuccess = fsResp.status === 200;
-    } catch {
-      firestoreDurationMs = Number((performance.now() - firestoreStart).toFixed(2));
-    }
+    // Firebase/Firestore has been retired. Do not make network calls to the old provider.
+    const firestoreDurationMs = 0;
+    const firestoreSuccess = false;
 
     const serverProcessTimeMs = Number((performance.now() - serverReceiveTime).toFixed(2));
 
@@ -104,8 +91,9 @@ export function registerPublicInfrastructureRoutes(app: Express, pool?: Pool) {
       firestoreBackend: {
         success: firestoreSuccess,
         probeDurationMs: firestoreDurationMs,
-        databaseId: 'ai-studio-prodxpos-069bc919-d8b1-4f51-9f13-c61a86822990',
-        region: 'asia-southeast1',
+        databaseId: 'retired',
+        region: 'retired',
+        disabled: true,
       },
     });
   });
