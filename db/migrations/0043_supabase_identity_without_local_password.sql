@@ -1,4 +1,4 @@
--- 0041: Supabase Auth is the password verifier for explicitly linked identities.
+-- 0043: Supabase Auth is the password verifier for explicitly linked identities.
 -- Resolve only the POS principal and active device scope; do not require or expose
 -- a synthetic local password credential for an external Supabase identity.
 CREATE OR REPLACE FUNCTION public.prodx_auth_find_user_by_supabase_user_id(
@@ -44,5 +44,5 @@ $privileges$;
 GRANT EXECUTE ON FUNCTION public.prodx_auth_find_user_by_supabase_user_id(uuid, uuid) TO prodx_app;
 
 INSERT INTO public.prodx_schema_migrations(version)
-VALUES ('0041_supabase_identity_without_local_password')
+VALUES ('0043_supabase_identity_without_local_password')
 ON CONFLICT (version) DO NOTHING;
