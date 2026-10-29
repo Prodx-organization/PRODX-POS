@@ -348,4 +348,3 @@ export function updateStaffPassword(userId: string, newPassword: string): void {
 }
 
 export function hasPermission(user: User, permission: Permission): boolean { return user.permissions.includes(permission); }
-
