@@ -52,6 +52,27 @@ try {
         await client.query('COMMIT');
         transactionStarted = false;
       }
+
+      // CREATE INDEX CONCURRENTLY can leave an INVALID index behind after interruption.
+      // IF NOT EXISTS would silently accept that name on retry, so remove only an
+      // invalid public index matching this migration's explicit CREATE INDEX name.
+      const concurrentIndex = /^\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\s+IF\s+NOT\s+EXISTS\s+([a-zA-Z_][a-zA-Z0-9_$]*)/im.exec(sql);
+      if (concurrentIndex) {
+        const indexName = concurrentIndex[1];
+        const invalid = await client.query(
+          `SELECT 1
+             FROM pg_class idx
+             JOIN pg_namespace ns ON ns.oid = idx.relnamespace
+             JOIN pg_index i ON i.indexrelid = idx.oid
+            WHERE ns.nspname = 'public' AND idx.relname = $1 AND NOT i.indisvalid
+            LIMIT 1`,
+          [indexName],
+        );
+        if (invalid.rowCount === 1) {
+          await client.query(`DROP INDEX CONCURRENTLY IF EXISTS public."${indexName}"`);
+        }
+      }
+
       await client.query(sql);
       await client.query('BEGIN');
       transactionStarted = true;
