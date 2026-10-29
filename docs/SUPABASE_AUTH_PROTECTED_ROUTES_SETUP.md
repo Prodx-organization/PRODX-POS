@@ -12,15 +12,15 @@
 
 Set the following environment variables in the deployment target (Vercel project) and in the local environment where relevant:
 
-- `VITE_SUPABASE_URL=https://wcyqyiewbzpmrekoljfw.supabase.co`
-- `VITE_SUPABASE_PUBLISHABLE_KEY=<the active sb_publishable_ key from Supabase>`
+- `VITE_SUPABASE_POS_AUTH_URL=https://wcyqyiewbzpmrekoljfw.supabase.co`
+- `VITE_SUPABASE_POS_AUTH_PUBLISHABLE_KEY=<the active sb_publishable_ key for the POS Auth project>`
 - `SUPABASE_POS_AUTH_URL=https://wcyqyiewbzpmrekoljfw.supabase.co`
 - `SUPABASE_POS_AUTH_JWKS_URL=https://wcyqyiewbzpmrekoljfw.supabase.co/auth/v1/.well-known/jwks.json`
 - `VITE_AUTH_API_BASE_URL=/` when `/auth/*` and `/organizations/*` are routed to the same-origin backend.
 
-The `VITE_` values are public and may be sent to the browser. Never use `service_role`, secret keys, database passwords, or other server credentials in frontend variables.
+The `VITE_` values are public and may be sent to the browser. These POS-specific variables must target the POS Auth issuer, not the separate Owner Console Auth project. Never use `service_role`, secret keys, database passwords, or other server credentials in frontend variables.
 
-The active publishable key can be copied from Supabase Dashboard → Project Settings → API Keys. Use only one active key; do not commit it to a repository.
+The active publishable key can be copied from the POS Auth project Supabase Dashboard → Project Settings → API Keys. Configure `SUPABASE_POS_AUTH_URL` and optionally `SUPABASE_POS_AUTH_JWKS_URL` on the server. The server verifier does not fall back to the legacy `SUPABASE_URL` or `SUPABASE_JWKS_URL`. Do not commit credentials to the repository.
 
 ## Configure Supabase Auth
 
