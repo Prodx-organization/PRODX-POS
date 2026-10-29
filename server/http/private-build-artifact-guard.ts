@@ -18,8 +18,9 @@ export const privateBuildArtifactGuard: RequestHandler = (request, response, nex
   const basename = segments.at(-1);
   const isDiagnosticsPath = segments.includes('diagnostics');
   const isBuildReport = basename === 'stats.html' || basename === 'metafile.json';
+  const isPrivateServerBundle = basename === 'server-bundle.js';
 
-  if (isDiagnosticsPath || isBuildReport) {
+  if (isDiagnosticsPath || isBuildReport || isPrivateServerBundle) {
     response.status(404).set('Cache-Control', 'no-store').end();
     return;
   }
