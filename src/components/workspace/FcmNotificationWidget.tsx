@@ -15,7 +15,7 @@ export const FcmNotificationWidget: React.FC = () => {
   const { language } = useLanguage();
   const isThai = language === 'th';
 
-  
+
   const [loading, setLoading] = useState(false);
   const [permissionState, setPermissionState] = useState<NotificationPermission>('default');
 
