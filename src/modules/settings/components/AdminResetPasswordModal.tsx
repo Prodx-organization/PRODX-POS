@@ -3,7 +3,7 @@
  *
  * Enforces mandatory re-authentication (current password or WebAuthn biometrics)
  * and verifies that the signed-in user is the System Owner ('kamkokaewthodsawat@gmail.com')
- * before updating the hardcoded admin credentials in Firestore and local auth storage.
+ * The legacy client-side reset path is disabled until a server-authoritative PostgreSQL endpoint is wired.
  */
 
 import React, { useState } from 'react';
@@ -305,8 +305,8 @@ export const AdminResetPasswordModal: React.FC<AdminResetPasswordModalProps> = (
               </h2>
               <p className="text-[11px] text-text/60 truncate">
                 {isThai
-                  ? 'ต้องยืนยันตัวตนซ้ำ (Re-Authentication) และอัปเดตลงฐานข้อมูล Firestore'
-                  : 'Requires re-authentication & updates admin credentials in Firestore DB'}
+                  ? 'ปิดใช้งานชั่วคราวจนกว่าจะมี API ฝั่งเซิร์ฟเวอร์ที่ตรวจสอบสิทธิ์และบันทึกแบบ atomic'
+                  : 'Disabled until server-side PostgreSQL verification and atomic audit persistence are wired'}
               </p>
             </div>
           </div>
@@ -342,8 +342,8 @@ export const AdminResetPasswordModal: React.FC<AdminResetPasswordModalProps> = (
                 <div className="text-[11px] text-text/65 truncate">
                   {isOwner
                     ? isThai
-                      ? 'ยืนยันสิทธิ์ System Owner แล้ว • พร้อมเชื่อมต่อฐานข้อมูล Firestore'
-                      : 'Verified System Owner • Authorized for Firestore DB credential update'
+                      ? 'บัญชีนี้ผ่านการแสดงผลเท่านั้น ไม่ใช่หลักฐานยืนยันสิทธิ์ฝั่งเซิร์ฟเวอร์'
+                      : 'Client identity display is not server-side authorization; reset remains disabled'
                     : isThai
                     ? 'บัญชีปัจจุบันไม่ใช่เจ้าของระบบ (สงวนสิทธิ์เฉพาะ kamkokaewthodsawat@gmail.com)'
                     : 'Current account is not the verified System Owner'}
