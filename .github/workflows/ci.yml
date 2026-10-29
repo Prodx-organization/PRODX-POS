@@ -56,7 +56,7 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
-        createdb --host=127.0.0.1 --username=prodx prodx_migration_runner_test
+        PGPASSWORD=prodx createdb --host=127.0.0.1 --username=prodx prodx_migration_runner_test
         DATABASE_URL=postgresql://prodx:prodx@127.0.0.1:5432/prodx_migration_runner_test bun run db:migrate
         psql postgresql://prodx:prodx@127.0.0.1:5432/prodx_migration_runner_test -v ON_ERROR_STOP=1 -Atc "
           SELECT CASE
