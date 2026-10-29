@@ -19,7 +19,6 @@ import {
   Sparkles,
   CheckCircle2,
   Database,
-  RotateCcw,
   RefreshCw,
   Cpu,
   FileKey2,
@@ -29,7 +28,6 @@ import {
 import {
   SYSTEM_OWNER_ADMIN_EMAIL,
   SYSTEM_OWNER_ADMIN_ID,
-  DEFAULT_SYSTEM_OWNER_PASSWORD,
   isVerifiedSystemOwner,
 } from '../../../domain/auth';
 import { useAuth } from '../../../context/AuthContext';
@@ -275,14 +273,6 @@ export const AdminSecuritySettingsTab: React.FC<AdminSecuritySettingsTabProps> =
     setShowConfirmPassword(true);
     setPreviewSalt(`salt-${Date.now().toString(36)}-owner`);
     navigator.clipboard?.writeText(shuffled).catch(() => {});
-  };
-
-  const handleRestoreDefaultOwnerPassword = () => {
-    setNewPassword(DEFAULT_SYSTEM_OWNER_PASSWORD);
-    setConfirmPassword(DEFAULT_SYSTEM_OWNER_PASSWORD);
-    setShowNewPassword(true);
-    setShowConfirmPassword(true);
-    setPreviewSalt(`salt-${Date.now().toString(36)}-owner`);
   };
 
   const handleSubmitChangeAdminPassword = async (e: React.FormEvent) => {
@@ -661,15 +651,6 @@ export const AdminSecuritySettingsTab: React.FC<AdminSecuritySettingsTabProps> =
                 <span>{isThai ? 'สุ่มรหัสผ่านปลอดภัยสูง' : 'Generate Strong Password'}</span>
               </button>
 
-              <button
-                type="button"
-                onClick={handleRestoreDefaultOwnerPassword}
-                disabled={!isOwner}
-                className="min-h-[36px] px-3 rounded-lg border border-border bg-card text-text/75 hover:text-text text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>{isThai ? 'ใช้ค่าเริ่มต้นเจ้าของระบบ' : 'Restore Default Owner Credential'}</span>
-              </button>
             </div>
           </div>
 

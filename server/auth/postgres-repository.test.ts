@@ -2,21 +2,21 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createPostgresAuthenticationRepository, type SqlExecutor } from './postgres-repository';
 
-test('Supabase identity lookup uses a dedicated database function and passes subject plus device scope', async () => {
+test('Supabase principal lookup uses the password-independent explicit UUID RPC', async () => {
   const calls: Array<{ sql: string; parameters: readonly unknown[] }> = [];
   const db: SqlExecutor = {
     async query<T extends Record<string, unknown>>(sql: string, parameters = []): Promise<readonly T[]> {
       calls.push({ sql, parameters });
-      return [{ userId: 'user-1', organizationId: 'org-1', username: 'cashier', status: 'active',
-        credential_type: 'password', secret_hash: 'hash', failed_attempts: 0, locked_until: null } as unknown as T];
+      return [{ userId: 'user-1', organizationId: 'org-1', username: 'cashier', status: 'active' } as unknown as T];
     },
   };
-  const result = await createPostgresAuthenticationRepository(db).findCredentialBySupabaseUserId(
-    '00000000-0000-4000-8000-000000000099', 'device-1',
+  const result = await createPostgresAuthenticationRepository(db).findUserBySupabaseUserId(
+    '00000000-0000-4000-8000-000000000099', '00000000-0000-4000-8000-000000000100',
   );
-  assert.equal(result?.userId, 'user-1');
-  assert.deepEqual(calls[0].parameters, ['00000000-0000-4000-8000-000000000099', 'device-1']);
-  assert.match(calls[0].sql, /prodx_auth_find_credential_by_supabase_user_id/);
+  assert.deepEqual(result, { userId: 'user-1', organizationId: 'org-1', username: 'cashier', status: 'active' });
+  assert.deepEqual(calls[0].parameters, ['00000000-0000-4000-8000-000000000099', '00000000-0000-4000-8000-000000000100']);
+  assert.match(calls[0].sql, /prodx_auth_find_user_by_supabase_user_id/);
+  assert.doesNotMatch(calls[0].sql, /prodx_user_credentials|secret_hash/);
 });
 
 test('credential lookup maps authoritative user and credential state', async () => {

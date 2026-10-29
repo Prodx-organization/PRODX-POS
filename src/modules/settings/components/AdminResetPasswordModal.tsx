@@ -19,11 +19,9 @@ import {
   Sparkles,
   CheckCircle2,
   Database,
-  RotateCcw,
 } from 'lucide-react';
 import {
   SYSTEM_OWNER_ADMIN_EMAIL,
-  DEFAULT_SYSTEM_OWNER_PASSWORD,
   isVerifiedSystemOwner,
   getPersistedAdminCredentialOverride,
 } from '../../../domain/auth';
@@ -208,13 +206,6 @@ export const AdminResetPasswordModal: React.FC<AdminResetPasswordModalProps> = (
     setShowNewPassword(true);
     setShowConfirmPassword(true);
     navigator.clipboard?.writeText(shuffled).catch(() => {});
-  };
-
-  const handleRestoreDefaultOwnerPassword = () => {
-    setNewPassword(DEFAULT_SYSTEM_OWNER_PASSWORD);
-    setConfirmPassword(DEFAULT_SYSTEM_OWNER_PASSWORD);
-    setShowNewPassword(true);
-    setShowConfirmPassword(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -442,14 +433,6 @@ export const AdminResetPasswordModal: React.FC<AdminResetPasswordModalProps> = (
               </span>
 
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleRestoreDefaultOwnerPassword}
-                  className="min-h-[32px] px-2.5 rounded-lg border border-border bg-card hover:border-primary text-[11px] font-bold text-text/80 flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap"
-                >
-                  <RotateCcw className="w-3 h-3 text-primary shrink-0" />
-                  <span>{isThai ? 'ค่าเริ่มต้น (Default)' : 'Restore Default'}</span>
-                </button>
                 <button
                   type="button"
                   onClick={handleGenerateStrongPassword}

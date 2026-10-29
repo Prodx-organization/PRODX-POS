@@ -6,8 +6,14 @@
 import { IAuthApi } from './types';
 import { authApi as mockAuthApi } from './mockAdapter';
 import { createProductionAuthApi } from './productionAuthApi';
+import { createSupabaseAuthApi } from './supabaseAuthApi';
 
 const productionAuthApi: IAuthApi = createProductionAuthApi();
+const supabaseAuthApi: IAuthApi = createSupabaseAuthApi();
+const authProvider = import.meta.env.VITE_AUTH_PROVIDER?.trim().toLowerCase();
 
-export const authApi: IAuthApi = import.meta.env.DEV ? mockAuthApi : productionAuthApi;
+// Supabase Auth is opt-in until first-tenant bootstrap and identity binding are fully verified.
+export const authApi: IAuthApi = authProvider === 'supabase'
+  ? supabaseAuthApi
+  : import.meta.env.DEV ? mockAuthApi : productionAuthApi;
 

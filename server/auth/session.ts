@@ -9,6 +9,9 @@ export type CredentialRecord = {
   status: 'active' | 'disabled'; credentialType: 'password'; secretHash: string;
   failedAttempts: number; lockedUntil: Date | null;
 };
+export type SupabasePrincipalRecord = {
+  userId: string; organizationId: string; username: string; status: 'active' | 'disabled';
+};
 export type SessionRecord = {
   id: string; organizationId: string; userId: string; deviceId: string;
   tokenHash: string; expiresAt: Date; revokedAt: Date | null; userStatus: 'active' | 'disabled';
@@ -16,7 +19,7 @@ export type SessionRecord = {
 export type DeviceRecord = { id: string; organizationId: string; storeId: string; status: 'active' | 'disabled'; };
 export type AuthenticationRepository = {
   findCredentialByUsername: (username: string, deviceId: string) => Promise<CredentialRecord | null>;
-  findCredentialBySupabaseUserId: (supabaseUserId: string, deviceId: string) => Promise<CredentialRecord | null>;
+  findUserBySupabaseUserId: (supabaseUserId: string, deviceId: string) => Promise<SupabasePrincipalRecord | null>;
   recordFailedAttempt: (userId: string, organizationId: string) => Promise<void>;
   resetFailedAttempts: (userId: string, organizationId: string) => Promise<void>;
   createSession: (input: { id: string; organizationId: string; userId: string; deviceId: string; tokenHash: string; expiresAt: Date }) => Promise<void>;
@@ -148,8 +151,8 @@ export const createSessionIssuer = (
     if (!verified) return null;
     const device = await repository.findDevice(deviceId);
     if (!device || device.status !== 'active') return null;
-    const credential = await repository.findCredentialBySupabaseUserId(verified.userId, device.id);
-    if (!credential || credential.status !== 'active') return null;
+    const principal = await repository.findUserBySupabaseUserId(verified.userId, device.id);
+    if (!principal || principal.status !== 'active' || principal.organizationId !== device.organizationId) return null;
     const nowValue = now();
     if (verified.expiresAt <= nowValue) return null;
     const localToken = newBearerToken();
@@ -158,8 +161,8 @@ export const createSessionIssuer = (
     const expiresAt = verified.expiresAt < maxExpiry ? verified.expiresAt : maxExpiry;
     await repository.createSession({
       id: sessionId,
-      organizationId: credential.organizationId,
-      userId: credential.userId,
+      organizationId: principal.organizationId,
+      userId: principal.userId,
       deviceId: device.id,
       tokenHash: hashSessionToken(localToken),
       expiresAt,

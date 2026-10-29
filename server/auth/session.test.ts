@@ -20,8 +20,10 @@ const repositoryFixture = () => {
     findCredentialByUsername: async (username, deviceId) =>
       username === currentCredential.username && deviceId === device.id
         ? currentCredential : null,
-    findCredentialBySupabaseUserId: async (supabaseUserId, deviceId) =>
-      supabaseUserId === linkedSupabaseUserId && deviceId === device.id ? currentCredential : null,
+    findUserBySupabaseUserId: async (supabaseUserId, deviceId) =>
+      supabaseUserId === linkedSupabaseUserId && deviceId === device.id
+        ? { userId: currentCredential.userId, organizationId: currentCredential.organizationId, username: currentCredential.username, status: currentCredential.status }
+        : null,
     recordFailedAttempt: async (_userId, _organizationId) => {
       calls.failed += 1;
       const next = currentCredential.failedAttempts + 1;
@@ -179,8 +181,9 @@ test('rejects client-controlled WebAuthn marker without issuing a session', asyn
 
 
 
-test('Supabase subject creates a POS session only through an explicit subject mapping', async () => {
+test('Supabase subject creates a POS session through explicit UUID mapping without a local password credential', async () => {
   const { repository, getSession } = repositoryFixture();
+  repository.findCredentialByUsername = async () => null;
   const identityExpiry = new Date(clock.getTime() + 2 * 60 * 60 * 1000);
   const issuer = createSessionIssuer(
     repository,
