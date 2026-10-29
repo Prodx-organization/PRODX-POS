@@ -4,11 +4,11 @@ export type MigrationQuery = (
 ) => Promise<{ rowCount: number | null }>;
 
 export function isNonTransactionalMigration(sql: string): boolean {
-  return /^\\s*--\\s*prodx:non-transactional\\s*$/m.test(sql);
+  return /^\s*--\s*prodx:non-transactional\s*$/m.test(sql);
 }
 
 export function getConcurrentIndexName(sql: string): string | null {
-  const match = /^\\s*CREATE\\s+(?:UNIQUE\\s+)?INDEX\\s+CONCURRENTLY\\s+IF\\s+NOT\\s+EXISTS\\s+([a-zA-Z_][a-zA-Z0-9_$]*)/im.exec(sql);
+  const match = /^\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\s+IF\s+NOT\s+EXISTS\s+([a-zA-Z_][a-zA-Z0-9_$]*)/im.exec(sql);
   return match?.[1] ?? null;
 }
 
