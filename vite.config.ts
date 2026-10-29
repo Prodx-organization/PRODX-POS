@@ -8,13 +8,15 @@ import compression from 'vite-plugin-compression';
 import { visualizer } from 'rollup-plugin-visualizer';
 
 export default defineConfig(() => {
+  const diagnosticsDir = path.resolve(process.cwd(), 'build/diagnostics');
+  fs.mkdirSync(diagnosticsDir, { recursive: true });
   return {
     plugins: [
       react(), 
       tailwindcss(),
       splitVendorChunkPlugin(),
       visualizer({
-        filename: 'dist/stats.html',
+        filename: 'build/diagnostics/stats.html',
         open: false,
         gzipSize: true,
         brotliSize: true,
@@ -94,7 +96,7 @@ export default defineConfig(() => {
 
           metafile.summary.totalSizeKb = Math.round(totalBytes / 1024 * 100) / 100;
 
-          const outDir = options.dir || 'dist';
+          const outDir = path.resolve(process.cwd(), 'build/diagnostics');
           if (!fs.existsSync(outDir)) {
             fs.mkdirSync(outDir, { recursive: true });
           }
@@ -103,7 +105,7 @@ export default defineConfig(() => {
             JSON.stringify(metafile, null, 2),
             'utf-8'
           );
-          console.log(`[PRODX Metafile Reporter] Generated detailed build metafile report at ${outDir}/metafile.json`);
+          console.log(`[PRODX Metafile Reporter] Generated private build metafile report at ${outDir}/metafile.json`);
         },
       },
       {
