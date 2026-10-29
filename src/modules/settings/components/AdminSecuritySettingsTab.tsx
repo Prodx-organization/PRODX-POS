@@ -446,7 +446,7 @@ export const AdminSecuritySettingsTab: React.FC<AdminSecuritySettingsTabProps> =
               {dbStatus?.hashAlgorithm || 'Server-managed; client hashing disabled'}
             </div>
             <div className="text-[11px] font-mono text-text/50 truncate">
-              Salt: {dbStatus?.passwordSalt || 'prodx-system-owner-v1'}
+              Salt: {dbStatus?.passwordSalt || (dbStatus?.source === 'unconfigured' ? (isThai ? 'ยังไม่ได้ตั้งค่า' : 'Not configured') : '—')}
             </div>
           </div>
 
@@ -459,7 +459,7 @@ export const AdminSecuritySettingsTab: React.FC<AdminSecuritySettingsTabProps> =
               <span className="text-xs font-mono font-bold text-text truncate">
                 {dbStatus?.passwordHash
                   ? `${dbStatus.passwordHash.slice(0, 18)}...${dbStatus.passwordHash.slice(-6)}`
-                  : 'Computing...'}
+                  : dbStatus?.source === 'unconfigured' ? (isThai ? 'ยังไม่ได้ตั้งค่า' : 'Not configured') : 'Unavailable'}
               </span>
               {dbStatus?.passwordHash && (
                 <button
@@ -494,7 +494,9 @@ export const AdminSecuritySettingsTab: React.FC<AdminSecuritySettingsTabProps> =
                 ? `${isThai ? 'อัปเดตล่าสุด:' : 'Updated:'} ${new Date(dbStatus.updatedAt).toLocaleTimeString()}`
                 : isThai
                   ? 'พร้อมซิงค์ข้อมูล'
-                  : 'Ready for sync'}
+                  : dbStatus?.source === 'unconfigured'
+                    ? isThai ? 'ยังไม่ได้ตั้งค่า' : 'Not configured'
+                    : isThai ? 'พร้อมซิงค์ข้อมูล' : 'Ready for sync'}
             </div>
           </div>
         </div>
