@@ -5,6 +5,7 @@
 CREATE OR REPLACE FUNCTION prodx_validate_order_financial_invariants()
 RETURNS trigger
 LANGUAGE plpgsql
+SET search_path = public, pg_catalog
 AS $$
 DECLARE
   v_order_id UUID;
