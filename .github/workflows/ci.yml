@@ -64,6 +64,7 @@ jobs:
         ls -la dist/
         test -s dist/index.html
         test ! -e dist/index.js
+        test ! -e dist/server-bundle.js
         test -s build/index.js
         echo "Frontend output verified; server bundle is outside public dist."
         test ! -e dist/stats.html

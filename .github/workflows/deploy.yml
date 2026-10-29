@@ -71,6 +71,7 @@ jobs:
           set -euo pipefail
           test -s dist/index.html
           test ! -e dist/index.js
+          test ! -e dist/server-bundle.js
           test -s build/index.js
           test ! -e dist/metafile.json
           test ! -e dist/stats.html
