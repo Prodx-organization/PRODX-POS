@@ -65,3 +65,8 @@ jobs:
         test -f dist/index.html
         test -f dist/index.js
         echo "Build artifacts verified successfully!"
+        test ! -e dist/stats.html
+        test ! -e dist/metafile.json
+        test -f build/diagnostics/stats.html
+        test -f build/diagnostics/metafile.json
+        echo "Private diagnostics are kept outside the public dist output."
