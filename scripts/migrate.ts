@@ -26,9 +26,10 @@ try {
       applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // Hold a session-level lock because non-transactional migrations must run outside BEGIN.
+  await client.query("SELECT pg_advisory_lock(hashtextextended('prodx-pos:migrations', 0))");
   await client.query('BEGIN');
   transactionStarted = true;
-  await client.query("SELECT pg_advisory_xact_lock(hashtextextended('prodx-pos:migrations', 0))");
 
   for (const file of migrationFiles) {
     const version = file.slice(0, -'.sql'.length);
@@ -43,7 +44,24 @@ try {
     if (!sql.trim()) throw new Error(`Migration ${version} is empty.`);
 
     console.log(`Applying migration ${version}`);
-    await client.query(sql);
+    const nonTransactional = /^\\s*--\\s*prodx:non-transactional\\s*$/m.test(sql);
+    if (nonTransactional) {
+      // Commit earlier transactional migrations before executing statements such as
+      // CREATE INDEX CONCURRENTLY, which PostgreSQL rejects inside a transaction.
+      if (transactionStarted) {
+        await client.query('COMMIT');
+        transactionStarted = false;
+      }
+      await client.query(sql);
+      await client.query('BEGIN');
+      transactionStarted = true;
+      await client.query(
+        'INSERT INTO prodx_schema_migrations(version) VALUES ($1) ON CONFLICT (version) DO NOTHING',
+        [version],
+      );
+    } else {
+      await client.query(sql);
+    }
 
     const recorded = await client.query(
       'SELECT 1 FROM prodx_schema_migrations WHERE version = $1 LIMIT 1',
@@ -112,6 +130,10 @@ try {
   if (transactionStarted) await client.query('ROLLBACK');
   throw error;
 } finally {
-  client.release();
-  await pool.end();
+  try {
+    await client.query("SELECT pg_advisory_unlock(hashtextextended('prodx-pos:migrations', 0))");
+  } finally {
+    client.release();
+    await pool.end();
+  }
 }
