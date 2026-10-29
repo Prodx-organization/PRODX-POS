@@ -70,12 +70,19 @@ jobs:
         run: |
           set -euo pipefail
           test -s dist/index.html
-          test -s dist/index.js
+          test ! -e dist/index.js
+          test -s build/index.js
           test ! -e dist/metafile.json
           test ! -e dist/stats.html
+          test ! -e dist/metafile.json.gz
+          test ! -e dist/metafile.json.br
+          test ! -e dist/stats.html.gz
+          test ! -e dist/stats.html.br
+          test ! -e dist/index.js.gz
+          test ! -e dist/index.js.br
           test -s build/diagnostics/metafile.json
           test -s build/diagnostics/stats.html
-          echo "Public build artifacts verified; diagnostics are outside dist."
+          echo "Public output verified; server bundle and diagnostics are outside dist."
 
       - name: Upload private bundle analysis
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
