@@ -65,19 +65,24 @@ jobs:
       - name: Validate theme
         run: bun run theme:validate
 
-      - name: Verify build artifacts
+      - name: Verify build artifacts and keep diagnostics private
+        shell: bash
         run: |
+          set -euo pipefail
           test -s dist/index.html
           test -s dist/index.js
-          test -s dist/metafile.json
-          test -s dist/stats.html
+          test ! -e dist/metafile.json
+          test ! -e dist/stats.html
+          test -s build/diagnostics/metafile.json
+          test -s build/diagnostics/stats.html
+          echo "Public build artifacts verified; diagnostics are outside dist."
 
-      - name: Upload bundle analysis
+      - name: Upload private bundle analysis
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: prodx-build-analysis
           path: |
-            dist/stats.html
-            dist/metafile.json
+            build/diagnostics/stats.html
+            build/diagnostics/metafile.json
           if-no-files-found: error
           retention-days: 14
