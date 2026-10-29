@@ -45,7 +45,7 @@ try {
     if (!sql.trim()) throw new Error(`Migration ${version} is empty.`);
 
     console.log(`Applying migration ${version}`);
-    const nonTransactional = /^\s*--\s*prodx:non-transactional\s*$/m.test(sql);
+    const nonTransactional = isNonTransactionalMigration(sql);
     if (nonTransactional) {
       // Commit earlier transactional migrations before executing statements such as
       // CREATE INDEX CONCURRENTLY, which PostgreSQL rejects inside a transaction.
