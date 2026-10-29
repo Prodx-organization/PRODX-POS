@@ -69,5 +69,8 @@
     "autoprefixer": "^10.4.21",
     "madge": "^8.0.0",
     "typescript": "~5.8.2"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.13.6"
   }
 }
