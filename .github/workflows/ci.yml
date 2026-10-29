@@ -65,7 +65,10 @@ jobs:
         test -s dist/index.html
         test ! -e dist/index.js
         test ! -e dist/server-bundle.js
-        test -s build/index.js
+        test -s .private-build/server/index.js
+        test ! -e build/index.js
+        test ! -e build/server-bundle.js
+        test ! -e build/diagnostics
         echo "Frontend output verified; server bundle is outside public dist."
         test ! -e dist/stats.html
         test ! -e dist/metafile.json
@@ -75,6 +78,6 @@ jobs:
         test ! -e dist/metafile.json.br
         test ! -e dist/index.js.gz
         test ! -e dist/index.js.br
-        test -s build/diagnostics/stats.html
-        test -s build/diagnostics/metafile.json
+        test -s .private-build/diagnostics/stats.html
+        test -s .private-build/diagnostics/metafile.json
         echo "Server bundle and diagnostics are kept outside public dist output."

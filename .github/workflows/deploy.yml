@@ -72,7 +72,10 @@ jobs:
           test -s dist/index.html
           test ! -e dist/index.js
           test ! -e dist/server-bundle.js
-          test -s build/index.js
+          test -s .private-build/server/index.js
+          test ! -e build/index.js
+          test ! -e build/server-bundle.js
+          test ! -e build/diagnostics
           test ! -e dist/metafile.json
           test ! -e dist/stats.html
           test ! -e dist/metafile.json.gz
@@ -81,8 +84,8 @@ jobs:
           test ! -e dist/stats.html.br
           test ! -e dist/index.js.gz
           test ! -e dist/index.js.br
-          test -s build/diagnostics/metafile.json
-          test -s build/diagnostics/stats.html
+          test -s .private-build/diagnostics/metafile.json
+          test -s .private-build/diagnostics/stats.html
           echo "Public output verified; server bundle and diagnostics are outside dist."
 
       - name: Upload private bundle analysis
@@ -90,7 +93,7 @@ jobs:
         with:
           name: prodx-build-analysis
           path: |
-            build/diagnostics/stats.html
-            build/diagnostics/metafile.json
+            .private-build/diagnostics/stats.html
+            .private-build/diagnostics/metafile.json
           if-no-files-found: error
           retention-days: 14
