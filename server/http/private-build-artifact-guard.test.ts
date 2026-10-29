@@ -28,6 +28,7 @@ test('production build-directory fallback never serves private diagnostics', asy
   await writeFile(path.join(buildDir, 'diagnostics', 'metafile.json'), '{"private":true}');
   await writeFile(path.join(buildDir, 'stats.html'), '<h1>private root stats</h1>');
   await writeFile(path.join(buildDir, 'metafile.json'), '{"privateRoot":true}');
+  await writeFile(path.join(buildDir, 'server-bundle.js'), '/* private server bundle */');
 
   const app = express();
   // Mirrors server.ts production ordering when dist/ is absent and build/ is served.
@@ -41,6 +42,7 @@ test('production build-directory fallback never serves private diagnostics', asy
       '/diagnostics/metafile.json',
       '/stats.html',
       '/metafile.json',
+      '/server-bundle.js',
       '/%64iagnostics/stats.html',
     ]) {
       const response = await fetch(`${server.baseUrl}${pathname}`);
