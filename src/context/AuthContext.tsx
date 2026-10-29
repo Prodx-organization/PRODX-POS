@@ -20,7 +20,6 @@ import {
   getStoredOperationalScope,
   saveStoredOperationalScope,
   ROLE_PERMISSIONS,
-  initializeDefaultAdminCredentials,
 } from '../domain/auth';
 import {
   CustomPermissionSet,
@@ -172,10 +171,6 @@ function applyOperationalScopeToSession(
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  useEffect(() => {
-    initializeDefaultAdminCredentials();
-  }, []);
-
   const [session, setSession] = useState<SessionContext | null>(null);
   const [operationalScope, setOperationalScopeState] = useState<OperationalScope | null>(() =>
     getStoredOperationalScope(),
@@ -433,23 +428,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Ensure default admin PIN
-  useEffect(() => {
-    if (!IS_DEVELOPMENT) return;
-    const adminUsers = staffUsers.filter((u) => u.role === 'admin');
-    let needsUpdate = false;
-    const nextPins = { ...staffPins };
-    for (const admin of adminUsers) {
-      if (!nextPins[admin.id]) {
-        nextPins[admin.id] = '999999';
-        needsUpdate = true;
-      }
-    }
-    if (needsUpdate) {
-      setStaffPins(nextPins);
-      saveStoredStaffPins(nextPins);
-    }
-  }, [staffUsers]);
 
   useEffect(() => {
     async function restoreSession() {

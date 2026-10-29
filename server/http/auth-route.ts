@@ -135,7 +135,8 @@ const readLoginBody = (value: unknown): LoginBody | null => {
   return result as LoginBody;
 };
 
-const toRole = (value: string): Role => (value === 'admin' || value === 'manager' ? value : 'cashier');
+// Tenant-scoped Owner accounts intentionally use the existing admin permission contract.
+const toRole = (value: string): Role => (value === 'owner' || value === 'admin' || value === 'manager' ? (value === 'owner' ? 'admin' : value) : 'cashier');
 
 const mapStore = (row: { id: string; organization_id: string; code: string; name: string; business_timezone: string }) => ({
   id: row.id,
@@ -175,7 +176,7 @@ const loadSessionContext = async (
        LEFT JOIN prodx_user_roles ur ON ur.organization_id = o.id AND ur.store_id = s.id AND ur.user_id = u.id AND ur.active = TRUE
        LEFT JOIN prodx_roles r ON r.organization_id = o.id AND r.id = ur.role_id AND r.active = TRUE
       WHERE ses.id = $1 AND ses.organization_id = $2 AND d.store_id = $3 AND ses.user_id = $4
-      ORDER BY CASE r.role_key WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END
+      ORDER BY CASE r.role_key WHEN 'owner' THEN 0 WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END
       LIMIT 1`,
     [principal.sessionId, principal.organizationId, principal.storeId, principal.userId],
   );

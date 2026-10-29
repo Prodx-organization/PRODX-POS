@@ -95,14 +95,38 @@ test('M2 PostgreSQL authentication enforces credential, tenant, session, token-h
   });
 
   const identityRepository = createPostgresAuthenticationRepository(asSqlExecutor(pool));
-  const linkedIdentity = await identityRepository.findCredentialBySupabaseUserId(ids.supabaseUserA, ids.deviceA);
+  const linkedIdentity = await identityRepository.findUserBySupabaseUserId(ids.supabaseUserA, ids.deviceA);
   assert.equal(linkedIdentity?.userId, ids.userA);
-  assert.equal(await identityRepository.findCredentialBySupabaseUserId(ids.supabaseUserB, ids.deviceA), null,
+
+  // Supabase verifies the password; the POS identity mapping must not depend on
+  // a synthetic local password credential being present.
+  const savedCredential = await pool.query<{ secret_hash: string }>(
+    'SELECT secret_hash FROM prodx_user_credentials WHERE user_id = $1', [ids.userA],
+  );
+  assert.equal(savedCredential.rows.length, 1);
+  await pool.query('DELETE FROM prodx_user_credentials WHERE user_id = $1', [ids.userA]);
+  try {
+    assert.deepEqual(await identityRepository.findUserBySupabaseUserId(ids.supabaseUserA, ids.deviceA), {
+      userId: ids.userA,
+      organizationId: ids.organizationA,
+      username: 'm2-user-a',
+      status: 'active',
+    });
+  } finally {
+    await pool.query(
+      `INSERT INTO prodx_user_credentials (user_id, credential_type, secret_hash)
+       VALUES ($1, 'password', $2)
+       ON CONFLICT (user_id) DO UPDATE SET credential_type = EXCLUDED.credential_type, secret_hash = EXCLUDED.secret_hash`,
+      [ids.userA, savedCredential.rows[0].secret_hash],
+    );
+  }
+
+  assert.equal(await identityRepository.findUserBySupabaseUserId(ids.supabaseUserB, ids.deviceA), null,
     'a valid identity linked to another organization must not resolve on this device');
-  assert.equal(await identityRepository.findCredentialBySupabaseUserId(ids.supabaseUserA, ids.deviceB), null,
+  assert.equal(await identityRepository.findUserBySupabaseUserId(ids.supabaseUserA, ids.deviceB), null,
     'a linked identity must not cross into another organization through a different device');
   await pool.query('UPDATE prodx_users SET supabase_auth_user_id = NULL WHERE id = $1', [ids.userA]);
-  assert.equal(await identityRepository.findCredentialBySupabaseUserId(ids.supabaseUserA, ids.deviceA), null,
+  assert.equal(await identityRepository.findUserBySupabaseUserId(ids.supabaseUserA, ids.deviceA), null,
     'an unlinked Supabase subject must fail closed');
   await pool.query('UPDATE prodx_users SET supabase_auth_user_id = $2 WHERE id = $1', [ids.userA, ids.supabaseUserA]);
 
