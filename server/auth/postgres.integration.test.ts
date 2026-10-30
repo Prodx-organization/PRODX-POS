@@ -154,6 +154,11 @@ test('M2 PostgreSQL authentication enforces credential, tenant, session, token-h
     deviceId: ids.deviceA,
   });
   assert.ok(renewalSession);
+  const initialShortExpiry = new Date(Date.now() + 15 * 60 * 1000);
+  await pool.query('UPDATE prodx_sessions SET expires_at = $1 WHERE id = $2', [
+    initialShortExpiry,
+    renewalSession.sessionId,
+  ]);
   const earlierRenewalExpiry = new Date(Date.now() + 30 * 60 * 1000);
   const laterRenewalExpiry = new Date(Date.now() + 60 * 60 * 1000);
   const concurrentRenewals = await Promise.all([
