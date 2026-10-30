@@ -9,7 +9,7 @@ export const getSupabasePosAuthClient = () => {
   const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
   if (!url || !publishableKey) {
     throw new Error(
-      'Supabase Auth is not configured. Set VITE_SUPABASE_POS_AUTH_URL and VITE_SUPABASE_POS_AUTH_PUBLISHABLE_KEY.',
+      'Supabase Auth is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY for PRODX-ORG.',
     );
   }
   supabaseClient = createClient(url, publishableKey, {
