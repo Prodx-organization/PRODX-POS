@@ -882,6 +882,10 @@ export class MockAuthApi implements IAuthApi {
     console.info(`${LOG_PREFIX} User logged out`);
   }
 
+  async renewSession(): Promise<SessionContext | null> {
+    return null;
+  }
+
   async verifySession(token: string): Promise<SessionContext | null> {
     await delay(30);
     if (!token) return null;
