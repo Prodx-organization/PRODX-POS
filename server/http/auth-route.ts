@@ -263,7 +263,9 @@ export const registerAuthRoutes = (app: Express, db: SqlExecutor, sessions: Sess
   app.post('/auth/supabase/renew', asyncRoute(async (request, response) => {
     const posToken = bearerToken(request);
     const supabaseHeader = request.header('x-supabase-authorization')?.trim() ?? '';
-    const supabaseToken = /^Bearer\s+(.+)$/i.exec(supabaseHeader)?.[1]?.trim() ?? '';
+    const bearerPrefix = 'Bearer ';
+    const hasBearerPrefix = supabaseHeader.slice(0, bearerPrefix.length).toLowerCase() === bearerPrefix.toLowerCase();
+    const supabaseToken = hasBearerPrefix ? supabaseHeader.slice(bearerPrefix.length).trim() : '';
     if (!posToken || !supabaseToken) {
       sendUnauthenticated(request, response, 'Both POS and Supabase bearer tokens are required.');
       return;
