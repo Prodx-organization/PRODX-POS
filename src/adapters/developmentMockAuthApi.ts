@@ -16,7 +16,6 @@ import {
   getStoredStaffPasswords,
   DEFAULT_STAFF_DIRECTORY,
 } from '../domain/auth';
-import { authApi as allMockApis } from './mockAdapter';
 
 const stores: Store[] = [
   {
