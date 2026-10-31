@@ -45,7 +45,7 @@ const stores: Store[] = [
 export class DevelopmentMockAuthApi implements IAuthApi {
   async login(req: LoginRequest): Promise<SessionContext> {
     const normalized = req.emailOrPin.trim().toLowerCase();
-    const directory = getStoredStaffDirectory(DEFAULT_STAFF_DIRECTORY);
+    const directory = typeof window !== 'undefined' ? getStoredStaffDirectory() : DEFAULT_STAFF_DIRECTORY;
     const staff = directory.find((entry) =>
       entry.email.toLowerCase() === normalized || entry.employeeCode.toLowerCase() === normalized
     );
@@ -61,15 +61,21 @@ export class DevelopmentMockAuthApi implements IAuthApi {
     const passwords = getStoredStaffPasswords();
     const pins = getStoredStaffPins();
     const supplied = req.passwordOrPin ?? '';
-    if (passwords[user.id] !== supplied && pins[user.id] !== supplied && supplied !== '1234') {
+    if (passwords[user.id] !== supplied && pins[user.id] !== supplied) {
       throw new Error('Invalid credentials.');
     }
     if (req.requireAdminRole && user.role !== 'admin') throw new Error('Administrator access required.');
     const store = stores.find((candidate) => candidate.code === req.storeCode);
     if (!store) throw new Error('Invalid store scope.');
     const authenticatedUser: User = { ...user, permissions: getStoredRolePermissions(user.role, user.permissions) };
+    const token = `dev-session-${user.id}-${Date.now()}`;
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('prodx.dev.auth.context', JSON.stringify({ organizationSlug: req.organizationSlug, storeCode: req.storeCode, registerId: req.registerId, organizationContext: req.organizationContext }));
+      } catch { /* Development storage is best-effort only. */ }
+    }
     return {
-      token: `dev-session-${user.id}-${Date.now()}`,
+      token,
       user: authenticatedUser,
       organization: { id: 'org-prodx-retail', name: 'PRODX Retail Group', slug: 'prodx', stores },
       currentStore: store,
@@ -80,8 +86,34 @@ export class DevelopmentMockAuthApi implements IAuthApi {
 
   async logout(_token: string): Promise<void> {}
 
-  async verifySession(_token: string): Promise<SessionContext | null> {
-    return null;
+  async verifySession(token: string): Promise<SessionContext | null> {
+    if (!token.startsWith('dev-session-')) return null;
+    const parts = token.split('-');
+    const userId = parts.slice(2, -1).join('-');
+    const directory = typeof window !== 'undefined' ? getStoredStaffDirectory() : DEFAULT_STAFF_DIRECTORY;
+    const user = directory.find((entry) => entry.id === userId);
+    if (!user) return null;
+    const rolePermissions = typeof window !== 'undefined' ? getStoredRolePermissions() : ROLE_PERMISSIONS;
+    let context: { storeCode?: string; registerId?: string; organizationContext?: SessionContext['operationalScope'] } = {};
+    if (typeof window !== 'undefined') {
+      try {
+        context = JSON.parse(window.localStorage.getItem('prodx.dev.auth.context') ?? '{}');
+      } catch { /* Use safe development defaults below. */ }
+    }
+    const currentStore = stores.find((store) => store.code === context.storeCode) ?? stores[0];
+    const currentUser: User = {
+      ...user,
+      permissions: rolePermissions[user.role] ?? user.permissions ?? ROLE_PERMISSIONS[user.role],
+    };
+    return {
+      organization: { id: 'org-prodx-retail', name: 'PRODX Retail Group', slug: 'prodx', stores },
+      currentStore,
+      registerId: context.registerId ?? 'REG-01',
+      currentUser,
+      token,
+      expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+      operationalScope: context.organizationContext,
+    };
   }
 
   async getStores(orgSlug: string, _token: string): Promise<readonly Store[]> {
