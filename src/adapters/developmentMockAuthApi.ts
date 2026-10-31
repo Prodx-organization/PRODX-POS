@@ -58,7 +58,9 @@ const readStoredSession = (): StoredDevSession | null => {
       typeof value.organizationSlug !== 'string' ||
       typeof value.storeCode !== 'string' ||
       typeof value.registerId !== 'string' ||
-      typeof value.expiresAt !== 'string'
+      typeof value.expiresAt !== 'string' ||
+      typeof value.organizationId !== 'string' ||
+      typeof value.organizationName !== 'string'
     ) return null;
     return value as StoredDevSession;
   } catch {
@@ -130,6 +132,7 @@ export class DevelopmentMockAuthApi implements IAuthApi {
     const registerId = scope?.terminalCode || req.registerId;
     if (!storeCode?.trim() || !registerId?.trim()) throw new Error('Invalid store or register scope.');
     const seedStore = stores.find((candidate) => candidate.code === storeCode);
+    if (!seedStore && !scope) throw new Error('A verified organization, branch, and terminal scope is required for a non-default development store.');
     const store: Store = seedStore
       ? { ...seedStore, organizationId: scope?.organizationId ?? seedStore.organizationId, code: storeCode, name: scope?.branchName ?? seedStore.name, address: scope?.branchAddress ?? seedStore.address }
       : {
@@ -143,8 +146,8 @@ export class DevelopmentMockAuthApi implements IAuthApi {
 
     const now = Date.now();
     const token = `dev-session-${user.id}-${now}`;
-    const organizationId = scope?.organizationId ?? 'org-prodx-retail';
-    const organizationName = scope?.organizationName ?? 'PRODX Retail Group';
+    const organizationId = scope?.organizationId ?? (organizationSlug === 'prodx' ? 'org-prodx-retail' : `dev-org-${organizationSlug}`);
+    const organizationName = scope?.organizationName ?? (organizationSlug === 'prodx' ? 'PRODX Retail Group' : organizationSlug.replace(/[-_]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()));
     const expiresAt = new Date(now + SESSION_TTL_MS).toISOString();
     const currentUser: User = {
       ...user,
