@@ -49,14 +49,7 @@ export class DevelopmentMockAuthApi implements IAuthApi {
     const staff = directory.find((entry) =>
       entry.email.toLowerCase() === normalized || entry.employeeCode.toLowerCase() === normalized
     );
-    const users: User[] = [
-      { id: 'usr-admin-kamkokaew', name: 'Kamkokaew Thodsawat', email: 'kamkokaewthodsawat@gmail.com', role: 'admin', employeeCode: 'EMP-001', permissions: ROLE_PERMISSIONS.admin },
-      { id: 'usr-manager-sarah', name: 'Sarah Connor', email: 'sarah.connor@prodx.io', role: 'manager', employeeCode: 'EMP-014', permissions: ROLE_PERMISSIONS.manager },
-      { id: 'usr-cashier-john', name: 'John Doe', email: 'john.doe@prodx.io', role: 'cashier', employeeCode: 'EMP-108', permissions: ROLE_PERMISSIONS.cashier },
-    ];
-    const user = users.find((candidate) =>
-      staff?.id === candidate.id || candidate.email.toLowerCase() === normalized || candidate.employeeCode.toLowerCase() === normalized
-    );
+    const user = staff;
     if (!user || req.organizationSlug !== 'prodx') throw new Error('Invalid credentials or organization.');
     const passwords = getStoredStaffPasswords();
     const pins = getStoredStaffPins();
