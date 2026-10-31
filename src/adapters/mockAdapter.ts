@@ -606,7 +606,7 @@ class MockPosState {
     this.inventoryLedger = [];
     this.orders = [];
     this.shifts = [];
-    this.auditLogs = [];
+    this.auditLogs.length = 0;
     this.idempotencyCache.clear();
     this.seedInitialShift();
     this.seedInitialOrders();
