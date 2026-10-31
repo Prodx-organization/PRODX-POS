@@ -4,7 +4,7 @@
  * rate limiting, device/store scope and short-lived POS sessions.
  */
 import { IAuthApi } from './types';
-import { authApi as mockAuthApi } from './mockAdapter';
+import { developmentMockAuthApi } from './developmentMockAuthApi';
 import { createProductionAuthApi } from './productionAuthApi';
 import { createSupabaseAuthApi } from './supabaseAuthApi';
 
@@ -20,7 +20,7 @@ if (!import.meta.env.DEV && authProvider !== 'supabase' && authProvider !== 'pro
 }
 
 export const authApi: IAuthApi = import.meta.env.DEV
-  ? mockAuthApi
+  ? developmentMockAuthApi
   : authProvider === 'supabase'
     ? supabaseAuthApi
     : productionAuthApi;
