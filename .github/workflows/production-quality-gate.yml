@@ -267,6 +267,11 @@ jobs:
           factory=src/adapters/authApiFactory.ts
           grep -Fq "import.meta.env.DEV" "$factory"
           grep -Fq "developmentMockAuthApi" "$factory"
+          grep -Fq "await import('./developmentMockAuthApi')" "$factory"
+          if grep -n -E "^import .*developmentMockAuthApi" "$factory"; then
+            echo "Development mock auth must be lazy-loaded, not statically bundled into production auth wiring."
+            exit 1
+          fi
           grep -Fq "authProvider !== 'supabase' && authProvider !== 'production'" "$factory"
           grep -Fq "throw new Error('Authentication provider must be explicitly configured" "$factory"
           if grep -n -E "mockAdapter|mockAuthApi" "$factory"; then
