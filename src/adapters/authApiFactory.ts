@@ -13,7 +13,14 @@ const supabaseAuthApi: IAuthApi = createSupabaseAuthApi();
 const authProvider = import.meta.env.VITE_AUTH_PROVIDER?.trim().toLowerCase();
 
 // Supabase Auth is opt-in until first-tenant bootstrap and identity binding are fully verified.
-export const authApi: IAuthApi = authProvider === 'supabase'
-  ? supabaseAuthApi
-  : import.meta.env.DEV ? mockAuthApi : productionAuthApi;
+// Only explicit local development may use mock authentication. Production and preview
+// builds must use a real server-authoritative provider or fail closed.
+if (!import.meta.env.DEV && authProvider !== 'supabase' && authProvider !== 'production') {
+  throw new Error('Authentication provider must be explicitly configured for non-development builds.');
+}
 
+export const authApi: IAuthApi = import.meta.env.DEV
+  ? mockAuthApi
+  : authProvider === 'supabase'
+    ? supabaseAuthApi
+    : productionAuthApi;
