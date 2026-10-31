@@ -1,8 +1,8 @@
 /**
- * Development-only mock authentication implementation.
+ * PRODX POS - Development-only mock authentication.
  *
- * This module intentionally contains only the auth surface. Other mock
- * business adapters remain in mockAdapter.ts and are not imported here.
+ * This module contains only the authentication test adapter. It must never be
+ * imported by production application modules or production bundles.
  */
 import type { IAuthApi, LoginRequest } from './types';
 import {
@@ -16,33 +16,7 @@ import {
   getStoredStaffPasswords,
   DEFAULT_STAFF_DIRECTORY,
 } from '../domain/auth';
-
-const users: User[] = [
-  {
-    id: 'usr-admin-kamkokaew',
-    name: 'Kamkokaew Thodsawat',
-    email: 'kamkokaewthodsawat@gmail.com',
-    role: 'admin',
-    employeeCode: 'EMP-001',
-    permissions: ROLE_PERMISSIONS.admin,
-  },
-  {
-    id: 'usr-manager-sarah',
-    name: 'Sarah Connor',
-    email: 'sarah.connor@prodx.io',
-    role: 'manager',
-    employeeCode: 'EMP-014',
-    permissions: ROLE_PERMISSIONS.manager,
-  },
-  {
-    id: 'usr-cashier-john',
-    name: 'John Doe',
-    email: 'john.doe@prodx.io',
-    role: 'cashier',
-    employeeCode: 'EMP-108',
-    permissions: ROLE_PERMISSIONS.cashier,
-  },
-];
+import { authApi as allMockApis } from './mockAdapter';
 
 const stores: Store[] = [
   {
@@ -69,35 +43,32 @@ const stores: Store[] = [
   },
 ];
 
-const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
 export class DevelopmentMockAuthApi implements IAuthApi {
   async login(req: LoginRequest): Promise<SessionContext> {
-    await delay(80);
-    if (req.organizationSlug !== 'prodx' || !['STR-01', 'STR-02'].includes(req.storeCode)) {
-      throw new Error('Invalid organization or store scope.');
-    }
-    const directory = getStoredStaffDirectory(DEFAULT_STAFF_DIRECTORY);
     const normalized = req.emailOrPin.trim().toLowerCase();
+    const directory = getStoredStaffDirectory(DEFAULT_STAFF_DIRECTORY);
     const staff = directory.find((entry) =>
       entry.email.toLowerCase() === normalized || entry.employeeCode.toLowerCase() === normalized
     );
+    const users: User[] = [
+      { id: 'usr-admin-kamkokaew', name: 'Kamkokaew Thodsawat', email: 'kamkokaewthodsawat@gmail.com', role: 'admin', employeeCode: 'EMP-001', permissions: ROLE_PERMISSIONS.admin },
+      { id: 'usr-manager-sarah', name: 'Sarah Connor', email: 'sarah.connor@prodx.io', role: 'manager', employeeCode: 'EMP-014', permissions: ROLE_PERMISSIONS.manager },
+      { id: 'usr-cashier-john', name: 'John Doe', email: 'john.doe@prodx.io', role: 'cashier', employeeCode: 'EMP-108', permissions: ROLE_PERMISSIONS.cashier },
+    ];
     const user = users.find((candidate) =>
-      (staff?.id === candidate.id || candidate.email.toLowerCase() === normalized
-        || candidate.employeeCode.toLowerCase() === normalized)
+      staff?.id === candidate.id || candidate.email.toLowerCase() === normalized || candidate.employeeCode.toLowerCase() === normalized
     );
-    if (!user) throw new Error('Invalid credentials.');
+    if (!user || req.organizationSlug !== 'prodx') throw new Error('Invalid credentials or organization.');
     const passwords = getStoredStaffPasswords();
     const pins = getStoredStaffPins();
     const supplied = req.passwordOrPin ?? '';
-    const validPassword = passwords[user.id] === supplied;
-    const validPin = pins[user.id] === supplied;
-    if (!validPassword && !validPin && supplied !== '1234') throw new Error('Invalid credentials.');
+    if (passwords[user.id] !== supplied && pins[user.id] !== supplied && supplied !== '1234') {
+      throw new Error('Invalid credentials.');
+    }
     if (req.requireAdminRole && user.role !== 'admin') throw new Error('Administrator access required.');
-    const permissions = getStoredRolePermissions(user.role, user.permissions);
     const store = stores.find((candidate) => candidate.code === req.storeCode);
-    if (!store) throw new Error('Store not found.');
-    const authenticatedUser: User = { ...user, permissions };
+    if (!store) throw new Error('Invalid store scope.');
+    const authenticatedUser: User = { ...user, permissions: getStoredRolePermissions(user.role, user.permissions) };
     return {
       token: `dev-session-${user.id}-${Date.now()}`,
       user: authenticatedUser,
@@ -110,14 +81,12 @@ export class DevelopmentMockAuthApi implements IAuthApi {
 
   async logout(_token: string): Promise<void> {}
 
-  async verifySession(token: string): Promise<SessionContext | null> {
-    if (!token.startsWith('dev-session-')) return null;
+  async verifySession(_token: string): Promise<SessionContext | null> {
     return null;
   }
 
   async getStores(orgSlug: string, _token: string): Promise<readonly Store[]> {
-    if (orgSlug !== 'prodx') return [];
-    return stores;
+    return orgSlug === 'prodx' ? stores : [];
   }
 
   async forgotPin(_organizationSlug: string, _storeCode: string, _emailOrPin: string, _registerId: string): Promise<void> {
