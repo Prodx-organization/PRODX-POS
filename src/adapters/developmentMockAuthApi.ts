@@ -60,7 +60,7 @@ export class DevelopmentMockAuthApi implements IAuthApi {
     if (req.requireAdminRole && user.role !== 'admin') throw new Error('Administrator access required.');
     const store = stores.find((candidate) => candidate.code === req.storeCode);
     if (!store) throw new Error('Invalid store scope.');
-    const authenticatedUser: User = { ...user, permissions: getStoredRolePermissions(user.role, user.permissions) };
+    const authenticatedUser: User = { ...user, permissions: getStoredRolePermissions()[user.role] ?? user.permissions };
     const token = `dev-session-${user.id}-${Date.now()}`;
     if (typeof window !== 'undefined') {
       try {
