@@ -5,6 +5,7 @@
  * It is not a server-authoritative identity provider.
  */
 import type { IAuthApi, LoginRequest } from './types';
+import { recordDevelopmentLoginAudit } from './developmentMockAuditSink';
 import type { User, SessionContext, Store } from '../domain/auth';
 import {
   ROLE_PERMISSIONS,
@@ -42,6 +43,8 @@ type StoredDevSession = {
   registerId: string;
   expiresAt: string;
   organizationContext?: SessionContext['operationalScope'];
+  organizationId: string;
+  organizationName: string;
 };
 
 const readStoredSession = (): StoredDevSession | null => {
@@ -84,7 +87,9 @@ export class DevelopmentMockAuthApi implements IAuthApi {
   async login(req: LoginRequest): Promise<SessionContext> {
     const identity = (req.emailOrPin ?? '').trim();
     const secret = (req.passwordOrPin ?? '').trim();
-    if (!identity || req.organizationSlug !== 'prodx') {
+    const scope = req.organizationContext;
+    const organizationSlug = scope?.organizationSlug ?? req.organizationSlug;
+    if (!identity || !organizationSlug || organizationSlug !== req.organizationSlug || (scope && (!scope.organizationId || !scope.branchId || !scope.terminalId))) {
       throw new Error('Invalid credentials or organization.');
     }
 
@@ -112,19 +117,34 @@ export class DevelopmentMockAuthApi implements IAuthApi {
 
     if (!user || user.isActive === false) throw new Error('Invalid credentials.');
     const identityIsPin = pinMatches.length === 1 && pinMatches[0].id === user.id && identityMatches.length === 0;
-    const validSecret = identityIsPin
+    const isVerifiedWebAuthn = req.biometricVerified === true && secret.startsWith('WEBAUTHN_VERIFIED:');
+    const validSecret = isVerifiedWebAuthn || (identityIsPin
       ? (!secret || secret === pins[user.id])
-      : Boolean(secret) && (secret === passwords[user.id] || secret === pins[user.id]);
+      : Boolean(secret) && (secret === passwords[user.id] || secret === pins[user.id]));
     if (!validSecret) throw new Error('Invalid credentials.');
     if (req.requireAdminRole && user.role !== 'admin') {
       throw new Error('Administrator access required.');
     }
 
-    const store = stores.find((candidate) => candidate.code === req.storeCode);
-    if (!store || !req.registerId?.trim()) throw new Error('Invalid store or register scope.');
+    const storeCode = scope?.branchCode || req.storeCode;
+    const registerId = scope?.terminalCode || req.registerId;
+    if (!storeCode?.trim() || !registerId?.trim()) throw new Error('Invalid store or register scope.');
+    const seedStore = stores.find((candidate) => candidate.code === storeCode);
+    const store: Store = seedStore
+      ? { ...seedStore, organizationId: scope?.organizationId ?? seedStore.organizationId, code: storeCode, name: scope?.branchName ?? seedStore.name, address: scope?.branchAddress ?? seedStore.address }
+      : {
+          id: scope?.branchId ?? `dev-store-${storeCode}`,
+          organizationId: scope?.organizationId ?? `dev-org-${organizationSlug}`,
+          code: storeCode,
+          name: scope?.branchName ?? storeCode,
+          address: scope?.branchAddress ?? '',
+          currency: 'THB', timezone: 'Asia/Bangkok', defaultTaxRateBps: 700,
+        };
 
     const now = Date.now();
     const token = `dev-session-${user.id}-${now}`;
+    const organizationId = scope?.organizationId ?? 'org-prodx-retail';
+    const organizationName = scope?.organizationName ?? 'PRODX Retail Group';
     const expiresAt = new Date(now + SESSION_TTL_MS).toISOString();
     const currentUser: User = {
       ...user,
@@ -134,9 +154,11 @@ export class DevelopmentMockAuthApi implements IAuthApi {
 
     const stored: StoredDevSession = {
       token,
-      organizationSlug: req.organizationSlug,
-      storeCode: req.storeCode,
-      registerId: req.registerId,
+      organizationSlug,
+      organizationId,
+      organizationName,
+      storeCode,
+      registerId,
       expiresAt,
       organizationContext,
     };
@@ -149,14 +171,16 @@ export class DevelopmentMockAuthApi implements IAuthApi {
     }
 
     return {
-      organization: { id: 'org-prodx-retail', name: 'PRODX Retail Group', slug: 'prodx', stores },
+      organization: { id: organizationId, name: organizationName, slug: organizationSlug, stores: [store] },
       currentStore: store,
-      registerId: req.registerId,
+      registerId,
       currentUser,
       token,
       expiresAt,
       operationalScope: organizationContext,
     };
+    recordDevelopmentLoginAudit({ storeId: store.id, registerId, userId: currentUser.id, userName: currentUser.name, role: currentUser.role, employeeCode: currentUser.employeeCode, organizationSlug, storeCode });
+    return session;
   }
 
   async logout(token: string): Promise<void> {
@@ -167,7 +191,7 @@ export class DevelopmentMockAuthApi implements IAuthApi {
   async verifySession(token: string): Promise<SessionContext | null> {
     if (!token || !token.startsWith('dev-session-')) return null;
     const stored = readStoredSession();
-    if (!stored || stored.token !== token || stored.organizationSlug !== 'prodx') return null;
+    if (!stored || stored.token !== token) return null;
 
     const expiry = Date.parse(stored.expiresAt);
     const tokenIssuedAt = Number(token.slice(token.lastIndexOf('-') + 1));
@@ -184,7 +208,14 @@ export class DevelopmentMockAuthApi implements IAuthApi {
 
     const userId = token.slice('dev-session-'.length, token.lastIndexOf('-'));
     const user = getDirectory().find((entry) => entry.id === userId);
-    const currentStore = stores.find((store) => store.code === stored.storeCode);
+    const seedStore = stores.find((store) => store.code === stored.storeCode);
+    const currentStore: Store | undefined = seedStore
+      ? { ...seedStore, organizationId: stored.organizationId, code: stored.storeCode, name: stored.organizationContext?.branchName ?? seedStore.name, address: stored.organizationContext?.branchAddress ?? seedStore.address }
+      : stored.organizationContext ? {
+          id: stored.organizationContext.branchId, organizationId: stored.organizationId,
+          code: stored.storeCode, name: stored.organizationContext.branchName,
+          address: stored.organizationContext.branchAddress, currency: 'THB', timezone: 'Asia/Bangkok', defaultTaxRateBps: 700,
+        } : undefined;
     if (!user || user.isActive === false || !currentStore || !stored.registerId.trim()) {
       clearStoredSession(token);
       return null;
@@ -195,7 +226,7 @@ export class DevelopmentMockAuthApi implements IAuthApi {
       permissions: getPermissions()[user.role] ?? user.permissions ?? ROLE_PERMISSIONS[user.role],
     };
     return {
-      organization: { id: 'org-prodx-retail', name: 'PRODX Retail Group', slug: 'prodx', stores },
+      organization: { id: stored.organizationId, name: stored.organizationName, slug: stored.organizationSlug, stores: [currentStore] },
       currentStore,
       registerId: stored.registerId,
       currentUser,
@@ -207,7 +238,7 @@ export class DevelopmentMockAuthApi implements IAuthApi {
 
   async getStores(orgSlug: string, token: string): Promise<readonly Store[]> {
     const session = await this.verifySession(token);
-    return session && orgSlug === session.organization.slug ? stores : [];
+    return session && orgSlug === session.organization.slug ? session.organization.stores : [];
   }
 
   async forgotPin(): Promise<void> {
