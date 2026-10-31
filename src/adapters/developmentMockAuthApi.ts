@@ -170,7 +170,7 @@ export class DevelopmentMockAuthApi implements IAuthApi {
       }
     }
 
-    return {
+    const session: SessionContext = {
       organization: { id: organizationId, name: organizationName, slug: organizationSlug, stores: [store] },
       currentStore: store,
       registerId,
@@ -179,7 +179,16 @@ export class DevelopmentMockAuthApi implements IAuthApi {
       expiresAt,
       operationalScope: organizationContext,
     };
-    recordDevelopmentLoginAudit({ storeId: store.id, registerId, userId: currentUser.id, userName: currentUser.name, role: currentUser.role, employeeCode: currentUser.employeeCode, organizationSlug, storeCode });
+    recordDevelopmentLoginAudit({
+      storeId: store.id,
+      registerId,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      role: currentUser.role,
+      employeeCode: currentUser.employeeCode,
+      organizationSlug,
+      storeCode,
+    });
     return session;
   }
 
